@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "candidate": "candidate.json",
+  "inspection": "receipts/mobile.json",
+  "expected_identity": "0000000000000000000000000000000000000000000000000000000000000000",
+  "expected_source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "operation": "crashlytics-dart",
+  "tool": {
+    "prefix": [
+      "firebase"
+    ],
+    "version": "REPLACE_WITH_EXACT_PINNED_VERSION_OUTPUT"
+  },
+  "artifact": "artifacts/app.aab",
+  "symbols": [
+    "symbols/app.android-arm64.symbols"
+  ],
+  "dart_libraries": {
+    "symbols/app.android-arm64.symbols": "base/lib/arm64-v8a/libapp.so"
+  },
+  "firebase": {
+    "app_id": "1:123456789:android:abcdef012345",
+    "app_config": "android/app/google-services.json",
+    "credentials_env": "FIREBASE_ADC_FILE"
+  }
+}

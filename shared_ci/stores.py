@@ -1,0 +1,510 @@
+"""Candidate-bound Google Play and App Store Connect operations; never rebuild/upload an IPA."""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+from .evidence import IDENTITY_FIELDS, verify_checks
+from .common import (PipelineError, atomic_json, cli_error, confined_path, fingerprint,
+                     load_json, run, sha256_file, strict_keys, trusted_context)
+
+HEX = re.compile(r"^[0-9a-f]{64}$")
+SHA = re.compile(r"^[0-9a-f]{40}$")
+NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$")
+ENV = re.compile(r"^[A-Z][A-Z0-9_]*$")
+
+
+def identifier(value, label="identifier"):
+    if not isinstance(value, str) or not NAME.fullmatch(value):
+        raise PipelineError(f"Invalid {label}")
+    return value
+
+
+def bounded(value, low, high, label):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= value <= high:
+        raise PipelineError(f"Invalid {label}")
+    return value
+
+
+def env_secret(name):
+    if not isinstance(name, str) or not ENV.fullmatch(name) or not os.environ.get(name):
+        raise PipelineError("Required named credential is missing")
+    value = os.environ[name]
+    if any(c in value for c in "\r\n\x00"):
+        raise PipelineError("Invalid credential encoding")
+    return value
+
+
+def verify_files(root, records):
+    if not isinstance(records, dict) or not records:
+        raise PipelineError("Nonempty file evidence is required")
+    for relative, record in records.items():
+        strict_keys(record, {"sha256", "bytes"}, {"sha256", "bytes"})
+        path = confined_path(root, relative)
+        if not path.is_file() or (Path(root) / relative).is_symlink() or not HEX.fullmatch(str(record["sha256"])):
+            raise PipelineError("Artifact evidence must describe regular files")
+        if not isinstance(record["bytes"], int) or isinstance(record["bytes"], bool) or record["bytes"] <= 0 or path.stat().st_size != record["bytes"] or sha256_file(path) != record["sha256"]:
+            raise PipelineError("Retained artifact changed, empty, or missing")
+
+
+def load_candidate(config, root, kinds):
+    """Verify retained bytes; caller must authenticate downloaded artifact origin separately."""
+    candidate = load_json(confined_path(root, config["candidate"]))
+    if candidate.get("schema") != 1 or candidate.get("status") != "passed":
+        raise PipelineError("Candidate has not passed")
+    fields = IDENTITY_FIELDS
+    if any(key not in candidate for key in fields):
+        raise PipelineError("Candidate evidence is incomplete")
+    if (not HEX.fullmatch(str(config["expected_identity"])) or candidate.get("identity") != config["expected_identity"]
+            or fingerprint({key: candidate[key] for key in fields}) != candidate["identity"]
+            or not SHA.fullmatch(str(config["expected_source_sha"]))
+            or candidate.get("source_sha") != config["expected_source_sha"]):
+        raise PipelineError("Candidate does not match trusted caller selection")
+    verify_files(root, candidate["inputs"])
+    verify_files(root, candidate["artifacts"])
+    if not isinstance(candidate["checks"], dict) or not candidate["checks"]:
+        raise PipelineError("Candidate checks are missing")
+    verify_checks(candidate, root)
+    if config["inspection"] not in candidate["checks"]:
+        raise PipelineError("Inspection is not bound to candidate checks")
+    inspected = load_json(confined_path(root, config["inspection"]))
+    if inspected.get("source_sha") != candidate["source_sha"] or inspected.get("kind") not in kinds:
+        raise PipelineError("Inspection source or platform differs from candidate")
+    application = inspected.get("application", {})
+    if (not isinstance(application, dict) or not application.get("id")
+            or str(application.get("version")) != candidate["version"]
+            or str(application.get("build")) != candidate["build"]):
+        raise PipelineError("Inspected application identity differs from candidate")
+    records = inspected.get("artifacts")
+    verify_files(root, records)
+    if any(candidate["artifacts"].get(path) != record for path, record in records.items()):
+        raise PipelineError("Inspected files are not retained candidate artifacts")
+    return candidate, inspected
+
+
+class APIError(PipelineError):
+    def __init__(self, status, reason="request_rejected"):
+        self.status, self.reason = status, reason
+        super().__init__(f"Store API rejected request (HTTP {status}, {reason})")
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+class API:
+    def __init__(self, provider, token, timeout=60):
+        self.base = {"play": "https://androidpublisher.googleapis.com", "apple": "https://api.appstoreconnect.apple.com"}[provider]
+        self.token, self.timeout = token, timeout
+        self.opener = urllib.request.build_opener(NoRedirect())
+
+    def __call__(self, method, path, body=None, upload=None):
+        if not path.startswith(("/v1/", "/androidpublisher/v3/", "/upload/androidpublisher/v3/")) or "\n" in path:
+            raise PipelineError("Invalid store API path")
+        data = json.dumps(body, separators=(",", ":")).encode() if body is not None else None
+        headers = {"Authorization": "Bearer " + self.token, "Accept": "application/json"}
+        stream = None
+        if upload is not None:
+            stream = Path(upload).open("rb")
+            data = stream
+            headers.update({"Content-Type": "application/octet-stream", "Content-Length": str(Path(upload).stat().st_size)})
+        elif body is not None:
+            headers["Content-Type"] = "application/json"
+        request = urllib.request.Request(self.base + path, data=data, headers=headers, method=method)
+        try:
+            with self.opener.open(request, timeout=self.timeout) as response:
+                raw = response.read(8 * 1024 * 1024 + 1)
+            if len(raw) > 8 * 1024 * 1024:
+                raise PipelineError("Store API response exceeds size limit")
+            value = json.loads(raw) if raw else {}
+            if not isinstance(value, dict):
+                raise PipelineError("Malformed store API response")
+            return value
+        except urllib.error.HTTPError as exc:
+            # Never log provider bodies: they can contain account information or echoed credentials.
+            raw = exc.read(65536).decode("utf-8", "replace")
+            reason = "review_must_be_deferred" if "Changes cannot be sent for review automatically" in raw else "request_rejected"
+            raise APIError(exc.code, reason) from None
+        except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+            raise PipelineError("Store API request failed; inspect saved operation state before retry") from None
+        finally:
+            if stream:
+                stream.close()
+
+
+def collection(api, path):
+    items = []
+    for _ in range(20):
+        response = api("GET", path)
+        data = response.get("data")
+        if not isinstance(data, list):
+            raise PipelineError("Malformed store collection")
+        items.extend(data)
+        nxt = response.get("links", {}).get("next")
+        if not nxt:
+            return items
+        parsed = urllib.parse.urlsplit(nxt)
+        if parsed.scheme != "https" or parsed.netloc != "api.appstoreconnect.apple.com" or not parsed.path.startswith("/v1/"):
+            raise PipelineError("Unsafe store pagination link")
+        path = parsed.path + ("?" + parsed.query if parsed.query else "")
+    raise PipelineError("Store pagination exceeded limit")
+
+
+def data(api, method, path, body=None):
+    response = api(method, path, body)
+    value = response.get("data")
+    if not isinstance(value, dict) or not isinstance(value.get("id"), str):
+        raise PipelineError("Malformed store resource")
+    return value
+
+
+def state_file(config, root):
+    path = confined_path(root, config["state_file"], must_exist=False)
+    candidate = load_json(confined_path(root, config["candidate"]))
+    reserved = {config["candidate"], config["inspection"]} | set(candidate.get("inputs", {})) | set(candidate.get("artifacts", {})) | set(candidate.get("checks", {}))
+    if config["state_file"] in reserved:
+        raise PipelineError("Store resume state cannot overwrite retained evidence")
+    identity = fingerprint(config)
+    state = load_json(path) if path.exists() else {"schema": 1, "request": identity, "phase": "new"}
+    if state.get("schema") != 1 or state.get("request") != identity:
+        raise PipelineError("Store resume state belongs to another request")
+    return path, state
+
+
+def save(path, state, phase, **values):
+    state.update(values, phase=phase)
+    atomic_json(path, state)
+
+
+def verify_aab(config, root, candidate, inspected):
+    path = confined_path(root, config["artifact"])
+    if path.suffix != ".aab" or config["artifact"] not in inspected["artifacts"]:
+        raise PipelineError("Play upload requires the inspected retained AAB")
+    digest = candidate["artifacts"][config["artifact"]]["sha256"]
+    signer = config.get("upload_signer_sha256", "").lower().replace(":", "")
+    if not HEX.fullmatch(signer) or signer != inspected.get("upload_signer_sha256"):
+        raise PipelineError("Expected upload certificate must match Android inspection")
+    # Android upload keys are normally self-signed. jarsigner strict bit 4 is PKIX/certificate
+    # trust, which is replaced here by an explicit SHA256 pin; unsigned entries (16) fail.
+    verified = run(["jarsigner", "-J-Duser.language=en", "-verify", "-strict", str(path)], cwd=root, check=False, timeout=180)
+    if verified.returncode not in (0, 4) or "jar verified" not in verified.stdout.lower():
+        raise PipelineError("AAB JAR signature verification failed")
+    cert = run(["keytool", "-J-Duser.language=en", "-printcert", "-jarfile", str(path)], cwd=root, timeout=180)
+    fingerprints = re.findall(r"SHA256:\s*([0-9A-Fa-f:]+)", cert.stdout)
+    if len(fingerprints) != 1 or fingerprints[0].replace(":", "").lower() != signer:
+        raise PipelineError("AAB upload signer is not the pinned certificate")
+    return path, digest
+
+
+def track_versions(track):
+    releases = track.get("releases", [])
+    if not isinstance(releases, list):
+        raise PipelineError("Malformed Play track")
+    return {str(code) for release in releases for code in release.get("versionCodes", [])}
+
+
+def play(config, root, candidate, inspected, api):
+    settings = config["play"]
+    allowed = {"package", "artifact", "upload_signer_sha256", "track", "source_track", "expected_track_digest",
+               "release_status", "release_name", "release_notes", "user_fraction", "review_policy", "allow_review_defer_fallback"}
+    strict_keys(settings, allowed, {"package", "track"})
+    package, track = identifier(settings["package"]), identifier(settings["track"])
+    if package != inspected["application"]["id"]:
+        raise PipelineError("Play package differs from inspected AAB")
+    version = str(inspected["application"]["build"])
+    if not version.isdigit() or int(version) <= 0:
+        raise PipelineError("Play versionCode must be positive")
+    path, state = state_file(config, root)
+    if state["phase"] == "done":
+        return state["receipt"]
+    if state["phase"] == "commit_started":
+        raise PipelineError("Play commit outcome is uncertain; reconcile in Console/API before a new operation")
+    base = f"/androidpublisher/v3/applications/{package}/edits"
+    if state["phase"] == "new":
+        edit = api("POST", base, {})
+        save(path, state, "edit_created", edit_id=identifier(edit.get("id"), "Play edit id"))
+    edit_base = base + "/" + identifier(state["edit_id"])
+    current = api("GET", edit_base + "/tracks/" + track)
+    current_digest = fingerprint(current)
+    if config["operation"] == "play-inspect":
+        receipt = {"schema": 1, "status": "passed", "operation": "play-inspect", "track_digest": current_digest,
+                   "versions": sorted(track_versions(current)), "candidate_identity": candidate["identity"]}
+        api("DELETE", edit_base)
+        save(path, state, "done", receipt=receipt)
+        return receipt
+    if not HEX.fullmatch(str(settings.get("expected_track_digest", ""))):
+        raise PipelineError("Expected target track digest is required (use play-inspect)")
+    if state["phase"] in ("edit_created", "upload_started", "uploaded") and current_digest != settings["expected_track_digest"]:
+        raise PipelineError("Play target track changed since approved selection")
+    bundles = api("GET", edit_base + "/bundles").get("bundles", [])
+    if not isinstance(bundles, list):
+        raise PipelineError("Malformed Play bundle inventory")
+    selected = [b for b in bundles if str(b.get("versionCode")) == version]
+    if len(selected) > 1:
+        raise PipelineError("Duplicate Play version identity")
+    if config["operation"] == "play-upload":
+        if "artifact" not in settings or "upload_signer_sha256" not in settings:
+            raise PipelineError("AAB and certificate pin are required")
+        artifact, digest = verify_aab(settings, root, candidate, inspected)
+        if selected and selected[0].get("sha256", "").lower() != digest:
+            raise PipelineError("Play versionCode already belongs to different bytes")
+        if not selected:
+            if state["phase"] == "uploaded":
+                raise PipelineError("Previously uploaded Play bundle disappeared")
+            if any(int(b.get("versionCode", 0)) >= int(version) for b in bundles):
+                raise PipelineError("Play versionCode must increase for a new upload")
+            save(path, state, "upload_started")
+            response = api("POST", "/upload" + edit_base + "/bundles?uploadType=media", upload=artifact)
+            if str(response.get("versionCode")) != version or response.get("sha256", "").lower() != digest:
+                raise PipelineError("Google returned a different uploaded bundle identity")
+            save(path, state, "uploaded")
+    elif config["operation"] == "play-promote":
+        source = identifier(settings.get("source_track"), "source track")
+        if source == track or version not in track_versions(api("GET", edit_base + "/tracks/" + source)) or not selected:
+            raise PipelineError("Promotion requires the existing selected version on another source track")
+        artifact = settings.get("artifact")
+        if not artifact or artifact not in inspected["artifacts"] or selected[0].get("sha256", "").lower() != candidate["artifacts"][artifact]["sha256"]:
+            raise PipelineError("Existing Play bundle does not match retained candidate")
+    status = settings.get("release_status")
+    if status not in ("draft", "completed", "inProgress", "halted"):
+        raise PipelineError("Invalid Play release status")
+    release = {"versionCodes": [version], "status": status}
+    if "release_name" in settings:
+        if not isinstance(settings["release_name"], str) or len(settings["release_name"]) > 50:
+            raise PipelineError("Invalid Play release name")
+        release["name"] = settings["release_name"]
+    if "release_notes" in settings:
+        notes = settings["release_notes"]
+        if not isinstance(notes, list) or len(notes) > 100:
+            raise PipelineError("Invalid Play release notes")
+        languages = set()
+        for note in notes:
+            strict_keys(note, {"language", "text"}, {"language", "text"})
+            identifier(note["language"], "release note language")
+            if note["language"] in languages or not isinstance(note["text"], str) or len(note["text"]) > 500:
+                raise PipelineError("Duplicate or oversized Play release notes")
+            languages.add(note["language"])
+        release["releaseNotes"] = notes
+    if status in ("inProgress", "halted"):
+        release["userFraction"] = bounded(settings.get("user_fraction"), 0.000001, 0.999999, "rollout fraction")
+    elif "user_fraction" in settings:
+        raise PipelineError("Only staged/paused rollouts accept a fraction")
+    desired = {"track": track, "releases": [release]}
+    if state["phase"] == "track_updated" and fingerprint(current) != fingerprint(state["updated_track"]):
+        raise PipelineError("Play edit track changed while resuming")
+    if state["phase"] != "track_updated":
+        response = api("PUT", edit_base + "/tracks/" + track, desired)
+        returned = response.get("releases", [])
+        if track_versions(response) != {version} or len(returned) != 1 or any(returned[0].get(k) != v for k, v in release.items()):
+            raise PipelineError("Play did not retain the selected release")
+        save(path, state, "track_updated", updated_track=response)
+    policy = settings.get("review_policy")
+    if policy not in ("submit", "defer"):
+        raise PipelineError("Explicit Play review_policy is required")
+    deferred = policy == "defer"
+    query = "?changesInReviewBehavior=ERROR_IF_IN_REVIEW" + ("&changesNotSentForReview=true" if deferred else "")
+    save(path, state, "commit_started")
+    try:
+        api("POST", edit_base + ":commit" + query)
+    except APIError as exc:
+        # A definitive HTTP rejection did not commit; retry only the documented review constraint.
+        save(path, state, "track_updated")
+        if exc.status != 400 or exc.reason != "review_must_be_deferred" or not settings.get("allow_review_defer_fallback") or deferred:
+            raise
+        deferred = True
+        save(path, state, "commit_started")
+        api("POST", edit_base + ":commit?changesInReviewBehavior=ERROR_IF_IN_REVIEW&changesNotSentForReview=true")
+    receipt = {"schema": 1, "status": "pending", "operation": config["operation"], "candidate_identity": candidate["identity"],
+               "package": package, "version_code": version, "track": track, "release_status": status,
+               "state": "draft" if status == "draft" else ("console_review_required" if deferred else "submitted"),
+               "availability_verified": False, "edit_id": state["edit_id"]}
+    save(path, state, "done", receipt=receipt)
+    return receipt
+
+
+def apple_build(settings, inspected, api, timeout, interval):
+    app, build = identifier(settings["app_id"]), identifier(settings["build_id"])
+    resource = "/v1/builds/" + build
+    deadline = time.monotonic() + timeout
+    while True:
+        item = data(api, "GET", resource)
+        attributes = item.get("attributes", {})
+        if str(attributes.get("version")) != str(inspected["application"]["build"]) or attributes.get("expired"):
+            raise PipelineError("Selected Apple build number differs or build expired")
+        app_item = data(api, "GET", resource + "/app")
+        pre = data(api, "GET", resource + "/preReleaseVersion").get("attributes", {})
+        if (app_item["id"] != app or app_item.get("attributes", {}).get("bundleId") != inspected["application"]["id"]
+                or pre.get("version") != inspected["application"]["version"] or pre.get("platform") != settings["platform"]):
+            raise PipelineError("Apple build app/version/platform differs from inspected candidate")
+        state = attributes.get("processingState")
+        if state == "VALID":
+            return build
+        if state in ("FAILED", "INVALID"):
+            raise PipelineError("Apple rejected build processing")
+        if state != "PROCESSING":
+            raise PipelineError("Unknown Apple processing state")
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(min(interval, max(0, deadline - time.monotonic())))
+
+
+def apple(config, root, candidate, inspected, api):
+    settings = config["apple"]
+    strict_keys(settings, {"app_id", "build_id", "platform", "group_ids", "submit_beta_review", "app_store_version_id", "expected_selected_build", "submission_id"},
+                {"app_id", "build_id", "platform"})
+    if settings["platform"] not in ("IOS", "MAC_OS", "TV_OS", "VISION_OS"):
+        raise PipelineError("Unsupported Apple platform")
+    if inspected.get("distribution_ready") is not True:
+        raise PipelineError("Apple distribution requires verified signed archive evidence")
+    path, state = state_file(config, root)
+    if state["phase"] == "done":
+        return state["receipt"]
+    if state["phase"] == "creating_submission":
+        raise PipelineError("Review submission creation outcome is uncertain; reconcile its ID before retry")
+    receipt = {"schema": 1, "status": "pending", "operation": config["operation"],
+               "candidate_identity": candidate["identity"], "app_id": settings["app_id"], "build_id": settings["build_id"]}
+    build = apple_build(settings, inspected, api, config.get("timeout", 900), config.get("poll_interval", 15))
+    if build is None:
+        return dict(receipt, state="processing_timeout")
+    if config["operation"] == "apple-build":
+        return dict(receipt, status="passed", state="processed", availability_verified=False)
+    if config["operation"] == "testflight":
+        groups = settings.get("group_ids")
+        if not isinstance(groups, list) or not groups or len(groups) != len(set(groups)):
+            raise PipelineError("TestFlight needs unique explicit groups")
+        for group in groups:
+            identifier(group)
+            item = data(api, "GET", "/v1/betaGroups/" + group + "/app")
+            if item["id"] != settings["app_id"]:
+                raise PipelineError("TestFlight group belongs to another app")
+            relation = "/v1/betaGroups/" + group + "/relationships/builds"
+            existing = collection(api, relation)
+            if not any(b.get("id") == build for b in existing):
+                api("POST", relation, {"data": [{"type": "builds", "id": build}]})
+        beta = data(api, "GET", "/v1/builds/" + build + "/buildBetaDetail").get("attributes", {})
+        if settings.get("submit_beta_review") and beta.get("externalBuildState") == "READY_FOR_BETA_SUBMISSION":
+            existing = collection(api, "/v1/betaAppReviewSubmissions?filter%5Bbuild%5D=" + build)
+            if len(existing) > 1:
+                raise PipelineError("Multiple beta review submissions require reconciliation")
+            if not existing:
+                api("POST", "/v1/betaAppReviewSubmissions", {"data": {"type": "betaAppReviewSubmissions", "relationships": {"build": {"data": {"type": "builds", "id": build}}}}})
+            beta = data(api, "GET", "/v1/builds/" + build + "/buildBetaDetail").get("attributes", {})
+        if beta.get("externalBuildState") == "BETA_REJECTED" or beta.get("internalBuildState") in ("EXPIRED", "PROCESSING_EXCEPTION"):
+            raise PipelineError("Apple beta testing rejected/expired")
+        # A group can be internal or external; check each actual group's eligibility state.
+        ready = True
+        for group in groups:
+            group_data = data(api, "GET", "/v1/betaGroups/" + group)
+            internal = group_data.get("attributes", {}).get("isInternalGroup")
+            if not isinstance(internal, bool):
+                raise PipelineError("TestFlight group type is missing")
+            beta_state = beta.get("internalBuildState" if internal else "externalBuildState")
+            ready = ready and beta_state in ("READY_FOR_BETA_TESTING", "IN_BETA_TESTING")
+        receipt.update(status="passed" if ready else "pending", state="testing_ready" if ready else "beta_processing_or_review", groups=groups, beta=beta)
+        if ready:
+            save(path, state, "done", receipt=receipt)
+        return receipt
+    version = identifier(settings.get("app_store_version_id"), "App Store version ID")
+    version_path = "/v1/appStoreVersions/" + version
+    version_data = data(api, "GET", version_path + "?include=app")
+    attr = version_data.get("attributes", {})
+    app_id = version_data.get("relationships", {}).get("app", {}).get("data", {}).get("id")
+    if app_id != settings["app_id"] or attr.get("versionString") != inspected["application"]["version"] or attr.get("platform") != settings["platform"]:
+        raise PipelineError("Selected App Store version does not match app/version/platform")
+    current = api("GET", version_path + "/relationships/build").get("data")
+    selected = current.get("id") if isinstance(current, dict) else None
+    expected = settings.get("expected_selected_build")
+    if selected not in (expected, build):
+        raise PipelineError("App Store version already selects another build")
+    if selected != build:
+        if config["operation"] == "apple-status":
+            raise PipelineError("App Store version does not select the candidate build")
+        api("PATCH", version_path + "/relationships/build", {"data": {"type": "builds", "id": build}})
+    if config["operation"] == "apple-select":
+        return dict(receipt, status="passed", state="build_selected", app_store_version_id=version, availability_verified=False)
+    if config["operation"] == "apple-status":
+        version_state = attr.get("appVersionState", attr.get("appStoreState"))
+        available = version_state in ("READY_FOR_DISTRIBUTION", "READY_FOR_SALE") and attr.get("downloadable") is True
+        if version_state in ("REJECTED", "INVALID_BINARY", "METADATA_REJECTED"):
+            raise PipelineError("App Store submission was rejected")
+        return dict(receipt, status="passed" if available else "pending", state=version_state, availability_verified=available)
+    submission = state.get("submission_id") or settings.get("submission_id")
+    if not submission:
+        existing = collection(api, "/v1/reviewSubmissions?filter%5Bapp%5D=" + settings["app_id"] + "&filter%5Bplatform%5D=" + settings["platform"])
+        active = [item for item in existing if item.get("attributes", {}).get("state") != "COMPLETE"]
+        if active:
+            raise PipelineError("Existing review submission requires its explicit ID; refusing duplicate")
+        save(path, state, "creating_submission")
+        item = data(api, "POST", "/v1/reviewSubmissions", {"data": {"type": "reviewSubmissions", "attributes": {"platform": settings["platform"]},
+                    "relationships": {"app": {"data": {"type": "apps", "id": settings["app_id"]}}}}})
+        submission = item["id"]
+        save(path, state, "submission_created", submission_id=submission)
+    identifier(submission)
+    subpath = "/v1/reviewSubmissions/" + submission
+    sub = data(api, "GET", subpath + "?include=app")
+    if sub.get("relationships", {}).get("app", {}).get("data", {}).get("id") != settings["app_id"]:
+        raise PipelineError("Review submission belongs to another app")
+    items = collection(api, subpath + "/items?include=appStoreVersion")
+    versions = [i.get("relationships", {}).get("appStoreVersion", {}).get("data", {}).get("id") for i in items]
+    if versions and versions != [version]:
+        raise PipelineError("Review submission contains unrelated or duplicate items")
+    sub_state = sub.get("attributes", {}).get("state")
+    if not versions:
+        if sub_state != "READY_FOR_REVIEW":
+            raise PipelineError("Review submission cannot accept the selected version")
+        data(api, "POST", "/v1/reviewSubmissionItems", {"data": {"type": "reviewSubmissionItems", "relationships": {
+            "reviewSubmission": {"data": {"type": "reviewSubmissions", "id": submission}},
+            "appStoreVersion": {"data": {"type": "appStoreVersions", "id": version}}}}})
+    if sub_state == "READY_FOR_REVIEW":
+        data(api, "PATCH", subpath, {"data": {"type": "reviewSubmissions", "id": submission, "attributes": {"submitted": True}}})
+    elif sub_state not in ("WAITING_FOR_REVIEW", "IN_REVIEW", "COMPLETING", "COMPLETE"):
+        raise PipelineError("Review submission requires manual resolution")
+    receipt.update(state="submitted_for_review", submission_id=submission, app_store_version_id=version, availability_verified=False)
+    save(path, state, "done", receipt=receipt)
+    return receipt
+
+
+def execute(config, root, *, api=None):
+    required = {"schema", "operation", "candidate", "inspection", "expected_identity", "expected_source_sha", "allowed_refs", "token_env", "state_file"}
+    strict_keys(config, required | {"play", "apple", "timeout", "poll_interval"}, required)
+    if config["schema"] != 1:
+        raise PipelineError("Unsupported stores schema")
+    play_ops = ("play-inspect", "play-upload", "play-promote")
+    apple_ops = ("apple-build", "testflight", "apple-select", "apple-submit", "apple-status")
+    operation = config["operation"]
+    if operation not in play_ops + apple_ops:
+        raise PipelineError("Unsupported store operation")
+    provider = "play" if operation in play_ops else "apple"
+    if provider not in config or ("apple" if provider == "play" else "play") in config:
+        raise PipelineError("Exactly one matching store configuration is required")
+    bounded(config.get("timeout", 900), 1, 3600, "store timeout")
+    bounded(config.get("poll_interval", 15), 0.01, 120, "poll interval")
+    trusted_context(config["allowed_refs"])
+    candidate, inspected = load_candidate(config, root, {"android"} if provider == "play" else {"apple"})
+    token = env_secret(config["token_env"])
+    transport = api or API(provider, token, min(120, config.get("timeout", 900)))
+    return (play if provider == "play" else apple)(config, Path(root), candidate, inspected, transport)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", required=True)
+    parser.add_argument("--root", default=".")
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args()
+    result = execute(load_json(args.config), args.root)
+    atomic_json(args.output, result)
+    if result["status"] == "pending":
+        raise SystemExit(2)
+
+
+if __name__ == "__main__":
+    cli_error(main)

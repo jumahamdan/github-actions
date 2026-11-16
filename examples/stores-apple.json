@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "candidate": "candidate.json",
+  "inspection": "receipts/mobile.json",
+  "expected_identity": "0000000000000000000000000000000000000000000000000000000000000000",
+  "expected_source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "operation": "testflight",
+  "token_env": "ASC_JWT",
+  "state_file": "state/testflight.json",
+  "timeout": 900,
+  "poll_interval": 15,
+  "apple": {
+    "app_id": "1000000001",
+    "build_id": "1000000002",
+    "platform": "IOS",
+    "group_ids": [
+      "11111111-2222-3333-4444-555555555555"
+    ],
+    "submit_beta_review": false
+  }
+}
