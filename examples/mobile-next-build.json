@@ -1,0 +1,7 @@
+{
+  "operation": "next-build",
+  "product": "example-ios",
+  "remote_highest": "private-evidence/remote-highest.json",
+  "ledger": "private-evidence/build-ledger.json",
+  "serialization_key": "example-ios-builds"
+}

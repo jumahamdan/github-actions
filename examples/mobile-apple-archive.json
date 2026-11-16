@@ -1,0 +1,42 @@
+{
+  "operation": "apple-verify",
+  "archive": "$CI_ARCHIVE_PATH",
+  "signing": "signed",
+  "allowed_refs": ["refs/heads/staging"],
+  "version": "1.2.0",
+  "build": "42",
+  "targets": [
+    {
+      "path": "Products/Applications/Example.app",
+      "bundle_id": "com.example.mobile",
+      "executable": "Example",
+      "plist": {},
+      "entitlements": {"application-identifier": "EXAMPLETEAM.com.example.mobile", "get-task-allow": false},
+      "dsym": "dSYMs/Example.app.dSYM"
+    },
+    {
+      "path": "Products/Applications/Example.app/PlugIns/ExampleWidget.appex",
+      "bundle_id": "com.example.mobile.widget",
+      "executable": "ExampleWidget",
+      "plist": {"NSExtension": {"NSExtensionPointIdentifier": "com.apple.widgetkit-extension"}},
+      "entitlements": {"application-identifier": "EXAMPLETEAM.com.example.mobile.widget", "get-task-allow": false},
+      "dsym": "dSYMs/ExampleWidget.appex.dSYM"
+    },
+    {
+      "path": "Products/Applications/Example.app/Watch/ExampleWatch.app",
+      "bundle_id": "com.example.mobile.watch",
+      "executable": "ExampleWatch",
+      "plist": {"WKApplication": true, "WKCompanionAppBundleIdentifier": "com.example.mobile", "WKRunsIndependentlyOfCompanionApp": true},
+      "entitlements": {"application-identifier": "EXAMPLETEAM.com.example.mobile.watch", "get-task-allow": false},
+      "dsym": "dSYMs/ExampleWatch.app.dSYM"
+    },
+    {
+      "path": "Products/Applications/Example.app/Watch/ExampleWatch.app/PlugIns/ExampleComplication.appex",
+      "bundle_id": "com.example.mobile.watch.complication",
+      "executable": "ExampleComplication",
+      "plist": {"NSExtension": {"NSExtensionPointIdentifier": "com.apple.widgetkit-extension"}},
+      "entitlements": {"application-identifier": "EXAMPLETEAM.com.example.mobile.watch.complication", "get-task-allow": false},
+      "dsym": "dSYMs/ExampleComplication.appex.dSYM"
+    }
+  ]
+}

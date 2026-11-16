@@ -1,0 +1,15 @@
+{
+  "operation": "android-derive",
+  "allowed_refs": ["refs/heads/staging"],
+  "aab": "build/app/outputs/bundle/release/app-release.aab",
+  "output_apk": "build/device-tests/candidate.apk",
+  "bundletool": {"jar": "tools/bundletool.jar", "version": "1.18.3", "sha256": "0000000000000000000000000000000000000000000000000000000000000000"},
+  "apksigner": {"command": "/opt/android-sdk/build-tools/35.0.0/apksigner", "version": "0.9"},
+  "signing": {
+    "keystore_env": "ANDROID_KEYSTORE_PATH",
+    "store_password_env": "ANDROID_KEYSTORE_PASSWORD",
+    "key_password_env": "ANDROID_KEY_PASSWORD",
+    "alias": "upload",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

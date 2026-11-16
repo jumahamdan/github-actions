@@ -1,0 +1,62 @@
+# Mobile candidates and device tests
+
+`python3 -m shared_ci.mobile --config ci/mobile.json --root . --output evidence/mobile.json`
+
+The module prepares pinned dependencies, checks an existing candidate, derives a device-test APK from an existing AAB, or runs an explicitly enabled device test. Success writes `schema: 1, status: passed`; exceptions stop the job. The CLI removes an old receipt before rerunning. It does not build Apple software on GitHub macOS runners, submit an app to a store, or promote a branch. Store processing, tester distribution, and symbol upload are separate operations.
+
+## Apple Cloud setup
+
+Use [run-hook.sh](../scripts/apple/run-hook.sh) as the reviewed loader in a product's `ci_scripts/ci_post_clone.sh` and archive-only `ci_post_xcodebuild.sh`. Vendor the loader itself and record its SHA256 during adoption; its bootstrap trust comes from the reviewed product commit. Set these non-secret variables in the product's Xcode Cloud workflow:
+
+| Variable | Contract |
+| --- | --- |
+| `SHARED_LIBRARY_REPOSITORY` | Public HTTPS GitHub repository URL |
+| `SHARED_LIBRARY_REVISION` | Full immutable 40-character commit |
+| `SHARED_MOBILE_CONFIG` | Product-relative JSON configuration |
+| `SHARED_MOBILE_OUTPUT` | Product-relative receipt output |
+
+The loader fetches only that commit, verifies `HEAD`, disables ambient Git configuration/credential helpers, and cleans the temporary checkout. Python 3.11+ must already be installed. `PYTHONPATH` points only to the verified library and Python safe-path mode prevents the product working directory from shadowing the module. Do not put deployment/provider credentials in PR build environments. Apple automatically exposes workflow environment values to its test runners.
+
+For **post-clone**, use [native](../examples/mobile-apple-bootstrap.json) or [Flutter](../examples/mobile-flutter-bootstrap.json) bootstrap configuration. Install the chosen Flutter SDK and Bundler dependencies in a separate pinned setup step first: fetch Flutter's exact commit and verify it, keep `Gemfile.lock`, use Bundler frozen mode, and never select `stable` or install the newest CocoaPods during each build. The helper checks exact Xcode version **and build**, Flutter version **and revision**, CocoaPods version, and all configured lockfile SHA256s before and after resolution. Flutter uses `pub get --enforce-lockfile`, `build ios --release --no-codesign --config-only --no-pub`; CocoaPods uses `bundle exec pod install --deployment`; Swift package resolution uses `-onlyUsePackageVersionsFromResolvedFile -disableAutomaticPackageResolution`. Configure every dependency lock used by the product. It does not rewrite bundle IDs, entitlements, or versions.
+
+For **post-xcodebuild**, the product hook selects this operation only for `CI_XCODEBUILD_ACTION=archive`; other actions need their own test evidence. A failed archive is refused. [Archive verification](../examples/mobile-apple-archive.json) reads only the current `CI_ARCHIVE_PATH`, checks every declared host/widget/watch/complication target, and refuses undeclared app/appex bundles. All targets must carry the expected product version/build, executable, exact specified plist fields, and nonempty dSYMs whose UUID/architecture pairs match the executable. Include companion app IDs, extension point IDs, watch flags, app groups and other capabilities in the product manifest.
+
+`signing: signed` additionally requires an authorized branch/start condition, valid `codesign --verify --strict` for each target, and exact signed entitlements equal to the manifest. Debug signing (`get-task-allow: true`) fails. `unsigned` records useful archive evidence but sets `distribution_ready: false`; it cannot prove signing entitlements. The signed flag describes the verified archive, not App Store processing or export readiness. Some Xcode Cloud archives are unsigned and only exported products are distribution-signed; those archives must use unsigned mode and distribution must verify the exported product separately. Do not relabel an unsigned archive as signed.
+
+Apple receipt `application` holds the main app ID/version/build; `source_sha` comes from `CI_COMMIT`. The Xcode Cloud `build_id` is **not** an App Store Connect build resource ID. `artifacts` and `debug_symbols` use paths relative to `CI_ARCHIVE_PATH` (identified by `artifact_root`), so a symbol consumer uses that archive as its root. `archive_sha256` fingerprints a sorted directory manifest of file hashes and confined symlink targets; it is not a zip-file checksum. Store/release candidates must also checksum the actual distributed artifact. Receipts and candidate metadata must be bound to the same source and artifact hashes.
+
+## Build numbers
+
+[Next-build configuration](../examples/mobile-next-build.json) requires a fresh remote-highest document:
+
+```json
+{"product":"example-ios","highest":41,"checked_at":"2026-11-15T12:00:00+00:00"}
+```
+
+A provider adapter must query the store immediately before allocation; this document is trusted provider evidence, not a request to guess the current number. It expires after five minutes. While holding one product-wide allocator lock, set `MOBILE_BUILD_SERIALIZATION_KEY` to the configured key. The helper locks a persistent local ledger and allocates `max(remote_highest, ledger_highest)+1`, bounded by 2,100,000,000. The ledger also records failed/abandoned allocations: never recycle a number.
+
+A local `flock` or environment variable **cannot coordinate independent cloud workers**. Use one durable allocator host/service, or serialize every workflow that allocates for that product and persist its ledger, including emergency builds. Cross-repository writers need a server-side allocator. For Xcode Cloud's managed counter, configure Apple's next build number above the store maximum and keep competing upload paths under the same allocation authority. This helper computes/verifies a number; it does not update Apple's remote counter or promise that a caller holds a distributed lock.
+
+## Android candidate identity
+
+[Android derivation](../examples/mobile-android-derive.json) takes the already-built AAB, verifies the pinned bundletool JAR checksum/version and configured apksigner version, reads actual package/version/build from `bundletool dump manifest`, and uses `build-apks --mode=universal`. It never runs a second app compilation. The expected keystore file comes from the named environment variable, and passwords go to private mode-0600 temporary files with `--ks-pass=file:` / `--key-pass=file:`. Those files are deleted even on failure. Output is accepted only when exactly one universal APK is produced and `apksigner verify --print-certs` confirms exactly the expected signer. The original AAB hash is checked again before publishing the APK.
+
+The upload key's SHA256 fingerprint is non-secret configuration. The keystore path and two passwords are explicit named secrets; no ambient provider credentials are inherited. Run only on the allowed trusted push/manual GitHub refs. Pin Android SDK build-tools by installation path and integrity in tool setup; version text alone is not an installation integrity check. AAB signature verification belongs to the upload adapter: a derived APK's certificate does not prove the source AAB's JAR signature. Google Play App Signing may re-sign the app with another certificate, so this receipt explicitly sets `play_app_signing_verified: false`; later testing from the Play internal track verifies that final installed identity.
+
+## Google device tests
+
+Examples are disabled by default: [Test Lab Robo](../examples/mobile-testlab-robo.json), [DDP instrumentation](../examples/mobile-ddp-instrumentation.json). Set `live_enabled: true` only in a trusted credentialed job. Install **Google Cloud SDK 582.0.0** and, for DDP, its **beta component 2026.08.21** with verified tool setup; this implementation was checked against that SDK's actual command source. Missing beta is refused before execution so `--quiet` cannot trigger an implicit component installation in a credentialed job. Pass a short-lived `GOOGLE_DEVICE_ACCESS_TOKEN` from the product's device-test service account/WIF role. The service account must have access to the selected existing project and results bucket. This helper creates no account/key and never discovers ambient gcloud credentials: it uses a temporary empty HOME/config and a private access-token file, disables usage reporting, and cleans these files.
+
+Test Lab submits `gcloud firebase test android run --type=robo` synchronously with the exact explicit model/version/locale/orientation matrix, result bucket/directory, timeout, and zero flaky retries. Every JSON result must have `outcome: Passed` and the exact expected `axis_value`. Missing, duplicate, extra, failed, flaky, inconclusive, skipped, and unknown outcomes fail. **The helper refuses Test Lab on or after 2027-09-30 UTC.** Migration must be explicit.
+
+DDP Preview submits `gcloud beta device-run sessions submit instrumentation --async --apps=... --test=... --device=... --bucket-name=...`, with one flaky attempt and no parallel flaky retries. SDK 582 async submit has no JSON return value; the helper extracts exactly one session ID from its specific `Creating session [...] in location [...]` status line, then calls `sessions wait` and `sessions describe --full --format=json`. A changed/missing status format fails and requires checking provider jobs before retrying. The full result must identify that session, contain the requested device allocations, and report `DONE` + `PASSED` at session, job and every execution level. Failed waits/result validation trigger a bounded best-effort session cancellation. **There is no DDP Robo fallback.** The product must supply an actual instrumentation APK and adopt its own meaningful test assertions. No passing test-count claim is inferred from a session result.
+
+The device matrix is capped at 20 entries; per-test timeout at 45 minutes; total client deadline at six hours plus up to 30 seconds for DDP cancellation cleanup. DDP's service may retry infrastructure failures even with one flaky attempt; provisioning/queue time, API retries and billing are provider-controlled. Client cancellation cannot guarantee remote cancellation, especially if submission succeeds but the ID cannot be parsed, and Test Lab synchronous timeout may leave a remote job running. Use provider quotas/budgets and inspect remote jobs after interrupted runs. These are execution bounds, not a hard currency cap.
+
+Receipts contain app/test hashes, source commit, exact configuration/device matrix fingerprints, SDK identity, aggregate execution count and results location; no access token or raw app/device logs. Restrict bucket retention and access: device videos/logs can contain user data. Test before distributing to testers; keep results for the exact candidate and rerun when candidate, matrix, test APK, or gate configuration changes.
+
+## Verification and boundaries
+
+`python3 -m unittest discover -s tests -p test_mobile.py -v` covers success and deliberate failures: changed dependencies/toolchain, host/widget/watch identity, entitlements, dSYM UUID mismatch, failed archives, build-number freshness/monotonicity, changed AAB, malformed ZIP/multiple signers, credential cleanup, provider version mismatch, missing/unknown device outcomes, untrusted contexts and Test Lab retirement. These tests use synthetic artifacts and inspected CLI/API contracts. No native app was compiled, signed, submitted or run on a paid device farm during library implementation; adoption must validate the real product's targets, installed toolchain and account permissions.
+
+Primary contracts: [Apple Cloud variables](https://developer.apple.com/documentation/xcode/environment-variable-reference), [Flutter Cloud preparation](https://docs.flutter.dev/deployment/cd), [bundletool](https://developer.android.com/tools/bundletool), [apksigner](https://developer.android.com/tools/apksigner), [Test Lab CLI](https://docs.cloud.google.com/sdk/gcloud/reference/firebase/test/android/run), [DDP instrumentation CLI](https://docs.cloud.google.com/sdk/gcloud/reference/beta/device-run/sessions/submit/instrumentation), [DDP session schema](https://docs.cloud.google.com/developer-device-platform/reference/device-run/rest/v1alpha/projects.locations.sessions), [DDP migration](https://docs.cloud.google.com/developer-device-platform/migrate).

@@ -1,0 +1,13 @@
+{
+  "operation": "device-test",
+  "provider": "testlab-robo",
+  "live_enabled": false,
+  "allowed_refs": ["refs/heads/staging"],
+  "app": "build/device-tests/candidate.apk",
+  "project": "example-project",
+  "bucket": "example-device-results",
+  "access_token_env": "GOOGLE_DEVICE_ACCESS_TOKEN",
+  "timeout_seconds": 300,
+  "deadline_seconds": 1800,
+  "devices": [{"model": "example-model", "version": "35", "locale": "en", "orientation": "portrait"}]
+}
