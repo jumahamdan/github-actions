@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+.shared-workflows/
+.ci-output/
+.env
+.env.*
+!.env.example

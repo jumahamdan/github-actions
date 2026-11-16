@@ -89,6 +89,12 @@ def atomic_json(path, value):
 
 _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _SENSITIVE = re.compile(r"(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTHORIZATION)", re.I)
+_DERIVED_SECRETS = set()
+
+
+def register_secret(value):
+    if value:
+        _DERIVED_SECRETS.add(str(value))
 
 
 def redact(text, values):
@@ -121,7 +127,7 @@ def run(argv, *, cwd, env_names=(), extra_env=None, timeout=900,
     if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or timeout <= 0 or timeout > 21600:
         raise PipelineError("Command timeout must be between 0 and 21600 seconds")
     env = scoped_environment(env_names, extra_env)
-    sensitive = [v for k, v in env.items() if _SENSITIVE.search(k)]
+    sensitive = [v for k, v in env.items() if _SENSITIVE.search(k)] + list(_DERIVED_SECRETS)
     try:
         proc = subprocess.Popen(list(argv), cwd=cwd, env=env, stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
