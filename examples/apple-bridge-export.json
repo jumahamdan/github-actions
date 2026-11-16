@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "operation": "apple-export",
+  "manifest": ".shared-ci-evidence/candidate.json",
+  "inspection": ".shared-ci-evidence/native-inspection.json",
+  "expected_identity": "0000000000000000000000000000000000000000000000000000000000000000",
+  "expected_source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "cloud": {
+    "workflow_id": "11111111-2222-3333-4444-555555555555",
+    "product_id": "22222222-3333-4444-5555-666666666666",
+    "build_run_id": "33333333-4444-5555-6666-777777777777",
+    "build_number": "123"
+  },
+  "s3": {
+    "bucket": "example-private-build-evidence",
+    "prefix": "apple-candidates",
+    "region": "us-east-1",
+    "expected_account": "123456789012",
+    "expected_role_arn": "arn:aws:iam::123456789012:role/ExistingEvidenceRole",
+    "kms_key_arn": "arn:aws:kms:us-east-1:123456789012:key/11111111-2222-3333-4444-555555555555",
+    "credentials": {
+      "AWS_ACCESS_KEY_ID": "BRIDGE_AWS_ACCESS_KEY_ID",
+      "AWS_SECRET_ACCESS_KEY": "BRIDGE_AWS_SECRET_ACCESS_KEY",
+      "AWS_SESSION_TOKEN": "BRIDGE_AWS_SESSION_TOKEN"
+    },
+    "tool": {
+      "prefix": [
+        "aws"
+      ],
+      "version": "REPLACE_WITH_EXACT_PINNED_AWS_CLI_VERSION_OUTPUT"
+    }
+  }
+}
