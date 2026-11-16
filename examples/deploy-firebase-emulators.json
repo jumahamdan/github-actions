@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "provider": "firebase",
+  "operation": "emulate",
+  "environment": "test",
+  "inputs": [
+    "firebase.json",
+    "firestore.rules",
+    "tests",
+    "package.json",
+    "package-lock.json"
+  ],
+  "expected_input_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "tools": {
+    "firebase": {
+      "command": [
+        "firebase"
+      ],
+      "version": "14.10.1"
+    }
+  },
+  "settings": {
+    "project": "demo-example",
+    "config": "firebase.json",
+    "emulators": [
+      "firestore"
+    ],
+    "test_command": [
+      "npm",
+      "run",
+      "test:rules",
+      "--",
+      "--reporter=junit",
+      "--outputFile=.ci-results/rules.xml"
+    ],
+    "test_report": {
+      "path": ".ci-results/rules.xml",
+      "format": "junit"
+    }
+  },
+  "receipt": ".ci-results/deployment.json",
+  "timeout": 1800
+}

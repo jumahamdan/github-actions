@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "source": "wordpress/example-component",
+  "package_name": "example-component",
+  "files": [
+    "example-component.php",
+    "assets/style.css",
+    "fragments/fundraiser.html"
+  ],
+  "php": {
+    "command": [
+      "php"
+    ],
+    "version": "8.3.12"
+  },
+  "output": ".ci-artifacts/example-component.zip",
+  "receipt": ".ci-results/wordpress.json"
+}

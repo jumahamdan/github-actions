@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "provider": "vercel",
+  "operation": "deploy",
+  "environment": "staging",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "inputs": [
+    ".vercel/project.json",
+    ".vercel/output"
+  ],
+  "expected_input_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "tools": {
+    "vercel": {
+      "command": [
+        "vercel"
+      ],
+      "version": "64.1.0"
+    }
+  },
+  "settings": {
+    "project_id": "prj_example",
+    "organization_id": "team_example",
+    "target": "preview",
+    "build_mode": "prebuilt"
+  },
+  "receipt": ".ci-results/deployment.json",
+  "timeout": 1800
+}

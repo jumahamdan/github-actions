@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "provider": "aws-static",
+  "operation": "deploy",
+  "environment": "staging",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "inputs": [
+    "dist"
+  ],
+  "expected_input_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "tools": {
+    "aws": {
+      "command": [
+        "aws"
+      ],
+      "version": "2.27.49"
+    }
+  },
+  "settings": {
+    "account": "123456789012",
+    "region": "us-east-1",
+    "bucket": "example-staging-site",
+    "directory": "dist",
+    "prefix": "",
+    "distribution_id": "E123EXAMPLE",
+    "invalidate_paths": [
+      "/*"
+    ],
+    "delete_obsolete": false
+  },
+  "receipt": ".ci-results/deployment.json",
+  "timeout": 1800
+}
