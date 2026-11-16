@@ -1,0 +1,12 @@
+{
+  "operation": "manifest",
+  "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "components": {
+    "app": {
+      "publication": "artifacts/container-publication.json",
+      "tag": "registry.example/team/service:1.0.0"
+    },
+    "db": "docker.io/example/database@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "receipt": "artifacts/container-set.json"
+}

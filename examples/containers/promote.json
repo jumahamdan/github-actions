@@ -1,0 +1,15 @@
+{
+  "operation": "promote",
+  "source": "registry.example/team/service@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "target": "registry.example/team/service:stable",
+  "expected_current_digest": "absent",
+  "registry": {
+    "server": "registry.example",
+    "username_env": "REGISTRY_USERNAME",
+    "password_env": "REGISTRY_PASSWORD"
+  },
+  "allowed_refs": [
+    "refs/heads/main"
+  ],
+  "receipt": "artifacts/container-promotion.json"
+}

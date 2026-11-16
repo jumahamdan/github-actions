@@ -1,0 +1,18 @@
+{
+  "operation": "rollback",
+  "ssh": {
+    "host": "deploy.example",
+    "user": "deploy",
+    "private_key_env": "SSH_PRIVATE_KEY",
+    "known_hosts_env": "SSH_KNOWN_HOSTS"
+  },
+  "directory": "/srv/example",
+  "project": "example",
+  "expected_current_release": "cccccccccccccccccccccccc",
+  "expected_target_release": "dddddddddddddddddddddddd",
+  "rollback_target": "previous",
+  "allowed_refs": [
+    "refs/heads/main"
+  ],
+  "receipt": "artifacts/server-rollback.json"
+}

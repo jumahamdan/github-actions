@@ -1,0 +1,16 @@
+{
+  "operation": "publish",
+  "candidate": "artifacts/container-candidate.json",
+  "tags": [
+    "registry.example/team/service:1.0.0"
+  ],
+  "registry": {
+    "server": "registry.example",
+    "username_env": "REGISTRY_USERNAME",
+    "password_env": "REGISTRY_PASSWORD"
+  },
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "receipt": "artifacts/container-publication.json"
+}
