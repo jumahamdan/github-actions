@@ -256,6 +256,44 @@ class MobileTests(unittest.TestCase):
         self.assertFalse(self.password_path.exists())
         self.assertFalse(result['play_app_signing_verified'])
 
+    def test_derive_uses_checksummed_installed_jar_outside_product(self):
+        config = self.android()
+        with tempfile.TemporaryDirectory() as directory:
+            jar = Path(directory) / 'bundle tool.jar'
+            jar.write_bytes(b'fixture')
+            config['bundletool'].pop('jar')
+            config['bundletool']['jar_env'] = 'SHARED_BUNDLETOOL_JAR'
+            config['apksigner']['command'] = 'apksigner'
+            with patch.dict(os.environ, {'SHARED_BUNDLETOOL_JAR': str(jar)}), patch('shared_ci.mobile.run', side_effect=self.android_run) as commands:
+                result = execute(config, self.root)
+            self.assertEqual(result['bundletool_version'], '1.18.3')
+            self.assertIn(['java', '-jar', str(jar), 'version'], [call.args[0] for call in commands.call_args_list])
+            self.assertIn(['apksigner', 'version'], [call.args[0] for call in commands.call_args_list])
+
+    def test_installed_jar_requires_one_explicit_nonlinked_checksum_bound_file(self):
+        for scenario in ('both', 'neither', 'missing-env', 'relative', 'directory', 'link', 'parent-link', 'bad-hash', 'changed-bytes'):
+            config = self.android()
+            with tempfile.TemporaryDirectory() as directory:
+                installed = Path(directory) / 'bundletool.jar'
+                installed.write_bytes(b'fixture')
+                config['bundletool'].pop('jar')
+                config['bundletool']['jar_env'] = 'SHARED_BUNDLETOOL_JAR'
+                value = str(installed)
+                if scenario == 'both': config['bundletool']['jar'] = 'tools/bundletool.jar'
+                elif scenario == 'neither': config['bundletool'].pop('jar_env')
+                elif scenario == 'missing-env': value = ''
+                elif scenario == 'relative': value = 'tools/bundletool.jar'
+                elif scenario == 'directory': value = directory
+                elif scenario == 'link':
+                    link = Path(directory) / 'linked.jar'; link.symlink_to(installed); value = str(link)
+                elif scenario == 'parent-link':
+                    link = self.root / 'installed-alias'; link.symlink_to(Path(directory), target_is_directory=True); value = str(link / 'bundletool.jar')
+                elif scenario == 'bad-hash': config['bundletool']['sha256'] = 'not-a-sha256'
+                elif scenario == 'changed-bytes': installed.write_bytes(b'modified')
+                with self.subTest(scenario=scenario), patch.dict(os.environ, {'SHARED_BUNDLETOOL_JAR': value}), patch('shared_ci.mobile.run') as commands:
+                    with self.assertRaises(PipelineError): execute(config, self.root)
+                    commands.assert_not_called()
+
     def test_derive_rejects_wrong_multi_signer_missing_apk_or_tool_checksum(self):
         for scenario in ('wrong-signer', 'multi-signer', 'missing-apk', 'jar', 'aab-mutated'):
             config = self.android()

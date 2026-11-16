@@ -401,8 +401,22 @@ def android_derive(config, root):
                 {"aab", "output_apk", "bundletool", "apksigner", "signing", "allowed_refs"})
     context = trusted_context(config["allowed_refs"])
     _text(context["sha"], "source commit", r"[0-9a-f]{40}")
-    bundle = strict_keys(config["bundletool"], {"jar", "sha256", "version"}, {"jar", "sha256", "version"})
-    jar = _file(root, bundle["jar"])
+    bundle = strict_keys(config["bundletool"], {"jar", "jar_env", "sha256", "version"}, {"sha256", "version"})
+    if ("jar" in bundle) == ("jar_env" in bundle):
+        raise PipelineError("Choose one relative bundletool jar or installed jar environment path")
+    _text(bundle["sha256"], "bundletool SHA256", r"[0-9a-f]{64}")
+    if "jar_env" in bundle:
+        name = _text(bundle["jar_env"], "bundletool path environment name", r"[A-Z][A-Z0-9_]*")
+        value = os.environ.get(name, "")
+        if not value or any(ord(c) < 32 for c in value):
+            raise PipelineError("Installed bundletool path environment is missing or invalid")
+        jar = Path(value)
+        if (not jar.is_absolute() or not jar.is_file() or not jar.stat().st_size
+                or any(path.is_symlink() for path in (jar, *jar.parents))):
+            raise PipelineError("Installed bundletool must be an absolute regular file without symlinks")
+        jar = jar.resolve()
+    else:
+        jar = _file(root, bundle["jar"])
     if sha256_file(jar) != bundle["sha256"]:
         raise PipelineError("bundletool integrity mismatch")
     bundle_cmd = ["java", "-jar", str(jar)]
