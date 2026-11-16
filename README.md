@@ -13,8 +13,10 @@ The preserved v1 entrypoints are deprecated and unsupported for new adoption. Kn
 | Keys, secrets, variables and identity | [Credential contracts](docs/credentials.md) |
 | Toolchain integrity | [Verified tool installation](docs/tool-installation.md) |
 | Candidate retention and transfer | [Artifacts](docs/artifacts.md) |
+| Reusing verified checks | [Quality reuse](docs/quality-reuse.md) |
 | Release notes and publication | [Release evidence](docs/releases.md) |
 | Apple, Android and device tests | [Mobile helpers](docs/mobile.md), [stores](docs/stores.md) |
+| Store retries and Apple evidence storage | [Operation state](docs/state.md), [Apple bridge](docs/apple-bridge.md) |
 | AWS, Firebase, hosting and WordPress | [Deployment adapters](docs/deployment.md) |
 | Docker, registries, Compose and SSH | [Containers](docs/containers.md) |
 | Sentry and Crashlytics | [Monitoring](docs/monitoring.md) |
@@ -22,6 +24,7 @@ The preserved v1 entrypoints are deprecated and unsupported for new adoption. Kn
 | Security scans and reporting | [Security](docs/security.md) |
 | Coverage analysis | [Sonar](docs/sonar.md) |
 | Documentation and optional Wiki navigation | [Documentation checks](docs/documentation.md) |
+| Complete known service scope | [Capability ledger](docs/capabilities.md) |
 
 Reusable workflows are `.github/workflows/v2-*.yml`; composable actions are `actions/v2-*`; provider-independent modules are `shared_ci/`. Examples use synthetic identifiers. Replace their project paths, tool versions, fingerprints and explicit selections during adoption; they do not provision accounts or certify a real product.
 

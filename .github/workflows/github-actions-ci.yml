@@ -40,6 +40,8 @@ jobs:
       run: python3 -m shared_ci.security --config .ci/security.json --root . --output .ci-output/security.json
     - name: Documentation links and facts
       run: python3 -m shared_ci.docs --config .ci/docs.json --root .
+    - name: Capability index matches implementations and tests
+      run: python3 scripts/capabilities.py --check
     - name: Compile Python modules
       run: python3 -m compileall -q shared_ci scripts
     - name: Whitespace checks

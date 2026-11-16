@@ -27,8 +27,8 @@ def main():
         'config':'build/candidate.json','operation':'verify','artifact-name':'synthetic-verification',
         'artifact-run-id':'${{ github.run_id }}','artifact-run-attempt':'${{ github.run_attempt }}',
         'artifact-source-sha':'${{ needs.build.outputs.source-sha }}','artifact-identity':'${{ needs.build.outputs.candidate-identity }}',
-        'artifact-workflow':'.github/workflows/contract.yml','artifact-input-name':'synthetic-build-candidate',
-        'artifact-producer-job':'build / run'}}}}
+        'artifact-workflow':'.github/workflows/contract.yml','artifact-input-name':'${{ needs.build.outputs.candidate-artifact-name }}',
+        'artifact-producer-job':'build / run','artifact-allowed-branches':'["main"]'}}}}
     target=output/'.github/workflows/contract.yml';target.parent.mkdir(parents=True)
     target.write_text(yaml.safe_dump(workflow,sort_keys=False,width=110))
     (output/'README.md').write_text('# Shared workflow contract fixture\n\nSynthetic, credential-free cross-repository build and artifact-transfer test. No product code or provider deployments.\n')
