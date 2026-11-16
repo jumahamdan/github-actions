@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from .common import PipelineError, atomic_json, cli_error, confined_path, load_json, sha256_file, strict_keys, trusted_context
+from .common import PipelineError, atomic_json, cli_error, confined_path, load_json, run, sha256_file, strict_keys, trusted_context
 from .evidence import verify
 
 
@@ -38,7 +38,10 @@ def github_api(method, path, token, body=None, binary=None):
         with urllib.request.build_opener(NoRedirect()).open(
             urllib.request.Request(host + path, method=method, headers=headers, data=data), timeout=120
         ) as response:
-            return json.loads(response.read())
+            data = response.read(16 * 1024 * 1024 + 1)
+            if len(data) > 16 * 1024 * 1024:
+                raise PipelineError("GitHub release response exceeds size limit")
+            return json.loads(data) if data else None
     except urllib.error.HTTPError as exc:
         raise APIError(exc.code) from None
     except (urllib.error.URLError, json.JSONDecodeError) as exc:
@@ -73,12 +76,17 @@ def render(notes, audience):
 def draft_from_prs(changes, *, previous_tag, candidate_sha):
     if not previous_tag or not re.fullmatch(r"[0-9a-f]{40}", candidate_sha):
         raise PipelineError("Draft generation requires explicit release boundaries")
+    if not isinstance(changes, list):
+        raise PipelineError("Draft changes must be a list")
     seen, groups = set(), {}
     for change in changes:
         strict_keys(change, {"number", "title", "category", "promotion"}, {"number", "title", "category"})
         number = change["number"]
-        if not isinstance(number, int) or number < 1:
+        if type(number) is not int or number < 1:
             raise PipelineError("Invalid pull request identity")
+        if any(not isinstance(change[key], str) or not change[key].strip() or "\n" in change[key] or "\r" in change[key]
+               for key in ("title", "category")) or type(change.get("promotion", False)) is not bool:
+            raise PipelineError("Draft changes require nonempty single-line title/category and boolean promotion")
         if change.get("promotion") or number in seen:
             continue
         seen.add(number)
@@ -89,70 +97,172 @@ def draft_from_prs(changes, *, previous_tag, candidate_sha):
             "candidate_sha": candidate_sha, "categories": groups}
 
 
+def _pages(api, path, token):
+    values = []
+    for page in range(1, 21):
+        batch = api("GET", path + f"?per_page=100&page={page}", token)
+        if not isinstance(batch, list) or any(not isinstance(item, dict) for item in batch):
+            raise PipelineError("GitHub release list response is malformed")
+        values.extend(batch)
+        if len(batch) < 100:
+            return values
+    raise PipelineError("GitHub release inventory exceeds bounded pagination")
+
+
+def _tag_commit(api, prefix, tag, token, expected):
+    response = api("GET", prefix + "/git/ref/tags/" + urllib.parse.quote(tag, safe=""), token)
+    obj = response.get("object", {}) if isinstance(response, dict) else {}
+    seen = set()
+    for _ in range(5):
+        if obj.get("type") != "tag":
+            break
+        sha = obj.get("sha", "")
+        if not re.fullmatch(r"[0-9a-f]{40}", sha) or sha in seen:
+            raise PipelineError("Invalid or cyclic annotated tag")
+        seen.add(sha)
+        response = api("GET", prefix + "/git/tags/" + sha, token)
+        obj = response.get("object", {}) if isinstance(response, dict) else {}
+    if obj.get("type") != "commit" or obj.get("sha") != expected:
+        raise PipelineError("Existing release tag is not the approved current commit")
+
+
+def _release_shape(release, tag, body, prerelease):
+    if (not isinstance(release, dict) or type(release.get("id")) is not int or release["id"] < 1 or
+            release.get("tag_name") != tag or type(release.get("draft")) is not bool or
+            type(release.get("prerelease")) is not bool):
+        raise PipelineError("GitHub returned an invalid release identity/state")
+    if release.get("body") != body or release["prerelease"] != prerelease:
+        raise PipelineError("Existing release differs; replacement requires a new explicit release decision")
+    return release
+
+
+def _find_release(api, prefix, tag, token):
+    try:
+        return api("GET", prefix + "/releases/tags/" + urllib.parse.quote(tag, safe=""), token)
+    except APIError as exc:
+        if exc.status != 404:
+            raise
+    # The by-tag endpoint guarantees published releases. List releases with push auth to find drafts.
+    matches = [item for item in _pages(api, prefix + "/releases", token) if item.get("tag_name") == tag]
+    if len(matches) > 1:
+        raise PipelineError("Multiple releases refer to the selected tag")
+    return matches[0] if matches else None
+
+
+def _assets(api, prefix, release_id, token):
+    values = _pages(api, prefix + f"/releases/{release_id}/assets", token)
+    result = {}
+    for item in values:
+        name = item.get("name")
+        if not isinstance(name, str) or not name or name in result or type(item.get("id")) is not int or item["id"] < 1:
+            raise PipelineError("GitHub returned invalid/duplicate asset identities")
+        result[name] = item
+    return result
+
+
+def _asset_matches(asset, name, record):
+    return (asset.get("name") == name and asset.get("state") == "uploaded" and
+            asset.get("digest") == "sha256:" + record["sha256"] and asset.get("size") == record["bytes"])
+
+
 def publish(config, root, *, api=github_api):
     strict_keys(config, {"schema", "repository", "tag", "candidate", "notes", "audience", "allowed_refs",
-                        "token_env", "prerelease", "publish", "expected_commit"},
+                        "token_env", "prerelease", "publish", "expected_commit", "expected_library_sha", "expected_toolchain"},
                 {"schema", "repository", "tag", "candidate", "notes", "audience", "allowed_refs",
-                 "token_env", "prerelease", "publish", "expected_commit"})
+                 "token_env", "prerelease", "publish", "expected_commit", "expected_library_sha", "expected_toolchain"})
     if config["schema"] != 1 or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", config["repository"]):
         raise PipelineError("Invalid release schema/repository")
     if not re.fullmatch(r"v[A-Za-z0-9][A-Za-z0-9._+-]*", config["tag"]):
         raise PipelineError("Invalid release tag")
     if not isinstance(config["publish"], bool) or not isinstance(config["prerelease"], bool):
         raise PipelineError("Publication state must be explicit booleans")
-    trusted_context(config["allowed_refs"])
-    if os.environ.get("GITHUB_REPOSITORY") != config["repository"]:
+    context = trusted_context(config["allowed_refs"])
+    if context["repository"] != config["repository"]:
         raise PipelineError("Cross-repository publication is not permitted")
-    candidate = load_json(confined_path(root, config["candidate"]))
-    verify(candidate, root)
+    expected = config["expected_commit"]
+    if (not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{40}", expected) or
+            expected != context["sha"] or run(["git", "rev-parse", "HEAD"], cwd=root).stdout.strip() != expected):
+        raise PipelineError("Release commit does not match the current checked-out workflow commit")
+    candidate_path = confined_path(root, config["candidate"])
+    candidate = load_json(candidate_path)
+    if (not isinstance(config["expected_library_sha"], str) or
+            not re.fullmatch(r"[0-9a-f]{40}", config["expected_library_sha"]) or
+            not isinstance(config["expected_toolchain"], dict) or not config["expected_toolchain"]):
+        raise PipelineError("Publication requires explicit expected library SHA and toolchain")
+    verify(candidate, root, expected_library_sha=config["expected_library_sha"],
+           expected_toolchain=config["expected_toolchain"])
     notes = load_json(confined_path(root, config["notes"]))
     if any(notes.get(k) != candidate.get(k) for k in ("product", "version", "build")):
         raise PipelineError("Release notes do not describe the selected candidate")
     body = render(notes, config["audience"])
+    if not isinstance(config["token_env"], str) or not re.fullmatch(r"[A-Z][A-Z0-9_]*", config["token_env"]):
+        raise PipelineError("Invalid release credential environment name")
     token = os.environ.get(config["token_env"], "")
-    prefix = "/repos/" + config["repository"]
-    obj = api("GET", prefix + "/git/ref/tags/" + urllib.parse.quote(config["tag"], safe=""), token)["object"]
-    for _ in range(5):
-        if obj.get("type") != "tag":
-            break
-        obj = api("GET", prefix + "/git/tags/" + obj["sha"], token)["object"]
-    if obj.get("type") != "commit" or obj.get("sha") != config["expected_commit"] or config["expected_commit"] != os.environ.get("GITHUB_SHA"):
-        raise PipelineError("Existing release tag is not the approved current commit")
-    try:
-        release = api("GET", prefix + "/releases/tags/" + urllib.parse.quote(config["tag"], safe=""), token)
-    except APIError as exc:
-        if exc.status != 404:
-            raise
-        release = api("POST", prefix + "/releases", token, {"tag_name": config["tag"],
-                      "name": config["tag"], "body": body, "draft": True, "prerelease": config["prerelease"]})
-    if release.get("body") != body or release.get("prerelease") != config["prerelease"]:
-        raise PipelineError("Existing release differs; replacement requires a new explicit release decision")
-    existing = {a["name"]: a for a in release.get("assets", [])}
+    if not token:
+        raise PipelineError("Release credential is missing")
+    # Complete local checks before creating a remote draft. GitHub normalizes special asset filenames.
     artifact_records = dict(candidate["artifacts"])
-    manifest_path = confined_path(root, config["candidate"])
-    artifact_records[config["candidate"]] = {"sha256": sha256_file(manifest_path), "bytes": manifest_path.stat().st_size}
-    expected_names = [Path(p).name for p in artifact_records]
-    if len(expected_names) != len(set(expected_names)):
-        raise PipelineError("Release artifact basenames collide")
-    if set(existing) - set(expected_names):
-        raise PipelineError("Existing release contains unexpected assets")
+    if config["candidate"] in artifact_records:
+        raise PipelineError("Candidate manifest cannot also be a candidate payload")
+    artifact_records[config["candidate"]] = {"sha256": sha256_file(candidate_path), "bytes": candidate_path.stat().st_size}
+    expected_assets = {}
     for relative, record in artifact_records.items():
         name = Path(relative).name
-        digest = "sha256:" + record["sha256"]
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+-]*", name) or name.endswith(".") or name in expected_assets:
+            raise PipelineError("Release asset names must be unique and GitHub-safe")
+        expected_assets[name] = (relative, record)
+    prefix = "/repos/" + config["repository"]
+    _tag_commit(api, prefix, config["tag"], token, expected)
+    release = _find_release(api, prefix, config["tag"], token)
+    if release is None:
+        release = api("POST", prefix + "/releases", token, {"tag_name": config["tag"],
+                      "target_commitish": expected, "name": config["tag"], "body": body,
+                      "draft": True, "prerelease": config["prerelease"]})
+        if not isinstance(release, dict) or release.get("draft") is not True:
+            raise PipelineError("GitHub did not create the requested draft")
+    _release_shape(release, config["tag"], body, config["prerelease"])
+    release_id = release["id"]
+    existing = _assets(api, prefix, release_id, token)
+    if set(existing) - set(expected_assets):
+        raise PipelineError("Existing release contains unexpected assets")
+    for name, (relative, record) in expected_assets.items():
         if name in existing:
-            if existing[name].get("digest") != digest or existing[name].get("state") != "uploaded":
+            asset = existing[name]
+            if _asset_matches(asset, name, record):
+                continue
+            # GitHub documents zero-byte 'starter' assets after interrupted uploads as safe to delete.
+            if release["draft"] and asset.get("state") == "starter" and asset.get("size") == 0:
+                api("DELETE", prefix + f"/releases/assets/{asset['id']}", token)
+            else:
                 raise PipelineError("Existing release asset has different bytes or is incomplete")
-        else:
-            if not release.get("draft"):
-                raise PipelineError("Published release is missing a required asset; refusing mutation")
-            asset = api("POST", prefix + f"/releases/{int(release['id'])}/assets?name=" + urllib.parse.quote(name),
-                        token, binary=confined_path(root, relative).read_bytes())
-            if asset.get("digest") != digest or asset.get("state") != "uploaded":
-                raise PipelineError("Uploaded release asset verification failed")
-    if config["publish"] and release.get("draft"):
-        release = api("PATCH", prefix + f"/releases/{int(release['id'])}", token, {"draft": False})
+        if not release["draft"]:
+            raise PipelineError("Published release is missing a required asset; refusing mutation")
+        payload = confined_path(root, relative).read_bytes()
+        if hashlib.sha256(payload).hexdigest() != record["sha256"] or len(payload) != record["bytes"]:
+            raise PipelineError("Release artifact changed before upload")
+        asset = api("POST", prefix + f"/releases/{release_id}/assets?name=" + urllib.parse.quote(name, safe=""),
+                    token, binary=payload)
+        if not isinstance(asset, dict) or not _asset_matches(asset, name, record):
+            raise PipelineError("Uploaded release asset verification failed")
+    # Re-read the complete remote inventory; upload success alone is not a publication gate.
+    verified_assets = _assets(api, prefix, release_id, token)
+    if set(verified_assets) != set(expected_assets) or any(
+        not _asset_matches(verified_assets[name], name, record) for name, (_, record) in expected_assets.items()
+    ):
+        raise PipelineError("Final release asset inventory differs from the candidate")
+    observed = api("GET", prefix + f"/releases/{release_id}", token)
+    _release_shape(observed, config["tag"], body, config["prerelease"])
+    if observed["id"] != release_id or observed["draft"] != release["draft"]:
+        raise PipelineError("Release state changed concurrently")
+    _tag_commit(api, prefix, config["tag"], token, expected)
+    if config["publish"] and observed["draft"]:
+        observed = api("PATCH", prefix + f"/releases/{release_id}", token, {"draft": False})
+        _release_shape(observed, config["tag"], body, config["prerelease"])
+        if observed["id"] != release_id or observed["draft"] is not False:
+            raise PipelineError("GitHub did not publish the selected release")
     return {"schema": 1, "status": "passed", "candidate_identity": candidate["identity"],
-            "release_id": release["id"], "tag": config["tag"], "state": "draft" if release.get("draft") else "published",
+            "release_id": release_id, "tag": config["tag"], "commit": expected,
+            "state": "draft" if observed["draft"] else "published",
             "store_status": "not-established-by-github-publication"}
 
 
