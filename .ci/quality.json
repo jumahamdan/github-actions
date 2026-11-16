@@ -26,6 +26,7 @@
     "-m",
     "pip",
     "install",
+    "--only-binary=:all:",
     "--require-hashes",
     "-r",
     "tooling/requirements-ci.txt"

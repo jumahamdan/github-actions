@@ -29,7 +29,7 @@ jobs:
       with:
         node-version: 22.23.4
     - name: Install hash-locked test dependencies
-      run: python3 -m pip install --require-hashes -r tooling/requirements-ci.txt
+      run: python3 -m pip install --only-binary=:all: --require-hashes -r tooling/requirements-ci.txt
     - name: Install verified validation binaries
       run: 'python3 -m shared_ci.tools --manifest tooling/binaries.json --destination "$RUNNER_TEMP/shared-ci-tools"
 
