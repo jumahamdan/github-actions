@@ -23,17 +23,21 @@ class SecurityRefreshTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+        tool = self.root / "semgrep"
+        tool.write_text(f"#!{sys.executable}\nimport sys\nprint('1.0.0' if '--version' in sys.argv else '{{\"results\":[],\"errors\":[]}}')\n")
+        tool.chmod(0o755)
+        rule = self.root / "rules.yml"; rule.write_text("rules: []\n")
         self.policy = {"schema": 1, "threshold": "high", "max_age_hours": 24, "scans": [{
-            "id": "fixture", "format": "semgrep", "command": [sys.executable, "-c", 'print(\'{"results":[],"errors":[]}\')'],
-            "version_command": [sys.executable, "-c", "print('1.0.0')"], "version": "1.0.0", "output": "stdout",
-            "rules_identity": "builtin:1.0.0", "database_identity": "none"}]}
+            "id": "fixture", "format": "semgrep", "command": [str(tool), "scan", "--config", "rules.yml", "--json", "."],
+            "version_command": [str(tool), "--version"], "version": "1.0.0", "output": "stdout",
+            "rules_identity": {"rules.yml": sha256_file(rule)}, "database_identity": "none"}]}
         for name in ("build-policy.json", "promotion-policy.json"):
             (self.root / name).write_text(json.dumps(self.policy))
         (self.root / "source.txt").write_text("immutable tested source")
         self.git("init", "-q")
         self.git("config", "user.email", "fixture@example.invalid")
         self.git("config", "user.name", "Fixture")
-        self.git("add", "source.txt", "build-policy.json", "promotion-policy.json")
+        self.git("add", "source.txt", "build-policy.json", "promotion-policy.json", "rules.yml")
         self.git("commit", "-qm", "build source")
         self.original_source = self.git("rev-parse", "HEAD")
         self.env = patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "GITHUB_REPOSITORY": "owner/product",
@@ -51,7 +55,7 @@ class SecurityRefreshTests(unittest.TestCase):
             stamp(self.build_receipt, "security", self.root / "build-policy.json", self.root)
             (self.root / "build-security.json").write_text(json.dumps(self.build_receipt))
             self.candidate = create({"schema": 1, "product": "fixture", "version": "1.0.0", "build": "1", "library_sha": "a" * 40,
-                                     "toolchain": {"compiler": "1.0.0"}, "inputs": ["source.txt", "build-policy.json"],
+                                     "toolchain": {"compiler": "1.0.0"}, "inputs": ["source.txt", "build-policy.json", "rules.yml"],
                                      "artifacts": ["app.bin"], "checks": [{"path": "build-security.json", "kind": "security", "config": "build-policy.json"}]}, self.root)
         (self.root / "candidate.json").write_text(json.dumps(self.candidate))
         self.git("commit", "--allow-empty", "-qm", "promotion merge")
@@ -201,7 +205,7 @@ class SecurityRefreshTests(unittest.TestCase):
 
     def test_scanner_cannot_modify_candidate_while_rescanning(self):
         policy = copy.deepcopy(self.policy)
-        policy["scans"][0]["command"] = [sys.executable, "-c", "from pathlib import Path; Path('app.bin').write_bytes(b'changed'); print('{\"results\":[],\"errors\":[]}')"]
+        (self.root / "semgrep").write_text(f"#!{sys.executable}\nimport sys\nfrom pathlib import Path\nif '--version' not in sys.argv: Path('app.bin').write_bytes(b'changed')\nprint('1.0.0' if '--version' in sys.argv else '{{\"results\":[],\"errors\":[]}}')\n")
         with self.assertRaisesRegex(PipelineError, "bytes changed"):
             scan(policy, self.root, candidate=self.candidate)
 

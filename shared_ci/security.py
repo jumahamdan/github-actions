@@ -14,9 +14,67 @@ from pathlib import Path
 from .common import PipelineError, atomic_json, cli_error, confined_path, fingerprint, load_json, run, sha256_file, strict_keys
 
 
+def semgrep_rules(item, root, cwd):
+    """Bind every CLI config to one explicit local YAML file and its checksum."""
+    rules, command = item.get("rules_identity"), item.get("command")
+    if not isinstance(rules, dict) or not rules:
+        raise PipelineError("Semgrep requires checksummed local rule files; binary versions do not pin registry rules")
+    if (not isinstance(command, list) or len(command) < 3 or not all(isinstance(arg, str) and arg for arg in command)
+            or Path(command[0]).name != "semgrep" or command[1] != "scan"
+            or item.get("version_command") != [command[0], "--version"]):
+        raise PipelineError("Semgrep requires an explicit scan command and the same executable's version probe")
+    root, cwd = Path(root).resolve(), Path(cwd).resolve()
+    declared, observed = {}, {}
+    for relative, digest in rules.items():
+        path = confined_path(root, relative)
+        original = root / relative
+        if (not path.is_file() or path.suffix not in (".yml", ".yaml")
+                or any(p.is_symlink() for p in (original, *original.parents))
+                or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)):
+            raise PipelineError("Semgrep rules must be regular local YAML files with exact checksums")
+        actual = sha256_file(path)
+        if actual != digest or path in declared:
+            raise PipelineError("Semgrep rules differ from their reviewed checksums or duplicate a path")
+        declared[path] = relative
+        observed[relative] = actual
+    selected, index = [], 2
+    while index < len(command):
+        argument = command[index]
+        if argument == "--":
+            break
+        if argument in ("-e", "--pattern") or argument.startswith(("--pattern=", "-e")):
+            raise PipelineError("Semgrep inline patterns are outside the checksummed rules contract")
+        value = None
+        if argument in ("--config", "-c", "-f"):
+            index += 1
+            if index >= len(command):
+                raise PipelineError("Semgrep config flag has no local rule file")
+            value = command[index]
+        elif argument.startswith("--config="):
+            value = argument.split("=", 1)[1]
+        elif argument.startswith(("-c", "-f")) and not argument.startswith("--"):
+            value = argument[2:]
+        if value is not None:
+            if (not value or value == "auto" or ":" in value or value.startswith(("p/", "r/", "s/", "semgrep.dev/"))
+                    or any(ord(c) < 32 for c in value)):
+                raise PipelineError("Semgrep remote, registry and auto configs are forbidden; vendor reviewed rule files")
+            original = cwd / value
+            path = original.resolve()
+            if (not path.is_relative_to(root) or not path.is_file()
+                    or any(p.is_symlink() for p in (original, *original.parents)) or path not in declared):
+                raise PipelineError("Semgrep command config is not an exact declared local rule file")
+            selected.append(path)
+        index += 1
+    if not selected or len(selected) != len(set(selected)) or set(selected) != set(declared):
+        raise PipelineError("Semgrep command must select every checksummed rule file exactly once")
+    return observed
+
+
 def scanner_intelligence(item, root, cwd):
     rules = item["rules_identity"]
-    if rules == "builtin:" + item["version"]:
+    if item["format"] == "semgrep":
+        observed_rules = semgrep_rules(item, root, cwd)
+    elif rules == "builtin:" + item["version"]:
         observed_rules = rules
     elif isinstance(rules, dict) and rules:
         observed_rules = {}
@@ -304,6 +362,8 @@ def scan(config, root, *, candidate=None):
                 raise PipelineError("Duplicate security scanner identity")
             seen.add(item["id"])
             cwd = confined_path(root, item.get("cwd", "."))
+            if item["format"] == "semgrep":
+                semgrep_rules(item, root, cwd)  # Refuse remote rule selection before any scanner process.
             version = run(item["version_command"], cwd=cwd, timeout=30).stdout.strip()
             if not isinstance(item["version"], str) or not re.search(r"(?<![\w.])" + re.escape(item["version"]) + r"(?![\w.])", version):
                 raise PipelineError("Security scanner version does not match its pin")
