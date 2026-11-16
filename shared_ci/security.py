@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import datetime as dt
 import json
+import os
 import re
 import tempfile
 from pathlib import Path
@@ -50,6 +52,104 @@ def scanner_intelligence(item, root, cwd):
     return observed_rules, observed_database
 
 LEVELS = {"info": 0, "low": 1, "moderate": 2, "medium": 2, "high": 3, "critical": 4, "unknown": 4}
+_REFRESH_PROOF = object()
+
+
+def _candidate_binding(candidate, root):
+    from .evidence import IDENTITY_FIELDS, file_records
+    if (not isinstance(candidate, dict) or candidate.get("schema") != 1 or candidate.get("status") != "passed"
+            or any(key not in candidate for key in IDENTITY_FIELDS)
+            or candidate.get("identity") != fingerprint({key: candidate[key] for key in IDENTITY_FIELDS})):
+        raise PipelineError("Security scan requires an intact selected candidate identity")
+    actual = {group: file_records(root, list(candidate.get(group, {}))) for group in ("inputs", "artifacts")}
+    if any(candidate[group] != actual[group] for group in actual):
+        raise PipelineError("Security candidate inputs or artifact bytes changed")
+    return {"identity": candidate["identity"], "source_sha": candidate["source_sha"],
+            "source_tree": candidate["source_tree"], **actual}
+
+
+class SecurityRefresh:
+    """An authenticated separate scan; never reconstructed from a JSON boolean."""
+
+    def __init__(self, receipt, policy_path, policy_sha256, origin, *, _proof=None):
+        if _proof is not _REFRESH_PROOF:
+            raise PipelineError("Security refresh must be authorized from verified evidence")
+        self._receipt = copy.deepcopy(receipt)
+        self._receipt_fingerprint = fingerprint(receipt)
+        self._policy_path = Path(policy_path)
+        self._policy_sha256 = policy_sha256
+        self._origin = copy.deepcopy(origin)
+
+    def validate(self, candidate, root):
+        if fingerprint(self._receipt) != self._receipt_fingerprint:
+            raise PipelineError("Authorized security refresh was modified")
+        if sha256_file(self._policy_path) != self._policy_sha256:
+            raise PipelineError("Current security refresh policy changed after authorization")
+        policy = load_json(self._policy_path)
+        require_policy_fresh(self._receipt, policy)
+        if self._receipt.get("candidate_binding") != _candidate_binding(candidate, root):
+            raise PipelineError("Fresh security evidence does not bind this candidate and its exact retained files")
+        return self.summary()
+
+    def summary(self):
+        return {"origin": copy.deepcopy(self._origin), "receipt_fingerprint": self._receipt_fingerprint,
+                "policy_sha256": self._policy_sha256, "checked_at": self._receipt["checked_at"],
+                "candidate_identity": self._receipt["candidate_binding"]["identity"]}
+
+
+def authorize_refresh(verified, policy_path, expected_policy_sha256, expected_source_sha):
+    """Authorize only a fetch_receipt result and an explicitly selected current policy."""
+    from .evidence import AuthenticatedReceipt
+    if not isinstance(verified, AuthenticatedReceipt):
+        raise PipelineError("Security refresh origin must be an authenticated receipt fetch")
+    verified.validate_integrity()
+    receipt, origin = verified["receipt"], verified["provenance"]
+    return _authorize_receipt(receipt, origin, policy_path, expected_policy_sha256, expected_source_sha)
+
+
+def authorize_step_refresh(receipt_path, expected_receipt_sha256, policy_path, expected_policy_sha256, expected_source_sha):
+    """Use only a digest captured from an immutable same-job action's step output.
+
+    The trusted wrapper owns this digest parameter; never load it from product JSON
+    or accept a subprocess-provided value. File content alone is not origin proof.
+    """
+    if (os.environ.get("GITHUB_ACTIONS") != "true" or not os.environ.get("GITHUB_REPOSITORY")
+            or not str(os.environ.get("GITHUB_RUN_ID", "")).isdigit()
+            or os.environ.get("GITHUB_SHA") != expected_source_sha):
+        raise PipelineError("Local security refresh requires its trusted current GitHub job context")
+    if (not isinstance(expected_receipt_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_receipt_sha256)
+            or sha256_file(receipt_path) != expected_receipt_sha256):
+        raise PipelineError("Local security receipt differs from the trusted step output digest")
+    origin = {"kind": "trusted-step", "repository": os.environ["GITHUB_REPOSITORY"],
+              "run_id": os.environ["GITHUB_RUN_ID"], "source_sha": expected_source_sha,
+              "receipt_sha256": expected_receipt_sha256}
+    return _authorize_receipt(load_json(receipt_path), origin, policy_path, expected_policy_sha256, expected_source_sha)
+
+
+def _authorize_receipt(receipt, origin, policy_path, expected_policy_sha256, expected_source_sha):
+    if (not isinstance(expected_policy_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_policy_sha256)
+            or sha256_file(policy_path) != expected_policy_sha256
+            or not isinstance(expected_source_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", expected_source_sha)):
+        raise PipelineError("Explicit current policy checksum and tested promotion source are required")
+    policy = load_json(policy_path)
+    require_policy_fresh(receipt, policy)
+    counts = receipt.get("counts", {})
+    if (receipt.get("schema") != 1 or not isinstance(receipt.get("scanners"), list) or not receipt["scanners"]
+            or not isinstance(counts, dict) or type(counts.get("blocking")) is not int or counts["blocking"] != 0):
+        raise PipelineError("Security refresh lacks a complete passing scanner verdict")
+    if receipt.get("provenance") != {"repository": origin["repository"], "run_id": origin["run_id"], "sha": expected_source_sha}:
+        raise PipelineError("Security refresh does not belong to the verified run and tested promotion source")
+    assurance = receipt.get("assurance", {})
+    if (not isinstance(assurance, dict) or set(assurance) != {"kind", "source_sha", "source_tree", "config_sha256"}
+            or assurance.get("kind") != "security" or assurance.get("source_sha") != expected_source_sha
+            or not re.fullmatch(r"[0-9a-f]{40}", str(assurance.get("source_tree", "")))
+            or assurance.get("config_sha256") != expected_policy_sha256):
+        raise PipelineError("Security refresh lacks matching current source and policy assurance")
+    binding = receipt.get("candidate_binding", {})
+    if (not isinstance(binding, dict) or set(binding) != {"identity", "source_sha", "source_tree", "inputs", "artifacts"}
+            or not re.fullmatch(r"[0-9a-f]{64}", str(binding.get("identity", "")))):
+        raise PipelineError("Security refresh is not bound to an immutable candidate")
+    return SecurityRefresh(receipt, policy_path, expected_policy_sha256, origin, _proof=_REFRESH_PROOF)
 
 
 def _finding(identifier, severity, component):
@@ -181,13 +281,18 @@ def policy(findings, threshold, exceptions, at=None):
         (f["id"], f["component"]) in accepted for f in findings)}
 
 
-def scan(config, root):
+def scan(config, root, *, candidate=None):
     strict_keys(config, {"schema", "scans", "threshold", "exceptions", "max_age_hours"},
                 {"schema", "scans", "threshold", "max_age_hours"})
     if config["schema"] != 1 or not isinstance(config["scans"], list) or not config["scans"]:
         raise PipelineError("Security scanning needs at least one real scanner")
     if not isinstance(config["max_age_hours"], (int, float)) or not 0 < config["max_age_hours"] <= 168:
         raise PipelineError("Security freshness must be explicitly bounded to at most seven days")
+    binding = None
+    if candidate is not None:
+        from .evidence import verify_checks
+        binding = _candidate_binding(candidate, root)
+        verify_checks(candidate, root, historical_security=True)
     all_findings, records = [], []
     seen = set()
     with tempfile.TemporaryDirectory(prefix="shared-ci-security-") as temporary:
@@ -231,21 +336,41 @@ def scan(config, root):
               "findings": all_findings,
               "scanners": records, "checked_at": dt.datetime.now(dt.timezone.utc).isoformat(),
               "max_age_hours": config["max_age_hours"], "policy_identity": fingerprint(config)}
+    result["provenance"] = {"repository": os.environ.get("GITHUB_REPOSITORY"),
+                            "run_id": os.environ.get("GITHUB_RUN_ID"), "sha": os.environ.get("GITHUB_SHA")}
+    if binding is not None:
+        if _candidate_binding(candidate, root) != binding:
+            raise PipelineError("Security scanner changed the selected candidate")
+        verify_checks(candidate, root, historical_security=True)
+        result["candidate_binding"] = binding
     return result
 
 
-def require_fresh(receipt, expected_policy_identity, *, at=None):
+def require_fresh(receipt, expected_policy_identity, *, at=None, expected_max_age_hours=None):
     at = at or dt.datetime.now(dt.timezone.utc)
     if receipt.get("status") != "passed" or receipt.get("policy_identity") != expected_policy_identity:
         raise PipelineError("Security evidence is failed or policy has changed")
+    maximum = receipt.get("max_age_hours")
+    if (type(maximum) not in (int, float) or not 0 < maximum <= 168
+            or (expected_max_age_hours is not None and maximum != expected_max_age_hours)):
+        raise PipelineError("Security evidence freshness bound differs from selected policy")
     try:
-        checked = dt.datetime.fromisoformat(receipt["checked_at"])
+        checked = dt.datetime.fromisoformat(receipt["checked_at"].replace("Z", "+00:00"))
+        if checked.tzinfo is None:
+            raise ValueError("missing timezone")
         age = (at - checked).total_seconds() / 3600
-        fresh = 0 <= age <= receipt["max_age_hours"]
-    except (KeyError, ValueError, TypeError) as exc:
+        fresh = 0 <= age <= maximum
+    except (KeyError, ValueError, TypeError, AttributeError) as exc:
         raise PipelineError("Security evidence timestamp is invalid") from exc
     if not fresh:
         raise PipelineError("Security evidence is stale; refresh vulnerability intelligence")
+    return True
+
+
+def require_policy_fresh(receipt, config, *, at=None):
+    """Fresh intelligence never extends an exception beyond its explicit expiry."""
+    require_fresh(receipt, fingerprint(config), at=at, expected_max_age_hours=config.get("max_age_hours"))
+    policy([], config["threshold"], config.get("exceptions", []), at=at)
     return True
 
 
