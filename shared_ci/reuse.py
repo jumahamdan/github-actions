@@ -141,6 +141,10 @@ def execute(config, root, *, request=None, library_root=None):
     lock_hashes = {path: sha256_file(confined_path(root, path)) for path in locks}
     if receipt.get("lockfiles") != lock_hashes:
         raise PipelineError("Fresh quality evidence is required: dependency locks changed")
+    immutable = snapshot(root, quality.get("immutable_paths", quality.get("inputs", [])))
+    covered = {**inputs, **lock_hashes}
+    if any(covered.get(path) != digest for path, digest in immutable.items()):
+        raise PipelineError("Fresh quality evidence is required: immutable files are outside recorded inputs/locks")
     if not quality.get("toolchain") or receipt.get("toolchain") != quality["toolchain"]:
         raise PipelineError("Fresh quality evidence is required: toolchain expectations changed")
     library = receipt.get("library", {})

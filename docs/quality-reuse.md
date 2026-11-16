@@ -50,6 +50,7 @@ The authenticated receipt must then satisfy all of these requirements:
 - Original schema-1 quality receipt with `status: passed`, matching product/profile/run/tested SHA, and matching source/configuration assurance.
 - Original creation timestamp within the explicit age limit, with a timezone and no future date. Reuse never refreshes this timestamp and cannot chain another reused receipt.
 - Exact current quality configuration checksum and the same selected input paths. Every selected file's content hash, including files newly added inside a selected directory, must match. Every declared dependency lock is checked separately.
+- Every file selected by `immutable_paths` must also be covered by recorded inputs or lockfiles. Quality does not separately retain immutable-file hashes, so an extra immutable file outside that record requires fresh evidence.
 - Exact expected toolchain commands and versions from the current quality configuration. The configured tools are not rerun merely to compare expectations.
 - Every configured check present exactly once, with the correct kind and a passing result; every required name exists. At least one test check must prove a positive executed count, zero failures, a nonnegative skipped count, and a valid retained test-report hash.
 - Matching `library.identity`. This fingerprints Python modules and nested helpers, script helpers, v2 composite actions/workflows, and installation locks. Implementation changes invalidate reuse; documentation-only library commits do not.

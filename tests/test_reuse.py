@@ -154,6 +154,25 @@ class ReuseTests(unittest.TestCase):
         with self.assertRaisesRegex(PipelineError, "file content changed"):
             self.reuse()
 
+    def test_extra_immutable_files_require_recorded_input_or_lock_coverage(self):
+        (self.root / "protected.conf").write_text("original configuration")
+        self.quality["immutable_paths"] = ["source.txt", "deps.lock", "protected.conf"]
+        self.quality_path.write_text(json.dumps(self.quality))
+        self.git("add", "protected.conf", "quality.json")
+        self.git("commit", "-qm", "additional immutable configuration")
+        self.source = self.git("rev-parse", "HEAD")
+        self.config["source"]["source_sha"] = self.source
+        self.receipt = run_quality(self.quality, self.root, config_hash=sha256_file(self.quality_path))
+        self.receipt["provenance"]["sha"] = self.source
+        self.receipt["library"] = {"identity": library_identity(self.library)}
+        stamp(self.receipt, "quality", self.quality_path, self.root)
+        self.repack()
+        (self.root / "protected.conf").write_text("changed configuration")
+        self.git("add", "protected.conf")
+        self.git("commit", "-qm", "changed immutable file omitted from inputs")
+        with self.assertRaisesRegex(PipelineError, "immutable files are outside recorded"):
+            self.reuse()
+
     def test_changed_config_including_required_checks_or_tool_version_fails(self):
         for change in ({"required_checks": ["tests", "new"]}, {"inputs": ["source.txt"]},
                        {"toolchain": [{"command": ["bash", "--version"], "version": "9.0.0"}]}):
