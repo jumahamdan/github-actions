@@ -42,6 +42,8 @@ jobs:
       run: python3 -m shared_ci.docs --config .ci/docs.json --root .
     - name: Capability index matches implementations and tests
       run: python3 scripts/capabilities.py --check
+    - name: Caller contracts match workflow inputs and secrets
+      run: python3 scripts/workflow-contracts.py --check
     - name: Compile Python modules
       run: python3 -m compileall -q shared_ci scripts
     - name: Whitespace checks
