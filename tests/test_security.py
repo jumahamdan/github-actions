@@ -3,12 +3,71 @@ import json
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 from shared_ci.common import PipelineError
 from shared_ci.security import normalize, policy, require_fresh, scan, scanner_intelligence
 
 
 class SecurityTests(unittest.TestCase):
+    def test_duplicate_findings_keep_highest_severity_in_either_order(self):
+        for levels in (("CRITICAL", "LOW"), ("LOW", "CRITICAL")):
+            report = {"Results": [{"Vulnerabilities": [
+                {"VulnerabilityID": "CVE-fixture", "Severity": severity, "PkgName": "dependency"}
+                for severity in levels]}]}
+            with self.subTest(levels=levels):
+                findings = normalize("trivy", report)
+                self.assertEqual(findings, [{"id": "CVE-fixture", "severity": "critical", "component": "dependency"}])
+                self.assertEqual(policy(findings, "critical", [])["blocking"], 1)
+
+    def test_duplicate_findings_across_real_scanner_processes_keep_blocker(self):
+        for levels in (("ERROR", "INFO"), ("INFO", "ERROR")):
+            scans = []
+            for index, level in enumerate(levels):
+                report = {"results": [{"check_id": "shared-rule", "path": "app.py", "extra": {"severity": level}}], "errors": []}
+                scans.append({"id": f"scanner-{index}", "format": "semgrep",
+                              "command": [sys.executable, "-c", "print(" + repr(json.dumps(report)) + ")"],
+                              "version_command": [sys.executable, "-c", "print('1.0.0')"], "version": "1.0.0", "output": "stdout",
+                              "rules_identity": "builtin:1.0.0", "database_identity": "none"})
+            config = {"schema": 1, "threshold": "high", "max_age_hours": 24, "scans": scans}
+            with self.subTest(levels=levels), tempfile.TemporaryDirectory() as root:
+                result = scan(config, root)
+                self.assertEqual(result["status"], "failed")
+                self.assertEqual(result["counts"], {"findings": 1, "blocking": 1, "excepted": 0})
+                self.assertEqual(result["findings"], [{"id": "shared-rule", "component": "app.py", "severity": "high"}])
+                self.assertEqual([scanner["finding_count"] for scanner in result["scanners"]], [1, 1])
+
+    def test_missing_or_malformed_sarif_results_never_mean_clean_scan(self):
+        driver = {"driver": {"name": "CodeQL"}}
+        runs = [{"tool": driver}, *({"tool": driver, "results": value} for value in (None, {}, "", False))]
+        for analysis in runs:
+            with self.subTest(analysis=analysis), self.assertRaisesRegex(PipelineError, "results"):
+                normalize("sarif", {"version": "2.1.0", "runs": [analysis]})
+        self.assertEqual(normalize("sarif", {"version": "2.1.0", "runs": [{"tool": driver, "results": []}]}), [])
+        with self.assertRaises(PipelineError):
+            normalize("sarif", {"version": "2.1.0", "runs": [{"tool": driver, "results": []}, {"tool": driver}]})
+        with self.assertRaises(PipelineError):
+            normalize("sarif", {"version": "2.1.0", "runs": [{"tool": driver, "results": [{"ruleId": "fixture", "locations": []}]}]})
+
+    def test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan(self):
+        invalid = [[], ["--redact=0"], ["--redact=false"], ["--redact=20"], ["--redacted"],
+                   ["--redact", "--redact=0"], ["--redact=0", "--redact=100"],
+                   ["--redact", "0"], ["--redact", "false"], ["--", "--redact"]]
+        for flags in invalid + [["--redact"], ["--redact=100"]]:
+            with self.subTest(flags=flags), tempfile.TemporaryDirectory() as root:
+                command = [sys.executable, "-c", "from pathlib import Path; Path('ran').touch(); print('[]')", *flags]
+                config = {"schema": 1, "threshold": "high", "max_age_hours": 24, "scans": [{
+                    "id": "fixture", "format": "gitleaks", "command": command,
+                    "version_command": [sys.executable, "-c", "print('1.0.0')"], "version": "1.0.0", "output": "stdout",
+                    "rules_identity": "builtin:1.0.0", "database_identity": "none"}]}
+                if flags in invalid:
+                    with self.assertRaisesRegex(PipelineError, "redact"):
+                        scan(config, root)
+                    self.assertFalse((Path(root) / "ran").exists())
+                else:
+                    self.assertEqual(scan(config, root)["status"], "passed")
+                    self.assertTrue((Path(root) / "ran").exists())
+
     def test_stale_actual_database_is_refused(self):
         item={"format":"trivy","version":"1.0.0","rules_identity":"builtin:1.0.0","database_identity":{
             "command":[sys.executable,"-c","print('{\"VulnerabilityDB\":{\"Version\":2,\"UpdatedAt\":\"2000-01-01T00:00:00Z\"}}')"],"max_age_hours":24}}

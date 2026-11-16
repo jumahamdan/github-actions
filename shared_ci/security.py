@@ -58,6 +58,28 @@ def _finding(identifier, severity, component):
     return {"id": identifier, "severity": severity.lower(), "component": str(component)}
 
 
+def _deduplicate(findings):
+    """A repeated finding can increase severity, never hide an earlier blocker."""
+    unique = {}
+    for finding in findings:
+        key = (finding["id"], finding["component"])
+        if key not in unique or LEVELS[finding["severity"]] > LEVELS[unique[key]["severity"]]:
+            unique[key] = finding
+    return list(unique.values())
+
+
+def _require_redaction(command):
+    # Gitleaks' uint flag defaults to 100 only when explicitly present without
+    # a value. Prefix matching also accepts --redact=0/false and is insufficient.
+    options = command[:command.index("--")] if "--" in command else command
+    redaction = [part for part in options if part.startswith("--redact")]
+    if not redaction or any(part not in {"--redact", "--redact=100"} for part in redaction):
+        raise PipelineError("Gitleaks requires explicit full redaction (--redact or --redact=100)")
+    for index, part in enumerate(options[:-1]):
+        if part == "--redact" and re.fullmatch(r"(?:[0-9]+|true|false)", options[index + 1], re.I):
+            raise PipelineError("Use --redact=100; separated redaction values are ambiguous")
+
+
 def normalize(kind, report):
     findings = []
     try:
@@ -107,11 +129,13 @@ def normalize(kind, report):
             for analysis in report["runs"]:
                 if not analysis.get("tool", {}).get("driver", {}).get("name"):
                     raise PipelineError("SARIF has no scanner identity")
+                if not isinstance(analysis.get("results"), list):
+                    raise PipelineError("SARIF run results are absent or malformed")
                 for invocation in analysis.get("invocations", []):
                     if invocation.get("executionSuccessful") is False:
                         raise PipelineError("SARIF reports an unsuccessful scanner")
                 rules = {rule.get("id"): rule for rule in analysis["tool"]["driver"].get("rules", [])}
-                for finding in analysis.get("results", []):
+                for finding in analysis["results"]:
                     level = {"error": "high", "warning": "medium", "note": "low", "none": "info"}.get(finding.get("level", "warning"), "unknown")
                     security_score = rules.get(finding.get("ruleId"), {}).get("properties", {}).get("security-severity")
                     if security_score is not None:
@@ -126,13 +150,14 @@ def normalize(kind, report):
                     findings.append(_finding(finding["ruleId"], level, location))
         else:
             raise PipelineError("Unsupported security report format")
-    except (KeyError, TypeError, AttributeError) as exc:
+    except (KeyError, TypeError, AttributeError, IndexError) as exc:
         raise PipelineError(f"Malformed {kind} security report") from exc
     # No source snippets, matched secrets, raw tool messages or stack traces in the receipt.
-    return list({(f["id"], f["component"]): f for f in findings}.values())
+    return _deduplicate(findings)
 
 
 def policy(findings, threshold, exceptions, at=None):
+    findings = _deduplicate(findings)
     at = at or dt.datetime.now(dt.timezone.utc)
     if threshold not in LEVELS:
         raise PipelineError("Unknown security severity threshold")
@@ -179,8 +204,8 @@ def scan(config, root):
                 raise PipelineError("Security scanner version does not match its pin")
             report_path = Path(temporary) / f"{index}.json"
             command = [part.replace("{report}", str(report_path)) for part in item["command"]]
-            if item["format"] == "gitleaks" and not any(part.startswith("--redact") for part in command):
-                raise PipelineError("Gitleaks must redact findings at source")
+            if item["format"] == "gitleaks":
+                _require_redaction(command)
             completed = run(command, cwd=cwd, timeout=item.get("timeout", 900), check=False)
             if completed.returncode not in item.get("allowed_exit_codes", [0, 1]):
                 raise PipelineError("Security scanner execution failed")
@@ -200,6 +225,7 @@ def scan(config, root):
             all_findings.extend(findings)
             records.append({"id": item["id"], "format": item["format"], "version": item["version"],
                             "rules": observed_rules, "database": observed_database, "finding_count": len(findings)})
+    all_findings = _deduplicate(all_findings)
     counts = policy(all_findings, config["threshold"], config.get("exceptions", []))
     result = {"schema": 1, "status": "failed" if counts["blocking"] else "passed", "counts": counts,
               "findings": all_findings,
