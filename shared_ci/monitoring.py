@@ -306,6 +306,18 @@ def execution_context(config, root):
     if config.get("execution_context", "github") == "github":
         trusted_context(config["allowed_refs"])
         return
+    if config.get("execution_context") == "emergency-mac":
+        if config["operation"] not in ("sentry-native", "crashlytics-apple"):
+            raise PipelineError("Emergency Apple monitoring supports native symbol uploads only")
+        from .mobile import validate_emergency_archive
+        source_root = Path(env_secret(config.get("source_root_env"))).resolve()
+        candidate = load_json(confined_path(root, config["candidate"]))
+        context = validate_emergency_archive(config.get("emergency"), source_root, Path(root).resolve(), build=candidate.get("build"))
+        refs = config["allowed_refs"]
+        if (not isinstance(refs, list) or not refs or any(not isinstance(ref, str) or not re.fullmatch(r"refs/heads/[A-Za-z0-9_./-]+", ref) for ref in refs)
+                or context.get("execution_context", {}).get("ref") not in refs):
+            raise PipelineError("Emergency monitoring branch is not authorized")
+        return context
     if config.get("execution_context") != "xcode-cloud" or config["operation"] not in ("sentry-native", "crashlytics-apple"):
         raise PipelineError("Xcode Cloud monitoring supports native archive symbol uploads only")
     refs = config["allowed_refs"]
@@ -320,15 +332,20 @@ def execution_context(config, root):
 
 def execute(config, root):
     required = {"schema", "operation", "candidate", "inspection", "expected_identity", "expected_source_sha", "allowed_refs"}
-    strict_keys(config, required | {"tool", "sentry", "firebase", "symbols", "artifact", "dart_libraries", "source_maps", "timeout", "execution_context"}, required)
+    strict_keys(config, required | {"tool", "sentry", "firebase", "symbols", "artifact", "dart_libraries", "source_maps", "timeout", "execution_context", "emergency", "source_root_env"}, required)
     operations = {"sentry-native", "sentry-dart", "sentry-r8", "sentry-sourcemaps", "sentry-release", "sentry-deploy",
                   "crashlytics-apple", "crashlytics-dart", "crashlytics-r8"}
     if config["schema"] != 1 or config["operation"] not in operations:
         raise PipelineError("Unsupported monitoring operation")
     bounded(config.get("timeout", 900), 1, 3600, "monitoring timeout")
-    execution_context(config, root)
+    context = execution_context(config, root)
     root = Path(root).resolve()
     candidate, inspected = load_candidate(config, root, {"apple", "android", "web"})
+    if config.get("execution_context") == "emergency-mac" and (candidate["source_sha"] != context.get("source_revision")
+            or candidate["source_tree"] != context.get("source_tree") or candidate["build"] != context.get("build_number")
+            or inspected.get("build_id") != context.get("build_id") or inspected.get("archive_sha256") != context.get("archive_sha256")
+            or inspected.get("execution_context") != context.get("execution_context")):
+        raise PipelineError("Native monitoring inspection belongs to another emergency source/archive/operator")
     if config.get("execution_context") == "xcode-cloud" and (inspected.get("artifact_root") != "$CI_ARCHIVE_PATH"
             or inspected.get("build_id") != os.environ.get("CI_BUILD_ID") or inspected["application"]["build"] != os.environ.get("CI_BUILD_NUMBER")):
         raise PipelineError("Native monitoring inspection belongs to another Xcode Cloud archive/build")

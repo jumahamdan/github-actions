@@ -5,6 +5,7 @@ import plistlib
 import subprocess
 import tempfile
 import unittest
+import types
 import zipfile
 from pathlib import Path
 from unittest.mock import patch
@@ -260,6 +261,19 @@ class MonitoringTests(unittest.TestCase):
                 monitoring.execution_context(self.config, self.root)
         with patch.dict(os.environ, env), patch("shared_ci.monitoring.sys.platform", "linux"), self.assertRaises(PipelineError):
             monitoring.execution_context(self.config, self.root)
+
+    def test_emergency_context_calls_native_archive_validator_not_receipt_only(self):
+        self.config.update(execution_context="emergency-mac", emergency={"mode": "emergency-mac", "operator": "synthetic-operator"}, source_root_env="EMERGENCY_SOURCE_ROOT")
+        context = {"source_revision": "a" * 40, "source_tree": "b" * 40, "build_number": "123", "build_id": "manual-123", "archive_sha256": "f" * 64,
+                   "execution_context": {"mode": "emergency-mac", "operator": "synthetic-operator", "ref": "refs/heads/staging"}}
+        validator = unittest.mock.Mock(return_value=context)
+        fake_mobile = types.SimpleNamespace(validate_emergency_archive=validator)
+        with patch.dict(os.environ, {"EMERGENCY_SOURCE_ROOT": str(self.root)}), patch.dict("sys.modules", {"shared_ci.mobile": fake_mobile}):
+            self.assertEqual(monitoring.execution_context(self.config, self.root), context)
+            validator.assert_called_once_with(self.config["emergency"], self.root, self.root, build="123")
+            with self.assertRaisesRegex(PipelineError, "another emergency"):
+                self.execute()
+        self.assertFalse(self.calls)
 
     def test_deploy_marker_needs_successful_matching_receipt(self):
         self.config["operation"] = "sentry-deploy"
