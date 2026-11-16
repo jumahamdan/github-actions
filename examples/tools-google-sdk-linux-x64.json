@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "bounds": {
+    "max_download_bytes": 134217728,
+    "max_expanded_bytes": 1073741824,
+    "max_files": 50000
+  },
+  "tools": [
+    {
+      "name": "google-cloud-sdk",
+      "version": "582.0.0",
+      "url": "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-582.0.0-linux-x86_64.tar.gz",
+      "sha256": "e917ca3a21bc9d5ae13759d11a581a6a948a5170f257f2640a25e7c44cf6a8a5",
+      "format": "tar",
+      "strip_prefix": "google-cloud-sdk",
+      "entrypoints": {
+        "gcloud": "bin/gcloud"
+      },
+      "materialize_internal_links": true,
+      "environment": {
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "CLOUDSDK_CORE_DISABLE_PROMPTS": "1",
+        "CLOUDSDK_COMPONENT_MANAGER_DISABLE_UPDATE_CHECK": "1",
+        "CLOUDSDK_CORE_DISABLE_USAGE_REPORTING": "true"
+      },
+      "overlays": [
+        {
+          "url": "https://dl.google.com/dl/cloudsdk/channels/rapid/components/google-cloud-sdk-beta-20260821073916.tar.gz",
+          "sha256": "0034138f7ee8d13690dae0a1443a09ecbdae1e45497360c14dabd2c57a79c8a2",
+          "format": "tar"
+        }
+      ],
+      "exclude_paths": [
+        "platform/gsutil/third_party/requests/tests"
+      ],
+      "metadata_files": [
+        {
+          "path": ".install/beta.manifest",
+          "content": "lib/surface/beta/__init__.py\n",
+          "sha256": "347019db776651521dd5808033ba18bcd988035ea2107f329b2942cac0240ac0"
+        },
+        {
+          "path": ".install/beta.snapshot.json",
+          "content": "{\n  \"components\": [\n    {\n      \"data\": {\n        \"checksum\": \"0034138f7ee8d13690dae0a1443a09ecbdae1e45497360c14dabd2c57a79c8a2\",\n        \"contents_checksum\": \"eee82cd34806ce26487960b9cf1705786ccf975d34390b179f7b89307dc51044\",\n        \"size\": 758,\n        \"source\": \"components/google-cloud-sdk-beta-20260821073916.tar.gz\",\n        \"type\": \"tar\"\n      },\n      \"dependencies\": [\n        \"core\"\n      ],\n      \"details\": {\n        \"description\": \"Beta version of gcloud commands.\",\n        \"display_name\": \"gcloud Beta Commands\"\n      },\n      \"gdu_only\": false,\n      \"id\": \"beta\",\n      \"is_configuration\": false,\n      \"is_hidden\": false,\n      \"is_required\": false,\n      \"platform\": {},\n      \"platform_required\": false,\n      \"version\": {\n        \"build_number\": 20260821073916,\n        \"version_string\": \"2026.08.21\"\n      }\n    }\n  ],\n  \"revision\": 20260821073916,\n  \"schema_version\": {\n    \"no_update\": false,\n    \"url\": \"https://dl.google.com/dl/cloudsdk/channels/rapid/google-cloud-sdk.tar.gz\",\n    \"version\": 3\n  },\n  \"version\": \"582.0.0\"\n}\n",
+          "sha256": "d843be51d32e970eb122dd7774ca9ef6269d086412993c6fd26312b7136089e9"
+        }
+      ]
+    }
+  ]
+}

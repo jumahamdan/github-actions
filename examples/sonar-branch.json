@@ -19,7 +19,7 @@
     "command": [
       "sonar-scanner"
     ],
-    "version": "6.2.1.4610"
+    "version": "8.3.1.16491"
   },
   "allowed_refs": [
     "refs/heads/develop"

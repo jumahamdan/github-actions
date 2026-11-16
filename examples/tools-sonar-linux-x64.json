@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "bounds": {
+    "max_download_bytes": 134217728,
+    "max_expanded_bytes": 1073741824,
+    "max_files": 50000
+  },
+  "tools": [
+    {
+      "name": "sonar-scanner",
+      "version": "8.3.1.16491",
+      "url": "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-8.3.1.16491-linux-x64.zip",
+      "sha256": "0f304e4c5982f0cfbd06762306d6e60e6ed9c8e3853629ae3b8ec2f4dc9bdc04",
+      "format": "zip",
+      "strip_prefix": "sonar-scanner-8.3.1.16491-linux-x64",
+      "entrypoints": {
+        "sonar-scanner": "bin/sonar-scanner"
+      },
+      "materialize_internal_links": true
+    }
+  ]
+}
