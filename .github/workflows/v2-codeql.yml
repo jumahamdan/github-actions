@@ -1,0 +1,315 @@
+name: Shared v2 CodeQL
+'on':
+  workflow_call:
+    inputs:
+      config:
+        description: Product security policy JSON containing exactly one CodeQL SARIF scan
+        required: true
+        type: string
+      language:
+        description: One Linux CodeQL language (actions, cpp, csharp, go, java, javascript, python, ruby, rust)
+        required: true
+        type: string
+      build-mode:
+        description: Explicit none or manual; Go and Kotlin require manual in this workflow
+        default: none
+        type: string
+      build-config:
+        description: Product JSON argv/toolchain configuration required for manual builds
+        default: ''
+        type: string
+      go-version:
+        description: Exact Go version required for manual Go analysis
+        default: ''
+        type: string
+      java-version:
+        description: Exact Temurin version required for manual Java/Kotlin analysis
+        default: ''
+        type: string
+      dotnet-version:
+        description: Exact .NET SDK version required for manual C# analysis
+        default: ''
+        type: string
+      root:
+        description: Product source root relative to workspace
+        default: .
+        type: string
+      entitled:
+        description: Caller verified CodeQL licensing for this repository
+        required: true
+        type: boolean
+      advanced-setup-confirmed:
+        description: Caller disabled default setup and duplicate CodeQL workflows
+        required: true
+        type: boolean
+      upload-to-github:
+        description: Explicitly upload raw SARIF to entitled GitHub code scanning
+        default: false
+        type: boolean
+      artifact-name:
+        description: Unique aggregate security receipt artifact name
+        required: true
+        type: string
+    outputs:
+      status:
+        description: Local security policy verdict
+        value: ${{ jobs.analyze.outputs.status }}
+permissions:
+  contents: read
+jobs:
+  analyze:
+    if: ${{ github.event_name != 'pull_request_target' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      status: ${{ steps.gate.outputs.status }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: 3.12.3
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.4
+      - name: Validate scope and download checksum-pinned language tools
+        id: prepare
+        env:
+          PRODUCT_ROOT: ${{ inputs.root }}
+          SECURITY_CONFIG: ${{ inputs.config }}
+          CODEQL_LANGUAGE: ${{ inputs.language }}
+          BUILD_MODE: ${{ inputs.build-mode }}
+          BUILD_CONFIG: ${{ inputs.build-config }}
+          CODEQL_ENTITLED: ${{ inputs.entitled }}
+          ADVANCED_CONFIRMED: ${{ inputs.advanced-setup-confirmed }}
+          GO_VERSION: ${{ inputs.go-version }}
+          JAVA_VERSION: ${{ inputs.java-version }}
+          DOTNET_VERSION: ${{ inputs.dotnet-version }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, re, tempfile, urllib.request
+          from pathlib import Path
+          hashes = {
+            "actions": "f12b84c1ed3540c54691257ddea1b72b62f785c8bb3eca907562c6a8a2361d32",
+            "cpp": "eea5a76ed6778892278a387c4362fef8d03e5a9c3795f5d5022d496fccfd5388",
+            "csharp": "b991d23f6bc44fa34f81d0d4ba159a331f31c2a7f4ff5d53778ed0a19a0b48aa",
+            "go": "d79b33f86ec8b20af73d3456041349a2780c1081ee8c0eca624b9a25c5cb2e15",
+            "java": "dbeb8e2f4454bf4aad35fe16d8770dcc4a4ce0c3585d8952d57e41905396aff8",
+            "javascript": "082e798c97831283a2a5f69e9198c51270e5767013d5333daeeab6520af9ce72",
+            "python": "d862cb11aff035988f178703b69751be072f2aa7e76616f16bb725a207b50b7d",
+            "ruby": "ab3a5abb89263a92a2e8b299dbb786c9f9d7b46593ba2d94c0ff63d8aadb9a15",
+            "rust": "1c2f867094b80e43c9a0e511090e57e0ea3bf107600b4b3763c52b9020b4ec4b",
+          }
+          language, mode = os.environ['CODEQL_LANGUAGE'], os.environ['BUILD_MODE']
+          if os.environ['CODEQL_ENTITLED'] != 'true' or os.environ['ADVANCED_CONFIRMED'] != 'true':
+              raise SystemExit('Confirm CodeQL licensing and one advanced setup before enabling this job')
+          if language not in hashes or mode not in ('none', 'manual'):
+              raise SystemExit('Unsupported Linux CodeQL language/build mode')
+          if language in ('actions', 'javascript', 'python', 'ruby', 'rust') and mode != 'none':
+              raise SystemExit('This language requires none build mode in this workflow')
+          if language == 'go' and mode != 'manual':
+              raise SystemExit('Go requires an explicit manual build in this workflow')
+          sdk = {'go':'GO_VERSION', 'java':'JAVA_VERSION', 'csharp':'DOTNET_VERSION'}.get(language)
+          if mode == 'manual' and sdk and not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:\+[0-9]+)?', os.environ[sdk]):
+              raise SystemExit('Manual analysis requires an exact compiler SDK version')
+          workspace = Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          def relative(base, name):
+              path = Path(name)
+              if not name or any(c in name for c in '\r\n\x00') or path.is_absolute() or '..' in path.parts:
+                  raise SystemExit('Expected a confined relative path')
+              result = (base / path).resolve()
+              if not result.is_relative_to(base) or not result.exists():
+                  raise SystemExit('Required path is missing or escapes its root')
+              return result
+          root = relative(workspace, os.environ['PRODUCT_ROOT'])
+          policy = json.loads(relative(root, os.environ['SECURITY_CONFIG']).read_text())
+          scans = policy.get('scans')
+          if not isinstance(scans, list) or len(scans) != 1:
+              raise SystemExit('CodeQL gate requires exactly one selected SARIF scan')
+          scan = scans[0]
+          required = {'id': f'codeql-{language}-{mode}', 'format': 'sarif',
+                      'command': ['cat', f'.shared-codeql-results/{language}.sarif'],
+                      'version_command': ['codeql', 'version', '--format=json'],
+                      'version': '2.27.4', 'output': 'stdout', 'rules_identity': 'builtin:2.27.4',
+                      'database_identity': 'none'}
+          if any(scan.get(key) != value for key, value in required.items()) or scan.get('cwd', '.') != '.':
+              raise SystemExit('CodeQL security policy does not match this analysis contract')
+          if mode == 'none' and os.environ['BUILD_CONFIG']:
+              raise SystemExit('None mode cannot accept an ignored build configuration')
+          if mode == 'manual':
+              relative(root, os.environ['BUILD_CONFIG'])
+          if language == 'java' and mode == 'none' and any(root.rglob('*.kt')):
+              raise SystemExit('Kotlin requires manual build mode; none would omit it')
+          results = root / '.shared-codeql-results'
+          if results.exists() or results.is_symlink():
+              raise SystemExit('CodeQL result directory must be fresh')
+          # Pin language-specific bundles, rather than downloading every language or a moving latest bundle.
+          target = Path(tempfile.mkdtemp(prefix='shared-codeql-', dir=os.environ['RUNNER_TEMP'])) / 'codeql.tar.zst'
+          url = f'https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.4/codeql-bundle-{language}-linux64.tar.zst'
+          digest, size = hashlib.sha256(), 0
+          with urllib.request.urlopen(url, timeout=120) as source, target.open('wb') as output:
+              while chunk := source.read(1024 * 1024):
+                  size += len(chunk)
+                  if size > 400 * 1024 * 1024:
+                      raise SystemExit('CodeQL bundle exceeds size limit')
+                  digest.update(chunk); output.write(chunk)
+          if digest.hexdigest() != hashes[language]:
+              raise SystemExit('CodeQL bundle checksum mismatch')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'bundle={target}\nsource-root={root.relative_to(workspace)}\nresults={results}\n')
+          PY
+      - name: Set up exact Go compiler
+        if: ${{ inputs.language == 'go' && inputs.build-mode == 'manual' }}
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: false
+      - name: Set up exact Java compiler
+        if: ${{ inputs.language == 'java' && inputs.build-mode == 'manual' }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java-version }}
+      - name: Set up exact .NET SDK
+        if: ${{ inputs.language == 'csharp' && inputs.build-mode == 'manual' }}
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+      - name: Initialize CodeQL
+        id: init
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          tools: ${{ steps.prepare.outputs.bundle }}
+          languages: ${{ inputs.language }}
+          build-mode: ${{ inputs.build-mode }}
+          source-root: ${{ steps.prepare.outputs.source-root }}
+          config: |
+            disable-default-queries: true
+          queries: security-extended
+          dependency-caching: false
+          trap-caching: false
+      - name: Verify installed CodeQL version
+        env:
+          CODEQL_BINARY: ${{ steps.init.outputs.codeql-path }}
+          CODEQL_VERSION: ${{ steps.init.outputs.codeql-version }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          if os.environ['CODEQL_VERSION'] != '2.27.4':
+              raise SystemExit('CodeQL version differs from the pinned bundle')
+          executable = Path(os.environ['CODEQL_BINARY']).resolve()
+          if not executable.is_file():
+              raise SystemExit('CodeQL executable missing')
+          with open(os.environ['GITHUB_PATH'], 'a') as output:
+              output.write(str(executable.parent) + '\n')
+          PY
+      - name: Run explicit compiled-language build
+        if: ${{ inputs.build-mode == 'manual' }}
+        env:
+          PRODUCT_ROOT: ${{ inputs.root }}
+          BUILD_CONFIG: ${{ inputs.build-config }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, re, signal, subprocess
+          from pathlib import Path
+          workspace = Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          root = (workspace / os.environ['PRODUCT_ROOT']).resolve()
+          config = json.loads((root / os.environ['BUILD_CONFIG']).read_text())
+          if not isinstance(config, dict) or set(config) != {'commands', 'toolchain', 'directory', 'timeout_seconds'}:
+              raise SystemExit('Manual build requires commands, toolchain, directory and timeout_seconds')
+          directory = Path(config['directory'])
+          cwd = (root / directory).resolve()
+          if directory.is_absolute() or '..' in directory.parts or not cwd.is_relative_to(root) or not cwd.is_dir():
+              raise SystemExit('Build directory escapes product root')
+          timeout = config['timeout_seconds']
+          if type(timeout) is not int or not 1 <= timeout <= 1800:
+              raise SystemExit('Build command timeout must be 1..1800 seconds')
+          if not isinstance(config['commands'], list) or not 1 <= len(config['commands']) <= 10 or not config['toolchain']:
+              raise SystemExit('Explicit build commands and compiler version checks are required')
+          # Preserve CodeQL tracing while removing ambient deployment/provider/package credentials.
+          allowed = {'PATH','HOME','TMPDIR','JAVA_HOME','JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS','LD_PRELOAD','LD_LIBRARY_PATH','GOROOT','GOPATH'}
+          env = {k:v for k,v in os.environ.items() if (k in allowed or k.startswith(('CODEQL_', 'SEMMLE_', 'DOTNET_')))
+                 and not re.search(r'KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTHORIZATION', k, re.I)}
+          env.update(CI='true', NO_COLOR='1')
+          def execute(argv, capture=False):
+              if not isinstance(argv, list) or not argv or any(not isinstance(x, str) or '\x00' in x for x in argv):
+                  raise SystemExit('Build commands must be nonempty JSON argument arrays')
+              process = subprocess.Popen(argv, cwd=cwd, env=env, start_new_session=True,
+                                         stdout=subprocess.PIPE if capture else None, stderr=subprocess.STDOUT if capture else None,
+                                         text=True)
+              try: output, _ = process.communicate(timeout=timeout)
+              except subprocess.TimeoutExpired:
+                  os.killpg(process.pid, signal.SIGKILL); process.communicate()
+                  raise SystemExit('CodeQL build command timed out')
+              if process.returncode: raise SystemExit('CodeQL build command failed')
+              return output
+          for tool in config['toolchain']:
+              if not isinstance(tool, dict) or set(tool) != {'command','version'} or not isinstance(tool['version'],str) or not tool['version'].strip():
+                  raise SystemExit('Invalid compiler version contract')
+              output = execute(tool['command'], True)
+              if not re.search(r'(?<![\w.])' + re.escape(tool['version']) + r'(?![\w.])', output):
+                  raise SystemExit('Compiler version differs from product pin')
+          for command in config['commands']: execute(command)
+          PY
+      - name: Analyze to local SARIF
+        id: analyze
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          output: ${{ steps.prepare.outputs.results }}
+          upload: never
+          upload-database: false
+          category: shared-v2-${{ inputs.language }}
+      - name: Enforce local severity policy
+        id: gate
+        uses: $/actions/v2-run
+        with:
+          module: security
+          root: ${{ inputs.root }}
+          config: ${{ inputs.config }}
+      - name: Preserve aggregate receipt
+        if: ${{ always() && steps.gate.outputs.bundle != '' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ steps.gate.outputs.bundle }}
+          if-no-files-found: error
+          retention-days: 7
+      - name: Preserve explicitly requested SARIF for upload job
+        if: ${{ always() && steps.analyze.outcome == 'success' && inputs.upload-to-github && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: ${{ inputs.artifact-name }}-codeql-sarif
+          path: ${{ steps.prepare.outputs.results }}
+          if-no-files-found: error
+          retention-days: 1
+  upload:
+    needs: analyze
+    if: ${{ always() && inputs.upload-to-github && inputs.entitled && github.event_name != 'pull_request_target' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.analyze.result != 'cancelled' && needs.analyze.result != 'skipped' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ inputs.artifact-name }}-codeql-sarif
+          path: ${{ runner.temp }}/shared-codeql-sarif
+      - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: ${{ runner.temp }}/shared-codeql-sarif
+          checkout_path: ${{ github.workspace }}/${{ inputs.root }}
+          category: shared-v2-${{ inputs.language }}
+          wait-for-processing: true

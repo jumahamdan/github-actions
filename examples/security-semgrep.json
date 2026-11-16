@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "threshold": "high",
+  "max_age_hours": 24,
+  "exceptions": [],
+  "scans": [{
+    "id": "reviewed-local-rules",
+    "format": "semgrep",
+    "command": ["semgrep", "scan", "--config", "security/semgrep.yml", "--metrics=off", "--disable-version-check", "--json", "."],
+    "version_command": ["semgrep", "--version"],
+    "version": "1.150.0",
+    "output": "stdout",
+    "rules_identity": {"security/semgrep.yml": "0000000000000000000000000000000000000000000000000000000000000000"},
+    "database_identity": "none",
+    "allowed_exit_codes": [0, 1]
+  }]
+}

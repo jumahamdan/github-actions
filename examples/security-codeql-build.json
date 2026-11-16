@@ -1,0 +1,6 @@
+{
+  "directory": ".",
+  "timeout_seconds": 900,
+  "toolchain": [{"command": ["go", "version"], "version": "go1.25.0"}],
+  "commands": [["go", "build", "./..."]]
+}
