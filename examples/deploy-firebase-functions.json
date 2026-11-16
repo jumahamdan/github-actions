@@ -10,7 +10,6 @@
     "firebase.json",
     "functions"
   ],
-  "expected_input_digest": "0000000000000000000000000000000000000000000000000000000000000000",
   "tools": {
     "firebase": {
       "command": [

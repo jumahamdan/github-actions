@@ -18,6 +18,8 @@ from urllib.request import Request, build_opener
 from .common import PipelineError, atomic_json, confined_path, fingerprint, load_json, register_secret, run, sha256_file, strict_keys, trusted_context
 from .quality import argv, input_digest, parse_test_report, snapshot
 from .health import _NoRedirect
+from .artifacts import no_symlink, safe_name, verify_manifest
+from .evidence import verify_checks
 
 PROVIDERS = {"aws-cdk", "aws-static", "firebase", "cloudflare", "vercel", "netlify"}
 PROTECTED = {"AWS::DynamoDB::Table", "AWS::S3::Bucket", "AWS::Cognito::UserPool", "AWS::KMS::Key", "AWS::RDS::DBInstance", "AWS::RDS::DBCluster"}
@@ -88,10 +90,10 @@ def _get_json(url, token, *, timeout=30):
 
 
 class Context:
-    def __init__(self, config, root, scratch):
+    def __init__(self, config, root, scratch, *, candidate=None, expected_identity=None, expected_source_sha=None, require_candidate=False, promotion_receipt=None):
         strict_keys(config, {"schema", "provider", "operation", "environment", "allowed_refs", "working_directory", "inputs",
-                             "expected_input_digest", "tools", "settings", "receipt", "timeout"},
-                    required=("schema", "provider", "operation", "environment", "inputs", "expected_input_digest", "tools", "settings"))
+                             "expected_input_digest", "tools", "settings", "receipt", "timeout", "promotion_source_environment", "promotion_source_refs"},
+                    required=("schema", "provider", "operation", "environment", "inputs", "tools", "settings"))
         if type(config['schema']) is not int or config['schema'] != 1 or config['provider'] not in PROVIDERS:
             raise PipelineError("unsupported deployment schema/provider")
         self.config = config; self.root = Path(root).resolve(); self.scratch = Path(scratch)
@@ -106,17 +108,100 @@ class Context:
                 raise PipelineError("workflow environment differs from the deployment target")
         elif config['provider'] != 'firebase' or config['environment'] != 'test':
             raise PipelineError("emulator execution is only available for Firebase test environment")
+        if type(require_candidate) is not bool:
+            raise PipelineError("candidate requirement must be an explicit boolean")
+        self.candidate = None; self.manifest = None; self.manifest_sha256 = None; self.reserved = set()
+        if candidate is not None:
+            self.manifest = safe_name(candidate)
+            manifest_path = no_symlink(self.root, self.manifest)
+            self.candidate = load_json(confined_path(self.root, self.manifest))
+            if not manifest_path.is_file():
+                raise PipelineError("selected deployment manifest must be a regular file")
+            self.manifest_sha256 = sha256_file(manifest_path)
+            verify_manifest(self.candidate, self.root, expected_identity, expected_source_sha)
+            # Transport may accept historical security evidence. Deployment still needs
+            # a current gate, including an authenticated refresh supplied by the wrapper.
+            verify_checks(self.candidate, self.root)
+            self.reserved = {self.manifest} | set(self.candidate['inputs']) | set(self.candidate['artifacts']) | set(self.candidate['checks'])
+            self.verify_source()
+        elif require_candidate or expected_identity is not None or expected_source_sha is not None:
+            raise PipelineError("deployment requires a retained manifest and trusted candidate/source identities")
         self.inputs = snapshot(self.root, config['inputs'])
-        if not isinstance(config['expected_input_digest'], str) or not re.fullmatch(r'[0-9a-f]{64}', config['expected_input_digest']) or input_digest(self.inputs) != config['expected_input_digest']:
+        self.input_digest = input_digest(self.inputs)
+        if self.candidate is not None:
+            records = dict(self.candidate['inputs'])
+            for relative, record in self.candidate['artifacts'].items():
+                if relative in records and records[relative] != record:
+                    raise PipelineError("candidate has conflicting deployment input records")
+                records[relative] = record
+            for relative, digest in self.inputs.items():
+                path = no_symlink(self.root, safe_name(relative))
+                if records.get(relative) != {'sha256': digest, 'bytes': path.stat().st_size}:
+                    raise PipelineError("deployment input is absent from or differs from the retained candidate")
+        expected = config.get('expected_input_digest')
+        if (self.candidate is None or expected is not None) and (not isinstance(expected, str) or not re.fullmatch(r'[0-9a-f]{64}', expected) or self.input_digest != expected):
             raise PipelineError("deployment inputs do not match the selected candidate")
         self.env_names = (); self.extra = {"HOME": str(self.scratch), "XDG_CONFIG_HOME": str(self.scratch / 'config'), "XDG_DATA_HOME": str(self.scratch / 'data')}
         self.tools = {}; self.tool_versions = {}
         if not isinstance(config['tools'], dict): raise PipelineError("tools must be an object")
         if config.get('receipt'):
             receipt = confined_path(self.root, config['receipt'], must_exist=False)
-            if receipt.relative_to(self.root).as_posix() in self.inputs: raise PipelineError('deployment receipt cannot overwrite candidate inputs')
+            if receipt.relative_to(self.root).as_posix() in set(self.inputs) | self.reserved: raise PipelineError('deployment receipt cannot overwrite candidate inputs or evidence')
         self.settings = config['settings']
         if not isinstance(self.settings, dict): raise PipelineError("settings must be an object")
+        self.promotion = self.promotion_selection(promotion_receipt)
+
+    def verify_source(self):
+        if self.candidate is None:
+            return
+        if (run(['git', 'rev-parse', 'HEAD^{tree}'], cwd=self.root).stdout.strip() != self.candidate['source_tree']
+                or run(['git', 'status', '--porcelain', '--untracked-files=no'], cwd=self.root).stdout.strip()):
+            raise PipelineError("deployment requires the candidate's matching clean source tree")
+
+    def promotion_selection(self, proof):
+        if proof is None:
+            if self.candidate is not None and self.config['operation'] == 'promote':
+                raise PipelineError("promotion requires an authenticated prior deployment receipt")
+            return None
+        if self.candidate is None or self.config['operation'] != 'promote' or self.config['provider'] not in {'cloudflare', 'vercel'}:
+            raise PipelineError("prior deployment evidence is only valid for a retained-candidate provider promotion")
+        from .evidence import AuthenticatedReceipt
+        if not isinstance(proof, AuthenticatedReceipt):
+            raise PipelineError("prior deployment receipt must be authenticated by the evidence transport")
+        proof.validate_integrity()
+        receipt = proof.get('receipt', {})
+        provenance = proof.get('provenance', {})
+        refs = self.config.get('promotion_source_refs', self.config.get('allowed_refs'))
+        if (not isinstance(refs, list) or not refs or any(not isinstance(ref, str) or not re.fullmatch(r'refs/heads/[A-Za-z0-9_./-]+', ref) for ref in refs)
+                or provenance.get('event') not in {'push', 'workflow_dispatch'}
+                or 'refs/heads/' + str(provenance.get('head_branch', '')) not in refs):
+            raise PipelineError("prior deployment must come from an explicitly trusted push/manual branch")
+        environment = self.config.get('promotion_source_environment', self.config['environment'])
+        _string(environment, 'promotion source environment', r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}')
+        if (receipt.get('schema') != 1 or receipt.get('status') != 'passed' or receipt.get('kind') != 'deployment'
+                or receipt.get('operation') not in {'deploy', 'promote'} or receipt.get('provider') != self.config['provider']
+                or receipt.get('candidate_identity') != self.candidate['identity']
+                or receipt.get('source_sha') != self.candidate['source_sha'] or receipt.get('source_tree') != self.candidate['source_tree']
+                or receipt.get('environment') != environment or receipt.get('input_authentication') != 'retained_candidate'):
+            raise PipelineError("prior deployment receipt differs from selected candidate/provider/source/environment")
+        details = receipt.get('details', {})
+        if self.config['provider'] == 'cloudflare':
+            if details.get('account_id') != self.settings.get('account_id') or details.get('worker') != self.settings.get('worker'):
+                raise PipelineError("prior Worker deployment belongs to another account or worker")
+            version = _string(details.get('version_id'), 'prior Worker version', r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}')
+            selected = {'version_id': version}
+        else:
+            if details.get('project_id') != self.settings.get('project_id') or details.get('organization_id') != self.settings.get('organization_id'):
+                raise PipelineError("prior Vercel deployment belongs to another project or organization")
+            selected = {'deployment_url': _string(details.get('url'), 'prior Vercel deployment URL'),
+                        'deployment_id': _string(details.get('deployment_id'), 'prior Vercel deployment ID', r'dpl_[A-Za-z0-9]+')}
+        for key in ('version_id', 'deployment_url'):
+            if key in self.settings and self.settings[key] != selected.get(key):
+                raise PipelineError("committed provider identity differs from authenticated promotion selection")
+        selected['provenance'] = provenance
+        selected['receipt_sha256'] = fingerprint(receipt)
+        selected['source_environment'] = environment
+        return selected
 
     def bound(self, path):
         path = Path(path)
@@ -231,7 +316,7 @@ def _cdk(ctx):
     if ctx.config['operation'] == 'validate':
         return {"stack": physical, "assembly_sha256": fingerprint(snapshot(assembly, ['.'])), "operation": "synth_and_diff", "runtime_parameters_checked": len(runtime_names)}
     if ctx.config['operation'] != 'deploy': raise PipelineError("unsupported CDK operation")
-    change_name = 'shared-ci-' + ctx.config['expected_input_digest'][:32]
+    change_name = 'shared-ci-' + ctx.input_digest[:32]
     ctx.call('cdk', ['deploy', stack, '--app', str(assembly), '--exclusively', '--method=prepare-change-set', '--change-set-name', change_name, '--require-approval', 'never'])
     changes = ctx.call('aws', ['cloudformation', 'describe-change-set', '--stack-name', physical, '--change-set-name', change_name, '--output', 'json'], json_output=True)
     no_change = changes.get('Status') == 'FAILED' and not changes.get('Changes') and any(message in changes.get('StatusReason', '') for message in ("didn't contain changes", 'No updates are to be performed'))
@@ -469,7 +554,7 @@ def _cloudflare(ctx):
         if not match: raise PipelineError("Wrangler did not report the deployed version identity")
         version = match.group(1)
     elif ctx.config['operation'] == 'promote':
-        version = _string(s.get('version_id'), 'Worker version', r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}')
+        version = _string(ctx.promotion['version_id'] if ctx.promotion is not None else s.get('version_id'), 'Worker version', r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}')
         ctx.call('wrangler', ['versions', 'deploy', version + '@100%', '--yes', *flags])
     else: raise PipelineError("unsupported Cloudflare operation")
     deployments = ctx.call('wrangler', ['deployments', 'list', '--json', *flags], json_output=True)
@@ -501,10 +586,12 @@ def _vercel(ctx):
         return _get_json('https://api.vercel.com/v13/deployments/' + quote(parsed.hostname, safe='') + query, os.environ['VERCEL_TOKEN'])
     if ctx.config['operation'] == 'promote':
         if target != 'production': raise PipelineError('Vercel promote targets production only')
-        url = _string(s.get('deployment_url'), 'existing Vercel deployment URL')
+        url = _string(ctx.promotion['deployment_url'] if ctx.promotion is not None else s.get('deployment_url'), 'existing Vercel deployment URL')
         if urlsplit(url).scheme != 'https' or not urlsplit(url).hostname: raise PipelineError("invalid Vercel deployment URL")
         before = inspect(url)
         if before.get('projectId') != project or before.get('readyState') != 'READY': raise PipelineError("Vercel candidate does not belong to the project or is not ready")
+        if ctx.promotion is not None and before.get('id') != ctx.promotion['deployment_id']:
+            raise PipelineError("Vercel remote deployment differs from authenticated promotion identity")
         ctx.call('vercel', ['promote', url, '--yes'])
     elif ctx.config['operation'] == 'deploy':
         mode = s['build_mode']
@@ -523,7 +610,9 @@ def _vercel(ctx):
     observed = inspect(url)
     if observed.get('projectId') != project or observed.get('readyState') != 'READY' or not observed.get('id'):
         raise PipelineError("Vercel deployment identity/state does not match target")
-    return {'project_id': project, 'deployment_id': observed['id'], 'url': url, 'target': target,
+    if ctx.promotion is not None and observed['id'] != ctx.promotion['deployment_id']:
+        raise PipelineError("Vercel remote deployment differs from authenticated promotion identity")
+    return {'project_id': project, 'organization_id': org, 'deployment_id': observed['id'], 'url': url, 'target': target,
             'build_mode': 'existing_deployment' if ctx.config['operation'] == 'promote' else ('prebuilt' if s['build_mode'] == 'prebuilt' else 'provider_rebuild')}
 
 
@@ -573,9 +662,10 @@ def _snapshot(ctx):
     return current
 
 
-def execute(config, root):
+def execute(config, root, *, candidate=None, expected_identity=None, expected_source_sha=None, require_candidate=False, promotion_receipt=None):
     with tempfile.TemporaryDirectory(prefix='shared-ci-deploy-') as scratch:
-        ctx = Context(config, root, scratch)
+        ctx = Context(config, root, scratch, candidate=candidate, expected_identity=expected_identity,
+                      expected_source_sha=expected_source_sha, require_candidate=require_candidate, promotion_receipt=promotion_receipt)
         if config['operation'] == 'snapshot': details = _snapshot(ctx)
         elif config['provider'] == 'aws-cdk': details = _cdk(ctx)
         elif config['provider'] == 'aws-static': details = _static(ctx)
@@ -585,9 +675,20 @@ def execute(config, root):
         else: details = _netlify(ctx)
         if snapshot(ctx.root, config['inputs']) != ctx.inputs:
             raise PipelineError("provider operation changed the selected candidate inputs")
+        if ctx.candidate is not None:
+            if sha256_file(no_symlink(ctx.root, ctx.manifest)) != ctx.manifest_sha256:
+                raise PipelineError("provider operation changed the retained deployment manifest")
+            verify_manifest(ctx.candidate, ctx.root, expected_identity, expected_source_sha)
+            ctx.verify_source()
         result = {'schema': 1, 'kind': 'deployment', 'status': 'passed', 'provider': config['provider'], 'operation': config['operation'],
-                  'environment': config['environment'], 'input_digest': config['expected_input_digest'], 'inputs': ctx.inputs,
+                  'environment': config['environment'], 'input_digest': ctx.input_digest, 'inputs': ctx.inputs,
+                  'input_authentication': 'retained_candidate' if ctx.candidate is not None else 'declared_digest',
                   'tools': ctx.tool_versions, 'details': details}
+        if ctx.candidate is not None:
+            result.update(candidate_identity=ctx.candidate['identity'], source_sha=ctx.candidate['source_sha'],
+                          source_tree=ctx.candidate['source_tree'], manifest=ctx.manifest)
+        if ctx.promotion is not None:
+            result['promotion'] = {key: ctx.promotion[key] for key in ('provenance', 'receipt_sha256', 'source_environment')}
         if config.get('receipt'):
             output = confined_path(ctx.root, config['receipt'], must_exist=False)
             if output.relative_to(ctx.root).as_posix() in ctx.inputs: raise PipelineError("deployment receipt cannot overwrite candidate inputs")
@@ -598,9 +699,13 @@ def execute(config, root):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', required=True); parser.add_argument('--root', default='.')
+    parser.add_argument('--candidate'); parser.add_argument('--expected-identity'); parser.add_argument('--expected-source-sha')
+    parser.add_argument('--require-candidate', action='store_true')
     args = parser.parse_args()
     try:
-        result = execute(load_json(confined_path(args.root, args.config)), args.root)
+        result = execute(load_json(confined_path(args.root, args.config)), args.root, candidate=args.candidate,
+                         expected_identity=args.expected_identity, expected_source_sha=args.expected_source_sha,
+                         require_candidate=args.require_candidate)
         print(json.dumps({k: result[k] for k in ('status', 'provider', 'operation', 'environment')}))
     except (PipelineError, OSError, ValueError) as exc:
         print(f'deployment: {exc}', file=sys.stderr); return 1

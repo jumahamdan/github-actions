@@ -10,7 +10,6 @@
     "wrangler.jsonc",
     ".open-next"
   ],
-  "expected_input_digest": "0000000000000000000000000000000000000000000000000000000000000000",
   "tools": {
     "wrangler": {
       "command": [

@@ -1,14 +1,21 @@
 import copy
+import hashlib
+import io
 import json
 import os
+import platform
+import re
+import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
-from shared_ci import deploy
-from shared_ci.common import PipelineError, fingerprint
+from shared_ci import artifacts, assurance, deploy, evidence, quality
+from shared_ci.common import PipelineError, atomic_json, fingerprint, run, sha256_file
 from shared_ci.quality import input_digest, snapshot
 
 ACCOUNT = '123456789012'
@@ -219,4 +226,315 @@ class DeploymentTests(unittest.TestCase):
         with self.assertRaises(PipelineError):self.run_config(config)
 
 
-if __name__=='__main__':unittest.main()
+class RetainedDeploymentTests(unittest.TestCase):
+    """Real local build/evidence/transport, with only the external provider mocked."""
+
+    fake_run = DeploymentTests.fake_run
+    write = DeploymentTests.write
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.base = Path(self.temp.name)
+        self.root = self.base / 'source'
+        self.root.mkdir()
+        self.calls = []
+        self.write('source.txt', 'A synthetic & tested site')
+        self.write('build.py', "from pathlib import Path\nimport html\nPath('dist').mkdir(exist_ok=True)\nPath('dist/index.html').write_text('<p>' + html.escape(Path('source.txt').read_text()) + '</p>')\n")
+        self.write('test_build.py', "from pathlib import Path\nassert Path('dist/index.html').read_text() == '<p>A synthetic &amp; tested site</p>'\nPath('test.xml').write_text('<testsuite><testcase name=\"render escapes source text\"/></testsuite>')\n")
+        self.write('wrangler.jsonc', json.dumps({'env': {'staging': {'name': 'fixture-worker'}}}))
+        self.write('.vercel/project.json', json.dumps({'projectId': 'prj_fixture', 'orgId': 'team_fixture'}))
+        bash = subprocess.run(['bash', '--version'], check=True, capture_output=True, text=True).stdout
+        bash_version = re.search(r'version ([0-9]+(?:\.[0-9]+)+)', bash).group(1)
+        self.quality_config = {'version': 1, 'profile': 'shell', 'toolchain': [
+            {'command': ['bash', '--version'], 'version': bash_version},
+            {'command': [sys.executable, '--version'], 'version': platform.python_version()}],
+            'inputs': ['source.txt', 'build.py', 'test_build.py', 'quality.json'],
+            'checks': [{'name': 'build', 'kind': 'build', 'command': [sys.executable, 'build.py']},
+                       {'name': 'test', 'kind': 'test', 'command': [sys.executable, 'test_build.py'],
+                        'test_report': {'path': 'test.xml', 'format': 'junit'}}],
+            'required_checks': ['build', 'test']}
+        self.config = {'schema': 1, 'provider': 'aws-static', 'operation': 'deploy', 'environment': 'staging',
+                       'allowed_refs': ['refs/heads/staging'], 'inputs': ['dist'],
+                       'tools': {'aws': {'command': ['aws'], 'version': '1.2.3'}},
+                       'settings': {'account': ACCOUNT, 'region': 'us-east-1', 'bucket': 'synthetic-site',
+                                    'directory': 'dist', 'distribution_id': 'EXAMPLE'}, 'receipt': 'deployment.json'}
+        atomic_json(self.root / 'quality.json', self.quality_config)
+        atomic_json(self.root / 'deploy.json', self.config)
+        self.git(self.root, 'init', '-q')
+        self.git(self.root, 'add', '.')
+        self.git(self.root, '-c', 'user.name=Synthetic Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'fixture')
+        self.sha = self.git(self.root, 'rev-parse', 'HEAD')
+        self.tree = self.git(self.root, 'rev-parse', 'HEAD^{tree}')
+        env = {'GITHUB_ACTIONS': 'true', 'GITHUB_EVENT_NAME': 'push', 'GITHUB_REF': 'refs/heads/staging',
+               'GITHUB_REPOSITORY': 'example/fixture', 'GITHUB_SHA': self.sha, 'GITHUB_RUN_ID': '42', 'GITHUB_RUN_ATTEMPT': '1',
+               'DEPLOYMENT_ENVIRONMENT': 'staging', 'AWS_ACCESS_KEY_ID': 'fixture-id', 'AWS_SECRET_ACCESS_KEY': 'fixture-secret',
+               'AWS_SESSION_TOKEN': 'fixture-session', 'ARTIFACT_TOKEN': 'synthetic-token',
+               'TEST_BUNDLE_OUTPUT': str(self.base / 'bundle')}
+        self.env = patch.dict(os.environ, env, clear=True)
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        checked = quality.execute(self.quality_config, self.root)
+        atomic_json(self.root / 'quality-receipt.json', assurance.stamp(checked, 'quality', self.root / 'quality.json', self.root))
+        self.candidate = evidence.create({'schema': 1, 'product': 'synthetic-site', 'version': '1.0.0', 'build': '42',
+                                         'library_sha': 'b' * 40, 'toolchain': {'python': platform.python_version()},
+                                         'inputs': ['source.txt', 'build.py', 'test_build.py', 'quality.json', 'deploy.json', 'wrangler.jsonc', '.vercel/project.json'],
+                                         'artifacts': ['dist/index.html'],
+                                         'checks': [{'path': 'quality-receipt.json', 'kind': 'quality', 'config': 'quality.json'}]}, self.root)
+        atomic_json(self.root / 'candidate.json', self.candidate)
+        self.runtime = {'candidate': 'candidate.json', 'expected_identity': self.candidate['identity'],
+                        'expected_source_sha': self.sha, 'require_candidate': True}
+
+    def git(self, root, *args):
+        return subprocess.run(['git', *args], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
+
+    def command(self, command, **kwargs):
+        if command[0] == 'git':
+            return run(command, **kwargs)
+        return self.fake_run(command, **kwargs)
+
+    def execute(self, **runtime):
+        with patch('shared_ci.deploy.run', side_effect=self.command):
+            return deploy.execute(self.config, self.root, **(runtime or self.runtime))
+
+    def import_built_candidate(self):
+        artifacts.package({'schema': 1, 'operation': 'package', 'manifest': 'candidate.json',
+                           'expected_identity': self.candidate['identity'], 'expected_source_sha': self.sha,
+                           'output_dir_env': 'TEST_BUNDLE_OUTPUT'}, self.root)
+        archive = self.base / 'candidate.zip'
+        with zipfile.ZipFile(archive, 'w') as target:
+            for path in sorted((self.base / 'bundle').rglob('*')):
+                if path.is_file():
+                    target.write(path, path.relative_to(self.base / 'bundle').as_posix())
+        consumer = self.base / 'consumer'
+        self.git(self.base, 'clone', '--quiet', '--no-hardlinks', str(self.root), str(consumer))
+        metadata = {'status': 'completed', 'conclusion': 'success', 'head_sha': self.sha,
+                    'head_branch': 'staging', 'path': '.github/workflows/build.yml',
+                    'head_repository': {'full_name': 'example/fixture'}, 'run_attempt': 1, 'event': 'push',
+                    'run_started_at': '2026-01-01T00:00:00Z', 'updated_at': '2026-01-01T01:00:00Z'}
+        item = {'id': 99, 'name': 'candidate', 'expired': False, 'created_at': '2026-01-01T00:30:00Z',
+                'workflow_run': {'id': 42, 'head_sha': self.sha}, 'digest': 'sha256:' + sha256_file(archive),
+                'size_in_bytes': archive.stat().st_size}
+        def request(path, token):
+            self.assertEqual(token, 'synthetic-token')
+            return {'artifacts': [item]} if '/artifacts?' in path else metadata
+        def download(path, token, destination, max_bytes):
+            self.assertEqual(path, '/repos/example/fixture/actions/artifacts/99/zip')
+            shutil.copyfile(archive, destination)
+        config = {'schema': 1, 'operation': 'fetch', 'repository': 'example/fixture', 'run_id': '42', 'run_attempt': 1,
+                  'artifact_name': 'candidate', 'expected_workflow': '.github/workflows/build.yml',
+                  'expected_source_sha': self.sha, 'expected_identity': self.candidate['identity'],
+                  'token_env': 'ARTIFACT_TOKEN', 'allowed_events': ['push'], 'allowed_branches': ['staging']}
+        receipt = artifacts.fetch(config, consumer, request=request, downloader=download)
+        self.root = consumer
+        return receipt
+
+    def test_build_candidate_authenticated_import_and_deploy_without_committed_digest(self):
+        self.assertNotIn('expected_input_digest', self.config)
+        self.assertFalse('dist/' in self.git(self.root, 'ls-files'))
+        imported = self.import_built_candidate()
+        result = self.execute()
+        self.assertEqual(result['candidate_identity'], imported['candidate_identity'])
+        self.assertEqual(result['manifest'], imported['manifest'])
+        self.assertEqual(result['source_sha'], self.sha)
+        self.assertEqual(result['input_authentication'], 'retained_candidate')
+        self.assertEqual(result['input_digest'], input_digest({'dist/index.html': self.candidate['artifacts']['dist/index.html']['sha256']}))
+        self.assertTrue(any(command[1:3] == ['s3', 'sync'] for command, _ in self.calls))
+
+    def test_unretained_deploy_file_fails_before_provider(self):
+        self.import_built_candidate()
+        self.write('dist/unreviewed.html', 'not in the candidate')
+        with self.assertRaisesRegex(PipelineError, 'absent from'):
+            self.execute()
+        self.assertFalse(self.calls)
+
+    def test_missing_or_changed_retained_file_fails_before_provider(self):
+        path = self.root / 'dist/index.html'
+        original = path.read_bytes()
+        for content in (None, b'changed after inspection'):
+            if content is None:
+                path.unlink()
+            else:
+                path.write_bytes(content)
+            with self.subTest(content=content), self.assertRaises(PipelineError):
+                self.execute()
+            self.assertFalse(self.calls)
+            path.write_bytes(original)
+
+    def test_required_manifest_and_runtime_selection_fail_before_provider(self):
+        for change in ({'candidate': None}, {'candidate': 'absent.json'}, {'expected_identity': 'f' * 64},
+                       {'expected_source_sha': 'f' * 40}, {'expected_identity': None}):
+            with self.subTest(change=change), self.assertRaises(PipelineError):
+                self.execute(**dict(self.runtime, **change))
+            self.assertFalse(self.calls)
+
+    def test_new_source_tree_or_dirty_tracked_source_refuses(self):
+        # Even source files outside the selected upload directory remain tree-bound.
+        self.write('extra-source.txt', 'different tree')
+        self.git(self.root, 'add', 'extra-source.txt')
+        with self.assertRaisesRegex(PipelineError, 'matching clean source tree'):
+            self.execute()
+        self.git(self.root, '-c', 'user.name=Synthetic Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'different source')
+        with self.assertRaisesRegex(PipelineError, 'matching clean source tree'):
+            self.execute()
+        self.assertFalse(self.calls)
+
+    def test_receipt_cannot_replace_any_candidate_evidence(self):
+        for output in ('candidate.json', 'quality-receipt.json', 'source.txt', 'dist/index.html'):
+            self.config['receipt'] = output
+            with self.subTest(output=output), self.assertRaisesRegex(PipelineError, 'overwrite'):
+                self.execute()
+        self.assertFalse(self.calls)
+
+    def test_mutation_of_unselected_candidate_file_is_detected(self):
+        original = self.command
+        def mutate(command, **kwargs):
+            value = original(command, **kwargs)
+            if command[1:3] == ['s3', 'sync']:
+                self.write('source.txt', 'mutated during provider call')
+            return value
+        with patch('shared_ci.deploy.run', side_effect=mutate), self.assertRaises(PipelineError):
+            deploy.execute(self.config, self.root, **self.runtime)
+
+    def test_provider_cannot_mutate_the_retained_manifest(self):
+        original = self.command
+        def mutate(command, **kwargs):
+            value = original(command, **kwargs)
+            if command[1:3] == ['s3', 'sync']:
+                self.write('candidate.json', '{"status":"passed"}')
+            return value
+        with patch('shared_ci.deploy.run', side_effect=mutate), self.assertRaisesRegex(PipelineError, 'changed the retained deployment manifest'):
+            deploy.execute(self.config, self.root, **self.runtime)
+
+    def test_current_security_gate_invoked_before_any_provider(self):
+        with patch('shared_ci.deploy.verify_checks', side_effect=PipelineError('current scan required')), self.assertRaisesRegex(PipelineError, 'current scan'):
+            self.execute()
+        self.assertFalse(self.calls)
+
+    def test_legacy_declared_digest_remains_explicit_and_cannot_bypass_required_candidate(self):
+        self.config['expected_input_digest'] = input_digest(snapshot(self.root, self.config['inputs']))
+        result = deploy.execute
+        with patch('shared_ci.deploy.run', side_effect=self.command):
+            self.assertEqual(result(self.config, self.root)['input_authentication'], 'declared_digest')
+            self.calls.clear()
+            with self.assertRaisesRegex(PipelineError, 'requires a retained manifest'):
+                result(self.config, self.root, require_candidate=True)
+            self.assertFalse(self.calls)
+
+    def prior_deployment(self, provider='cloudflare'):
+        return {'schema': 1, 'kind': 'deployment', 'status': 'passed', 'provider': provider, 'operation': 'deploy',
+                'candidate_identity': self.candidate['identity'], 'source_sha': self.sha, 'source_tree': self.tree,
+                'input_authentication': 'retained_candidate', 'environment': 'staging',
+                'details': ({'account_id': 'a' * 32, 'worker': 'fixture-worker', 'version_id': VERSION,
+                             'deployment_id': 'deployment-fixture', 'build_mode': 'prebuilt'} if provider == 'cloudflare' else
+                            {'organization_id': 'team_fixture', 'project_id': 'prj_fixture', 'deployment_id': 'dpl_fixture',
+                             'url': 'https://fixture.vercel.app', 'target': 'preview', 'build_mode': 'prebuilt'})}
+
+    def authenticate_receipt(self, receipt, *, event='push', branch='staging'):
+        content = io.BytesIO()
+        with zipfile.ZipFile(content, 'w') as archive:
+            archive.writestr('receipt.json', json.dumps(receipt))
+        content = content.getvalue()
+        def request(path, token, binary=False):
+            if binary:
+                return content
+            if '/artifacts?' in path:
+                return {'artifacts': [{'id': 101, 'name': 'deployment', 'expired': False,
+                                       'digest': 'sha256:' + hashlib.sha256(content).hexdigest()}]}
+            return {'status': 'completed', 'conclusion': 'success', 'head_sha': self.sha, 'head_branch': branch,
+                    'path': '.github/workflows/deploy.yml', 'event': event, 'run_attempt': 1,
+                    'head_repository': {'full_name': 'example/fixture'}}
+        return evidence.fetch_receipt('example/fixture', '42', 'deployment', self.sha,
+                                      '.github/workflows/deploy.yml', 'synthetic-token', request=request)
+
+    def select_promotion(self, provider='cloudflare'):
+        self.config.update(provider=provider, operation='promote', promotion_source_environment='staging',
+                           promotion_source_refs=['refs/heads/staging'], environment='staging', allowed_refs=['refs/heads/staging'])
+        os.environ.update(DEPLOYMENT_ENVIRONMENT='staging', GITHUB_REF='refs/heads/staging')
+        if provider == 'cloudflare':
+            self.config.update(inputs=['wrangler.jsonc'], tools={'wrangler': {'command': ['wrangler'], 'version': '1.2.3'}},
+                               settings={'account_id': 'a' * 32, 'worker': 'fixture-worker', 'config': 'wrangler.jsonc', 'wrangler_environment': 'staging'})
+            os.environ['CLOUDFLARE_API_TOKEN'] = 'synthetic-token'
+            self.active_worker = VERSION
+        else:
+            self.config.update(environment='production', inputs=['.vercel/project.json'], tools={'vercel': {'command': ['vercel'], 'version': '1.2.3'}},
+                               allowed_refs=['refs/heads/main'],
+                               settings={'project_id': 'prj_fixture', 'organization_id': 'team_fixture', 'target': 'production', 'build_mode': 'prebuilt'})
+            os.environ.update(VERCEL_TOKEN='synthetic-token', DEPLOYMENT_ENVIRONMENT='production', GITHUB_REF='refs/heads/main')
+
+    def test_worker_promotion_uses_authenticated_runtime_version(self):
+        self.select_promotion()
+        proof = self.authenticate_receipt(self.prior_deployment())
+        result = self.execute(**dict(self.runtime, promotion_receipt=proof))
+        self.assertEqual(result['details']['version_id'], VERSION)
+        self.assertEqual(result['promotion']['provenance']['run_id'], '42')
+        self.assertNotIn('version_id', self.config['settings'])
+        self.assertTrue(any(VERSION + '@100%' in command for command, _ in self.calls))
+
+    def test_vercel_staging_to_production_uses_authenticated_deployment(self):
+        self.select_promotion('vercel')
+        proof = self.authenticate_receipt(self.prior_deployment('vercel'))
+        observed = {'projectId': 'prj_fixture', 'readyState': 'READY', 'id': 'dpl_fixture'}
+        with patch('shared_ci.deploy._get_json', return_value=observed):
+            result = self.execute(**dict(self.runtime, promotion_receipt=proof))
+        self.assertEqual(result['environment'], 'production')
+        self.assertEqual(result['promotion']['source_environment'], 'staging')
+        self.assertEqual(result['details']['deployment_id'], 'dpl_fixture')
+        self.assertNotIn('deployment_url', self.config['settings'])
+        self.assertTrue(any(command[1:3] == ['promote', 'https://fixture.vercel.app'] for command, _ in self.calls))
+
+    def test_promotion_rejects_raw_missing_mutated_wrong_provider_environment_candidate(self):
+        self.select_promotion()
+        for proof in (None, {'receipt': self.prior_deployment(), 'provenance': {}}):
+            with self.subTest(proof=proof), self.assertRaises(PipelineError):
+                self.execute(**dict(self.runtime, promotion_receipt=proof))
+            self.assertFalse(self.calls)
+        for change in ({'provider': 'vercel'}, {'environment': 'production'}, {'candidate_identity': 'f' * 64},
+                       {'source_sha': 'f' * 40}, {'source_tree': 'f' * 40}, {'schema': 2},
+                       {'input_authentication': 'declared_digest'}):
+            proof = self.authenticate_receipt(dict(self.prior_deployment(), **change))
+            with self.subTest(change=change), self.assertRaisesRegex(PipelineError, 'differs from selected'):
+                self.execute(**dict(self.runtime, promotion_receipt=proof))
+            self.assertFalse(self.calls)
+        proof = self.authenticate_receipt(self.prior_deployment())
+        proof['receipt']['details']['version_id'] = 'ffffffff-1111-2222-3333-444444444444'
+        with self.assertRaises(PipelineError):
+            self.execute(**dict(self.runtime, promotion_receipt=proof))
+        self.assertFalse(self.calls)
+
+    def test_wrong_provider_account_or_project_blocks_promotion(self):
+        for provider, field, value in [('cloudflare', 'account_id', 'f' * 32), ('cloudflare', 'worker', 'another-worker'),
+                                       ('vercel', 'project_id', 'prj_other'), ('vercel', 'organization_id', 'team_other')]:
+            self.select_promotion(provider)
+            receipt = self.prior_deployment(provider)
+            receipt['details'][field] = value
+            with self.subTest(provider=provider, field=field), self.assertRaisesRegex(PipelineError, 'belongs to another'):
+                self.execute(**dict(self.runtime, promotion_receipt=self.authenticate_receipt(receipt)))
+            self.assertFalse(self.calls)
+
+    def test_vercel_changed_remote_identity_is_not_promoted(self):
+        self.select_promotion('vercel')
+        proof = self.authenticate_receipt(self.prior_deployment('vercel'))
+        with patch('shared_ci.deploy._get_json', return_value={'projectId': 'prj_fixture', 'readyState': 'READY', 'id': 'dpl_other'}), self.assertRaisesRegex(PipelineError, 'remote deployment differs'):
+            self.execute(**dict(self.runtime, promotion_receipt=proof))
+        self.assertFalse(any(command[1:2] == ['promote'] for command, _ in self.calls))
+
+    def test_conflicting_committed_provider_selection_is_not_used(self):
+        self.select_promotion()
+        self.config['settings']['version_id'] = 'ffffffff-1111-2222-3333-444444444444'
+        proof = self.authenticate_receipt(self.prior_deployment())
+        with self.assertRaisesRegex(PipelineError, 'committed provider identity differs'):
+            self.execute(**dict(self.runtime, promotion_receipt=proof))
+        self.assertFalse(self.calls)
+
+    def test_pr_or_unapproved_branch_deployment_receipt_cannot_promote(self):
+        self.select_promotion()
+        for event, branch in [('pull_request', 'staging'), ('push', 'feature/untrusted'), ('workflow_dispatch', 'feature/untrusted')]:
+            proof = self.authenticate_receipt(self.prior_deployment(), event=event, branch=branch)
+            with self.subTest(event=event, branch=branch), self.assertRaisesRegex(PipelineError, 'trusted push/manual branch'):
+                self.execute(**dict(self.runtime, promotion_receipt=proof))
+            self.assertFalse(self.calls)
+
+
+if __name__ == '__main__':
+    unittest.main()

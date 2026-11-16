@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "provider": "cloudflare",
+  "operation": "promote",
+  "environment": "staging",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "inputs": [
+    "wrangler.jsonc"
+  ],
+  "tools": {
+    "wrangler": {
+      "command": [
+        "wrangler"
+      ],
+      "version": "4.24.3"
+    }
+  },
+  "settings": {
+    "account_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "worker": "example-staging",
+    "config": "wrangler.jsonc",
+    "wrangler_environment": "staging"
+  },
+  "receipt": ".ci-results/promotion.json",
+  "timeout": 1800,
+  "promotion_source_environment": "staging",
+  "promotion_source_refs": [
+    "refs/heads/staging"
+  ]
+}

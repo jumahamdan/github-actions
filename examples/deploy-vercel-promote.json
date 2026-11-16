@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "provider": "vercel",
+  "operation": "promote",
+  "environment": "production",
+  "allowed_refs": [
+    "refs/heads/main"
+  ],
+  "inputs": [
+    ".vercel/project.json"
+  ],
+  "tools": {
+    "vercel": {
+      "command": [
+        "vercel"
+      ],
+      "version": "64.1.0"
+    }
+  },
+  "settings": {
+    "project_id": "prj_example",
+    "organization_id": "team_example",
+    "target": "production",
+    "build_mode": "prebuilt"
+  },
+  "receipt": ".ci-results/promotion.json",
+  "timeout": 1800,
+  "promotion_source_environment": "staging",
+  "promotion_source_refs": [
+    "refs/heads/staging"
+  ]
+}

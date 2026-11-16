@@ -10,7 +10,6 @@
     ".vercel/project.json",
     ".vercel/output"
   ],
-  "expected_input_digest": "0000000000000000000000000000000000000000000000000000000000000000",
   "tools": {
     "vercel": {
       "command": [

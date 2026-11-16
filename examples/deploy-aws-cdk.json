@@ -12,7 +12,6 @@
     "package-lock.json",
     "src"
   ],
-  "expected_input_digest": "0000000000000000000000000000000000000000000000000000000000000000",
   "tools": {
     "aws": {
       "command": [

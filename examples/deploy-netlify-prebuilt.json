@@ -10,7 +10,6 @@
     "dist",
     "netlify.toml"
   ],
-  "expected_input_digest": "0000000000000000000000000000000000000000000000000000000000000000",
   "tools": {
     "netlify": {
       "command": [
