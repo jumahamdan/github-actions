@@ -62,7 +62,7 @@ def file_records(root, paths):
     return records
 
 
-def create(config, root):
+def create(config, root, *, source_root=None):
     strict_keys(config, {"schema", "product", "version", "build", "library_sha", "inputs", "artifacts", "toolchain", "checks"},
                 {"schema", "product", "version", "build", "library_sha", "inputs", "artifacts", "toolchain", "checks"})
     if config["schema"] != 1 or not SHA.fullmatch(config["library_sha"]):
@@ -85,10 +85,11 @@ def create(config, root):
             raise PipelineError("Candidate contains a missing or unsuccessful check")
         checks[relative] = sha256_file(confined_path(root, relative))
         requirements[relative] = {k: entry[k] for k in ("kind", "config")}
-    if run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root).stdout.strip():
+    source_root = Path(source_root or root).resolve()
+    if run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=source_root).stdout.strip():
         raise PipelineError("Candidate source has uncommitted tracked changes")
-    source = run(["git", "rev-parse", "HEAD"], cwd=root).stdout.strip()
-    tree = run(["git", "rev-parse", "HEAD^{tree}"], cwd=root).stdout.strip()
+    source = run(["git", "rev-parse", "HEAD"], cwd=source_root).stdout.strip()
+    tree = run(["git", "rev-parse", "HEAD^{tree}"], cwd=source_root).stdout.strip()
     inputs = file_records(root, config["inputs"])
     artifacts = file_records(root, config["artifacts"])
     if any(v["bytes"] == 0 for v in artifacts.values()):
@@ -227,9 +228,12 @@ def main():
     parser.add_argument("operation", choices=("create", "verify"))
     parser.add_argument("--config", required=True)
     parser.add_argument("--root", default=".")
+    parser.add_argument("--source-root", help="Separate clean source checkout for Apple archive evidence")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
-    result = create(load_json(args.config), args.root) if args.operation == "create" else verify(load_json(args.config), args.root)
+    if args.operation == "verify" and args.source_root:
+        raise PipelineError("Source-root override is supported only for candidate creation")
+    result = create(load_json(args.config), args.root, source_root=args.source_root) if args.operation == "create" else verify(load_json(args.config), args.root)
     atomic_json(args.output, result)
 
 

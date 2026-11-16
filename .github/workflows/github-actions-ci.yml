@@ -9,6 +9,7 @@ name: Shared library validation
   workflow_dispatch: null
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: library-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
