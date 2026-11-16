@@ -30,6 +30,8 @@ SECRET_CONTENT = re.compile(rb"-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----|\"(?:pri
 
 
 def safe_name(relative):
+    if any(re.fullmatch(r"gha-creds-.*\.json", part) for part in Path(relative).parts):
+        raise PipelineError("Google federation credential files cannot be retained")
     if (not isinstance(relative, str) or not relative or "\\" in relative or "\x00" in relative
             or ":" in relative or any(ord(c) < 32 for c in relative) or relative.startswith("/")
             or PurePosixPath(relative).as_posix() != relative or any(p in ("", ".", "..") for p in relative.split("/"))):
