@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "operation": "firebase-distribution",
+  "candidate": "candidate.json",
+  "inspection": "receipts/android.json",
+  "expected_identity": "0000000000000000000000000000000000000000000000000000000000000000",
+  "expected_source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "token_env": "FIREBASE_ACCESS_TOKEN",
+  "state_file": "state/firebase-distribution.json",
+  "firebase": {
+    "app_id": "1:123456789:android:abcdef012345",
+    "app_config": "android/app/google-services.json",
+    "artifact": "artifacts/app.apk",
+    "credentials_env": "FIREBASE_ADC_FILE",
+    "tool": {
+      "prefix": [
+        "firebase"
+      ],
+      "version": "REPLACE_WITH_EXACT_PINNED_VERSION_OUTPUT"
+    },
+    "group_aliases": [
+      "internal-testers"
+    ],
+    "release_notes": "release-notes/en-US.txt",
+    "device_check": "receipts/device-test.json",
+    "symbol_checks": {
+      "receipts/crashlytics.json": [
+        "symbols/app.android-arm64.symbols"
+      ]
+    }
+  }
+}

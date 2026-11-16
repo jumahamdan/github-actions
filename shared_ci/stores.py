@@ -102,7 +102,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 class API:
     def __init__(self, provider, token, timeout=60):
-        self.base = {"play": "https://androidpublisher.googleapis.com", "apple": "https://api.appstoreconnect.apple.com"}[provider]
+        self.base = {"play": "https://androidpublisher.googleapis.com", "apple": "https://api.appstoreconnect.apple.com", "firebase": "https://firebaseappdistribution.googleapis.com"}[provider]
         self.token, self.timeout = token, timeout
         self.opener = urllib.request.build_opener(NoRedirect())
 
@@ -474,23 +474,26 @@ def apple(config, root, candidate, inspected, api):
 
 def execute(config, root, *, api=None):
     required = {"schema", "operation", "candidate", "inspection", "expected_identity", "expected_source_sha", "allowed_refs", "token_env", "state_file"}
-    strict_keys(config, required | {"play", "apple", "timeout", "poll_interval"}, required)
+    strict_keys(config, required | {"play", "apple", "firebase", "timeout", "poll_interval"}, required)
     if config["schema"] != 1:
         raise PipelineError("Unsupported stores schema")
     play_ops = ("play-inspect", "play-upload", "play-promote")
     apple_ops = ("apple-build", "testflight", "apple-select", "apple-submit", "apple-status")
     operation = config["operation"]
-    if operation not in play_ops + apple_ops:
+    if operation not in play_ops + apple_ops + ("firebase-distribution",):
         raise PipelineError("Unsupported store operation")
-    provider = "play" if operation in play_ops else "apple"
-    if provider not in config or ("apple" if provider == "play" else "play") in config:
+    provider = "firebase" if operation == "firebase-distribution" else ("play" if operation in play_ops else "apple")
+    if provider not in config or any(other in config for other in {"play", "apple", "firebase"} - {provider}):
         raise PipelineError("Exactly one matching store configuration is required")
     bounded(config.get("timeout", 900), 1, 3600, "store timeout")
     bounded(config.get("poll_interval", 15), 0.01, 120, "poll interval")
     trusted_context(config["allowed_refs"])
-    candidate, inspected = load_candidate(config, root, {"android"} if provider == "play" else {"apple"})
+    candidate, inspected = load_candidate(config, root, {"apple"} if provider == "apple" else {"android"})
     token = env_secret(config["token_env"])
     transport = api or API(provider, token, min(120, config.get("timeout", 900)))
+    if provider == "firebase":
+        from .app_distribution import distribute
+        return distribute(config, Path(root), candidate, inspected, transport)
     return (play if provider == "play" else apple)(config, Path(root), candidate, inspected, transport)
 
 

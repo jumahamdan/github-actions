@@ -7,6 +7,7 @@ import os
 import plistlib
 import re
 import shutil
+import sys
 import tempfile
 import urllib.parse
 import uuid
@@ -301,17 +302,38 @@ def crashlytics(config, root, candidate, inspected, temporary):
             "uploaded_artifacts": [str(p.relative_to(root)) for p in paths]}
 
 
+def execution_context(config, root):
+    if config.get("execution_context", "github") == "github":
+        trusted_context(config["allowed_refs"])
+        return
+    if config.get("execution_context") != "xcode-cloud" or config["operation"] not in ("sentry-native", "crashlytics-apple"):
+        raise PipelineError("Xcode Cloud monitoring supports native archive symbol uploads only")
+    refs = config["allowed_refs"]
+    if (not isinstance(refs, list) or not refs or any(not isinstance(ref, str) or not re.fullmatch(r"refs/heads/[A-Za-z0-9_./-]+", ref) for ref in refs)
+            or os.environ.get("CI_XCODE_CLOUD", "").lower() != "true" or sys.platform != "darwin"
+            or os.environ.get("CI_XCODEBUILD_ACTION") != "archive" or os.environ.get("CI_XCODEBUILD_EXIT_CODE") != "0"
+            or os.environ.get("CI_START_CONDITION") not in ("push", "manual", "manual_rebuild")
+            or os.environ.get("CI_GIT_REF") not in refs or os.environ.get("CI_COMMIT") != config["expected_source_sha"]
+            or not os.environ.get("CI_ARCHIVE_PATH") or Path(os.environ["CI_ARCHIVE_PATH"]).resolve() != Path(root).resolve()):
+        raise PipelineError("Native monitoring requires the successful authorized Xcode Cloud archive on its Apple host")
+
+
 def execute(config, root):
     required = {"schema", "operation", "candidate", "inspection", "expected_identity", "expected_source_sha", "allowed_refs"}
-    strict_keys(config, required | {"tool", "sentry", "firebase", "symbols", "artifact", "dart_libraries", "source_maps", "timeout"}, required)
+    strict_keys(config, required | {"tool", "sentry", "firebase", "symbols", "artifact", "dart_libraries", "source_maps", "timeout", "execution_context"}, required)
     operations = {"sentry-native", "sentry-dart", "sentry-r8", "sentry-sourcemaps", "sentry-release", "sentry-deploy",
                   "crashlytics-apple", "crashlytics-dart", "crashlytics-r8"}
     if config["schema"] != 1 or config["operation"] not in operations:
         raise PipelineError("Unsupported monitoring operation")
     bounded(config.get("timeout", 900), 1, 3600, "monitoring timeout")
-    trusted_context(config["allowed_refs"])
+    execution_context(config, root)
     root = Path(root).resolve()
     candidate, inspected = load_candidate(config, root, {"apple", "android", "web"})
+    if config.get("execution_context") == "xcode-cloud" and (inspected.get("artifact_root") != "$CI_ARCHIVE_PATH"
+            or inspected.get("build_id") != os.environ.get("CI_BUILD_ID") or inspected["application"]["build"] != os.environ.get("CI_BUILD_NUMBER")):
+        raise PipelineError("Native monitoring inspection belongs to another Xcode Cloud archive/build")
+    if config["operation"] == "crashlytics-apple" and sys.platform != "darwin":
+        raise PipelineError("Firebase Apple upload-symbols requires the Apple host")
     provider = "sentry" if config["operation"].startswith("sentry-") else "firebase"
     if provider not in config or ("firebase" if provider == "sentry" else "sentry") in config:
         raise PipelineError("Exactly one matching monitoring provider is required")
@@ -319,7 +341,8 @@ def execute(config, root):
         result = (sentry if provider == "sentry" else crashlytics)(config, root, candidate, inspected, temporary)
     # No uploader may alter candidate binaries, maps, symbols or check receipts.
     load_candidate(config, root, {inspected["kind"]})
-    return dict(result, schema=1, status="passed", operation=config["operation"], candidate_identity=candidate["identity"],
+    records = {path: candidate["artifacts"][path] for path in result.get("uploaded_artifacts", [])}
+    return dict(result, artifact_records=records, schema=1, status="passed", operation=config["operation"], candidate_identity=candidate["identity"],
                 source_sha=candidate["source_sha"], symbolication_verified=False)
 
 

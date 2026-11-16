@@ -71,7 +71,7 @@ class MonitoringTests(unittest.TestCase):
         return subprocess.CompletedProcess(args, 0, output, "")
 
     def execute(self):
-        with patch("shared_ci.monitoring.run", side_effect=self.fake_run):
+        with patch("shared_ci.monitoring.run", side_effect=self.fake_run), patch("shared_ci.monitoring.sys.platform", "darwin"):
             return monitoring.execute(self.config, self.root)
 
     def test_native_requires_expected_ids_and_waits(self):
@@ -247,6 +247,19 @@ class MonitoringTests(unittest.TestCase):
         with patch.dict(os.environ, {"TEST_GRADLE_CACHE": str(self.root)}), patch("shared_ci.monitoring.run", side_effect=gradle_run):
             with self.assertRaisesRegex(PipelineError, "skipped"):
                 monitoring.execute(self.config, self.root)
+
+    def test_xcode_native_guard_requires_current_successful_apple_archive(self):
+        self.config["execution_context"] = "xcode-cloud"
+        env = {"CI_XCODE_CLOUD": "TRUE", "CI_XCODEBUILD_ACTION": "archive", "CI_XCODEBUILD_EXIT_CODE": "0", "CI_START_CONDITION": "push",
+               "CI_GIT_REF": "refs/heads/staging", "CI_COMMIT": "a" * 40, "CI_ARCHIVE_PATH": str(self.root)}
+        with patch.dict(os.environ, env), patch("shared_ci.monitoring.sys.platform", "darwin"):
+            monitoring.execution_context(self.config, self.root)
+            with patch.dict(os.environ, {"CI_START_CONDITION": "pull_request"}), self.assertRaises(PipelineError):
+                monitoring.execution_context(self.config, self.root)
+            with patch.dict(os.environ, {"CI_XCODEBUILD_EXIT_CODE": "65"}), self.assertRaises(PipelineError):
+                monitoring.execution_context(self.config, self.root)
+        with patch.dict(os.environ, env), patch("shared_ci.monitoring.sys.platform", "linux"), self.assertRaises(PipelineError):
+            monitoring.execution_context(self.config, self.root)
 
     def test_deploy_marker_needs_successful_matching_receipt(self):
         self.config["operation"] = "sentry-deploy"
