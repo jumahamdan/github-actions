@@ -12,5 +12,8 @@
   "allowed_events": [
     "push",
     "workflow_dispatch"
+  ],
+  "allowed_branches": [
+    "staging"
   ]
 }

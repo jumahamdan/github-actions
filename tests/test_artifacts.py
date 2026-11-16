@@ -42,9 +42,9 @@ class ArtifactTests(unittest.TestCase):
         self.env.start()
         self.fetch_config = {"schema": 1, "operation": "fetch", "repository": "example/synthetic", "run_id": "42", "run_attempt": 2,
                              "artifact_name": "release-candidate", "expected_workflow": ".github/workflows/build.yml", "expected_source_sha": self.sha,
-                             "expected_identity": self.candidate["identity"], "token_env": "ARTIFACT_TOKEN", "allowed_events": ["push", "workflow_dispatch"]}
+                             "expected_identity": self.candidate["identity"], "token_env": "ARTIFACT_TOKEN", "allowed_events": ["push", "workflow_dispatch"], "allowed_branches": ["staging"]}
         self.metadata = {"status": "completed", "conclusion": "success", "head_sha": self.sha, "path": ".github/workflows/build.yml@main",
-                         "head_repository": {"full_name": "example/synthetic"}, "run_attempt": 2, "event": "push",
+                         "head_repository": {"full_name": "example/synthetic"}, "run_attempt": 2, "event": "push", "head_branch": "staging",
                          "run_started_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T01:00:00Z"}
         self.item = {"id": 99, "name": "release-candidate", "expired": False, "created_at": "2026-01-01T00:30:00Z",
                      "workflow_run": {"id": 42, "head_sha": self.sha}}
@@ -141,7 +141,7 @@ class ArtifactTests(unittest.TestCase):
     def test_wrong_run_source_workflow_fork_attempt_event_fail(self):
         self.bundle()
         changes = [{"head_sha": "f" * 40}, {"path": ".github/workflows/untrusted.yml"}, {"head_repository": {"full_name": "fork/other"}},
-                   {"run_attempt": 1}, {"event": "pull_request_target"}, {"conclusion": "failure"}]
+                   {"run_attempt": 1}, {"event": "pull_request_target"}, {"conclusion": "failure"}, {"head_branch": "feature/unapproved"}]
         for change in changes:
             old = copy.deepcopy(self.metadata)
             self.metadata.update(change)
@@ -149,6 +149,13 @@ class ArtifactTests(unittest.TestCase):
                 self.fetch()
             self.metadata = old
         self.assertFalse((self.target / "app.aab").exists())
+
+    def test_branch_allowlist_is_explicit_and_has_no_wildcards(self):
+        self.bundle()
+        for branches in ([], ["*"], ["refs/heads/staging"], ["staging", "staging"]):
+            self.fetch_config["allowed_branches"] = branches
+            with self.subTest(branches=branches), self.assertRaisesRegex(PipelineError, "branch"):
+                self.fetch()
 
     def test_stale_previous_attempt_artifact_rejected(self):
         self.bundle()

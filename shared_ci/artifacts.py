@@ -228,6 +228,12 @@ def authenticated_artifact(config, token, request):
     events = config["allowed_events"]
     if not isinstance(events, list) or not events or any(e not in ("push", "workflow_dispatch", "pull_request") for e in events):
         raise PipelineError("Explicit trusted producer event allowlist is required")
+    branches = config["allowed_branches"]
+    if (not isinstance(branches, list) or not branches
+            or any(not isinstance(branch, str) or not re.fullmatch(r"[A-Za-z0-9_./-]+", branch)
+                   or branch.startswith("refs/") or ".." in branch or branch.startswith("/") or branch.endswith("/") for branch in branches)
+            or len(branches) != len(set(branches))):
+        raise PipelineError("Explicit producer branch names are required")
     base = f"/repos/{repo}/actions/runs/{config['run_id']}"
     run_info = request(base, token)
     current_running = (run_info.get("status") == "in_progress" and os.environ.get("GITHUB_ACTIONS") == "true"
@@ -239,7 +245,8 @@ def authenticated_artifact(config, token, request):
     if ((not completed and not current_running) or run_info.get("head_sha") != config["expected_source_sha"]
             or run_info.get("path", "").split("@")[0] != workflow
             or run_info.get("head_repository", {}).get("full_name") != repo
-            or run_info.get("run_attempt") != config["run_attempt"] or run_info.get("event") not in events):
+            or run_info.get("run_attempt") != config["run_attempt"] or run_info.get("event") not in events
+            or run_info.get("head_branch") not in branches):
         raise PipelineError("Producer run is not successful trusted evidence for the selected source/attempt/workflow")
     started = timestamp(run_info.get("run_started_at"))
     updated = timestamp(run_info.get("updated_at"))
@@ -395,7 +402,7 @@ def import_files(stage, root, records):
 
 def fetch(config, root, *, request=_api, downloader=download):
     required = {"schema", "operation", "repository", "run_id", "run_attempt", "artifact_name", "expected_workflow",
-                "expected_source_sha", "expected_identity", "token_env", "allowed_events"}
+                "expected_source_sha", "expected_identity", "token_env", "allowed_events", "allowed_branches"}
     strict_keys(config, required | {"max_bytes", "max_files", "producer_job"}, required)
     if config["schema"] != 1 or config["operation"] != "fetch" or not HEX.fullmatch(str(config["expected_identity"])) or not SHA.fullmatch(str(config["expected_source_sha"])):
         raise PipelineError("Invalid artifact fetch selection")
