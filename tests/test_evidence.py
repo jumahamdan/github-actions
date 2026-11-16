@@ -8,6 +8,7 @@ import zipfile
 from pathlib import Path
 
 from shared_ci.common import PipelineError
+from shared_ci.assurance import stamp
 from shared_ci.evidence import create, fetch_receipt, verify
 
 
@@ -19,13 +20,42 @@ class EvidenceTests(unittest.TestCase):
         git("config", "user.email", "fixture@example.invalid")
         git("config", "user.name", "Fixture")
         (root / "source.txt").write_text("tested source")
-        git("add", "source.txt")
+        (root / "check-config.json").write_text('{"version":1}')
+        git("add", "source.txt", "check-config.json")
         git("commit", "-qm", "fixture")
         (root / "app.bin").write_bytes(b"tested artifact")
-        (root / "checks.json").write_text('{"status":"passed"}')
+        (root / "checks.json").write_text(json.dumps(stamp({"status":"passed"}, "quality", root / "check-config.json", root)))
         return create({"schema": 1, "product": "example", "version": "1.0.0", "build": "1",
-                       "library_sha": "a" * 40, "inputs": ["source.txt"], "artifacts": ["app.bin"],
-                       "toolchain": {"compiler": "1.2.3"}, "checks": ["checks.json"]}, root)
+                       "library_sha": "a" * 40, "inputs": ["source.txt", "check-config.json"], "artifacts": ["app.bin"],
+                       "toolchain": {"compiler": "1.2.3"}, "checks": [{"path":"checks.json", "kind":"quality", "config":"check-config.json"}]}, root)
+
+    def test_source_attribution_and_check_contract_cannot_be_relabelled(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            candidate = self.make_candidate(root)
+            candidate["source_sha"] = "c" * 40
+            with self.assertRaises(PipelineError):
+                verify(candidate, root)
+
+    def test_authenticated_coverage_bytes_are_verified(self):
+        content = b"coverage fixture"
+        digest = hashlib.sha256(content).hexdigest()
+        receipt = {"status":"passed", "coverage":{"coverage/lcov.info":digest}}
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as archive:
+            archive.writestr("receipt.json", json.dumps(receipt))
+            archive.writestr("coverage/" + digest, content)
+        data = buf.getvalue()
+        def request(path, token, binary=False):
+            if binary:
+                return data
+            if "/artifacts?" in path:
+                return {"artifacts":[{"id":7,"name":"checks","expired":False,"digest":"sha256:"+hashlib.sha256(data).hexdigest()}]}
+            return {"status":"completed","conclusion":"success","head_sha":"b"*40,"path":".github/workflows/ci.yml",
+                    "head_repository":{"full_name":"owner/example"},"event":"push"}
+        result = fetch_receipt("owner/example", "4", "checks", "b"*40, ".github/workflows/ci.yml", "synthetic",
+                               request=request, coverage_paths=["coverage/lcov.info"])
+        self.assertEqual(result["coverage_files"]["coverage/lcov.info"], content)
 
     def test_changed_artifact_and_input_fail(self):
         for name in ("source.txt", "app.bin", "checks.json"):

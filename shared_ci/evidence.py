@@ -18,10 +18,34 @@ from .common import PipelineError, atomic_json, cli_error, confined_path, finger
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
 DIGEST = re.compile(r"^[0-9a-f]{64}$")
+IDENTITY_FIELDS = ("product", "version", "build", "source_sha", "source_tree", "inputs", "artifacts", "checks", "check_requirements", "library_sha", "toolchain")
 
 
 def now():
     return dt.datetime.now(dt.timezone.utc).isoformat()
+
+
+def verify_checks(candidate, root):
+    requirements = candidate.get("check_requirements", {})
+    if not requirements or set(requirements) != set(candidate.get("checks", {})):
+        raise PipelineError("Candidate requires an explicit contract for every check")
+    for relative, requirement in requirements.items():
+        strict_keys(requirement, {"kind", "config"}, {"kind", "config"})
+        path = confined_path(root, relative)
+        receipt = load_json(path)
+        if sha256_file(path) != candidate["checks"][relative] or receipt.get("status") != "passed":
+            raise PipelineError("Candidate check evidence changed or did not pass")
+        if requirement["config"] not in candidate["inputs"]:
+            raise PipelineError("Check configuration must be a recorded candidate input")
+        config_path = confined_path(root, requirement["config"])
+        assurance = receipt.get("assurance", {})
+        expected = {"kind": requirement["kind"], "source_sha": candidate["source_sha"],
+                    "source_tree": candidate["source_tree"], "config_sha256": sha256_file(config_path)}
+        if assurance != expected:
+            raise PipelineError("Check is not bound to the candidate source and configuration")
+        if requirement["kind"] == "security":
+            from .security import require_fresh
+            require_fresh(receipt, fingerprint(load_json(config_path)))
 
 
 def file_records(root, paths):
@@ -50,12 +74,17 @@ def create(config, root):
         raise PipelineError("Candidate requires a toolchain record")
     if not isinstance(config["checks"], list) or not config["checks"]:
         raise PipelineError("Candidate requires successful check receipt paths")
-    checks = {}
-    for relative in config["checks"]:
+    checks, requirements = {}, {}
+    for entry in config["checks"]:
+        strict_keys(entry, {"path", "kind", "config"}, {"path", "kind", "config"})
+        relative = entry["path"]
+        if relative in checks or not isinstance(entry["kind"], str) or not entry["kind"]:
+            raise PipelineError("Duplicate or untyped candidate check")
         receipt = load_json(confined_path(root, relative))
         if receipt.get("status") != "passed":
             raise PipelineError("Candidate contains a missing or unsuccessful check")
         checks[relative] = sha256_file(confined_path(root, relative))
+        requirements[relative] = {k: entry[k] for k in ("kind", "config")}
     if run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root).stdout.strip():
         raise PipelineError("Candidate source has uncommitted tracked changes")
     source = run(["git", "rev-parse", "HEAD"], cwd=root).stdout.strip()
@@ -67,9 +96,10 @@ def create(config, root):
     result = {"schema": 1, "status": "passed", "product": config["product"], "version": config["version"],
               "build": config["build"], "source_sha": source, "source_tree": tree,
               "library_sha": config["library_sha"], "toolchain": config["toolchain"],
-              "inputs": inputs, "artifacts": artifacts, "checks": checks, "created_at": now(),
+              "inputs": inputs, "artifacts": artifacts, "checks": checks, "check_requirements": requirements, "created_at": now(),
               "run": {k: os.environ.get(k, "") for k in ("GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")}}
-    result["identity"] = fingerprint({k: result[k] for k in ("product", "version", "build", "inputs", "artifacts", "checks", "library_sha", "toolchain")})
+    verify_checks(result, root)
+    result["identity"] = fingerprint({k: result[k] for k in IDENTITY_FIELDS})
     return result
 
 
@@ -81,11 +111,8 @@ def verify(candidate, root, *, expected_library_sha=None, expected_toolchain=Non
             raise PipelineError(f"Candidate {group} changed or missing")
     if not isinstance(candidate.get("checks"), dict) or not candidate["checks"]:
         raise PipelineError("Candidate check evidence is missing")
-    for relative, digest in candidate["checks"].items():
-        path = confined_path(root, relative)
-        if sha256_file(path) != digest or load_json(path).get("status") != "passed":
-            raise PipelineError("Candidate check evidence changed or did not pass")
-    identity = fingerprint({k: candidate[k] for k in ("product", "version", "build", "inputs", "artifacts", "checks", "library_sha", "toolchain")})
+    verify_checks(candidate, root)
+    identity = fingerprint({k: candidate[k] for k in IDENTITY_FIELDS})
     if identity != candidate.get("identity"):
         raise PipelineError("Candidate identity is corrupt")
     if expected_library_sha is not None and candidate["library_sha"] != expected_library_sha:
@@ -130,7 +157,7 @@ def _api(path, token, binary=False):
         raise PipelineError("GitHub evidence retrieval failed") from exc
 
 
-def fetch_receipt(repository, run_id, artifact_name, expected_sha, expected_workflow, token, *, request=_api):
+def fetch_receipt(repository, run_id, artifact_name, expected_sha, expected_workflow, token, *, request=_api, coverage_paths=()):
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) or not str(run_id).isdigit():
         raise PipelineError("Invalid repository/run identity")
     if not SHA.fullmatch(expected_sha) or not expected_workflow.startswith(".github/workflows/"):
@@ -165,14 +192,33 @@ def fetch_receipt(repository, run_id, artifact_name, expected_sha, expected_work
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             entries = archive.infolist()
-            if len(entries) != 1 or entries[0].filename != "receipt.json" or entries[0].file_size > 1024 * 1024:
-                raise PipelineError("Evidence artifact must contain only a bounded receipt.json")
+            names = [entry.filename for entry in entries]
+            if len(names) != len(set(names)) or "receipt.json" not in names or archive.getinfo("receipt.json").file_size > 1024 * 1024:
+                raise PipelineError("Evidence artifact must contain one bounded receipt.json")
             receipt = json.loads(archive.read("receipt.json"))
+            hashes = receipt.get("coverage", {})
+            if coverage_paths and (not isinstance(hashes, dict) or set(coverage_paths) - set(hashes)):
+                raise PipelineError("Expected coverage is missing from the authenticated receipt")
+            expected_names = {"receipt.json"}
+            if hashes:
+                if not isinstance(hashes, dict) or len(hashes) > 50 or any(not DIGEST.fullmatch(str(digest)) for digest in hashes.values()):
+                    raise PipelineError("Invalid coverage digest manifest")
+                expected_names |= {"coverage/" + digest for digest in hashes.values()}
+            # upload-artifact can retain explicit directory entries, but never extra files.
+            actual_files = {entry.filename for entry in entries if not entry.is_dir()}
+            if actual_files != expected_names or sum(entry.file_size for entry in entries) > 64 * 1024 * 1024:
+                raise PipelineError("Unexpected or oversized files in evidence artifact")
+            coverage_files = {}
+            for relative in coverage_paths:
+                content = archive.read("coverage/" + hashes[relative])
+                if hashlib.sha256(content).hexdigest() != hashes[relative]:
+                    raise PipelineError("Coverage bytes do not match the authenticated receipt")
+                coverage_files[relative] = content
     except (zipfile.BadZipFile, json.JSONDecodeError) as exc:
         raise PipelineError("Malformed evidence artifact") from exc
     if receipt.get("status") != "passed":
         raise PipelineError("Receipt did not pass")
-    return {"receipt": receipt, "provenance": {"repository": repository, "run_id": str(run_id),
+    return {"receipt": receipt, "coverage_files": coverage_files, "provenance": {"repository": repository, "run_id": str(run_id),
             "source_sha": expected_sha, "workflow": expected_workflow, "artifact_digest": item["digest"]}}
 
 

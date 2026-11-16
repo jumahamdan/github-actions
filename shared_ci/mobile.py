@@ -546,7 +546,8 @@ def main():
     if output == config_path:
         raise PipelineError("Receipt output cannot overwrite its configuration")
     output.unlink(missing_ok=True)  # A failed rerun cannot retain a passing receipt.
-    atomic_json(output, execute(load_json(config_path), root))
+    from .assurance import stamp
+    atomic_json(output, stamp(execute(load_json(config_path), root), "mobile", config_path, root))
 
 
 if __name__ == "__main__":
