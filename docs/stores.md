@@ -12,6 +12,8 @@ The inspection contract is `kind: apple|android`, `source_sha`, `application: {i
 
 The trusted GitHub push/manual job passes a short-lived Google OAuth access token or App Store Connect JWT through the named environment variable. Authorization is an HTTP header. Tokens never appear in argv, state or receipts. HTTP redirects with credentials are refused. App permissions and store legal/privacy/review metadata are caller account setup; this module does not assert they are complete. Apple-hosted build hooks produce evidence; credentialed distribution jobs run after authenticated retrieval.
 
+For Apple processing waits, keep the existing temporary private-key file available through `ASC_PRIVATE_KEY_PATH`, with its existing `ASC_KEY_ID` and `ASC_ISSUER_ID`. The API renews its ten-minute JWT before the last minute of validity, including during long polling. This reuses the supplied key and does not create an Apple key. Cleanup happens after the module exits. A caller providing only a static bearer token must supply a token valid for its entire operation; the adapter cannot refresh it without the existing key.
+
 ## Google Play
 
 Operations are `play-inspect`, `play-upload`, and `play-promote`. Use `play-inspect` to retain the target track digest, then supply it as expected_track_digest for the approved upload/promotion request. Each operation uses its own state_file. Drift fails before changing the track.
@@ -23,6 +25,8 @@ A track update replaces its release list with the selected candidate. This inten
 Commits explicitly use `changesInReviewBehavior=ERROR_IF_IN_REVIEW`; the API default can cancel an existing review. review_policy is `submit` or `defer`. Optional allow_review_defer_fallback applies only to Google's specific rejection that changes cannot be sent automatically; other errors fail. Drafts, deferred Console review and submitted changes return status:pending, with availability_verified:false. Successful API submission is not proof of availability to users.
 
 State is persisted before upload/commit. Completed requests reuse the saved receipt; uploads can resume by reconciling version+hash. A lost commit response stops subsequent retries for explicit Console/API reconciliation. Do not delete that state and retry blindly. Persist it as a private job artifact and serialize operations per package/track in the caller; concurrent Play edits are account-side conflicts.
+
+Use the [durable store-state adapter](state.md) to retain and authenticate state across isolated runners and reruns, including failed/cancelled attempts. Restore the exact candidate/configuration state before executing the operation again. A restored uncertain commit stays blocked until reconciled; restoring state does not declare a release successful.
 
 ## Apple
 
@@ -51,6 +55,8 @@ The current Firebase CLI returns JSON success without a Release object. The adap
 The upload CLI receives no tester/group option. After release verification, an explicit release:distribute call grants the configured groups access. That provider operation sends tester release/invitation emails; invoking this route in a product is a distribution decision. No email or upload was sent while validating this library. Tester addresses and signed binary-download URLs are never retained in receipts.
 
 A pre-existing matching version/build without this request's completed state fails for reconciliation. Saved successful state avoids uploading or notifying testers again. A lost upload/distribution response also stops subsequent automatic retries because release metadata alone cannot prove which bytes/groups completed. Processing timeout writes pending state and can resume metadata polling without another upload. A passed distribution receipt means the provider accepted distribution to the selected groups; tester installation remains unverified.
+
+Serialize all uploads for each Firebase app, including manual uploads outside Actions. Concurrent uploads with the same version/build cannot be distinguished through the provider's metadata-only release response and require reconciliation.
 
 Create the final candidate after required device and symbol receipts exist. Monitoring receipts include artifact_records so symbol bytes are bound independently of the earlier candidate identity, avoiding a circular identity dependency. Retain the input config for each check alongside its typed assurance/source binding.
 

@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -31,6 +32,7 @@ def fixture(root, kind="android", files=None, inspection_extra=None):
     inspected["assurance"] = {"kind": "mobile", "source_sha": "a" * 40, "source_tree": "b" * 40, "config_sha256": sha256_file(root / "input.txt")}
     atomic_json(root / "inspection.json", inspected)
     candidate = {"schema": 1, "status": "passed", "source_sha": "a" * 40, "source_tree": "b" * 40,
+                 "created_at": "2026-01-01T00:00:00+00:00",
                  "product": "synthetic-app", "version": "1.0.0", "build": "123", "library_sha": "c" * 40,
                  "inputs": {"input.txt": {"sha256": sha256_file(root / "input.txt"), "bytes": (root / "input.txt").stat().st_size}},
                  "artifacts": records, "checks": {"inspection.json": sha256_file(root / "inspection.json")}, "check_requirements": {"inspection.json": {"kind": "mobile", "config": "input.txt"}}, "toolchain": {"fixture": "1"}}
@@ -379,6 +381,43 @@ class StoresTests(unittest.TestCase):
         self.assertEqual(request.headers["Authorization"], "Bearer synthetic-secret")
         self.assertNotIn("synthetic-secret", request.full_url)
         self.assertIsNone(stores.NoRedirect().redirect_request(None, None, None, None, None, None))
+
+    def test_apple_api_refreshes_existing_key_before_jwt_expiry(self):
+        auth = types.ModuleType("shared_ci.auth")
+        auth.apple_token = unittest.mock.Mock(side_effect=["first-token", "second-token", "third-token"])
+        env = {"ASC_PRIVATE_KEY_PATH": "/temporary/existing-key.p8", "ASC_KEY_ID": "EXAMPLE1234", "ASC_ISSUER_ID": "synthetic-issuer"}
+        response = unittest.mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"data":{"id":"200"}}'
+        with patch.dict(os.environ, env), patch.dict("sys.modules", {"shared_ci.auth": auth}), patch("shared_ci.stores.time.time", side_effect=[100, 639, 640, 1250]):
+            api = stores.API("apple", "initial-wrapper-token")
+            with patch.object(api.opener, "open", return_value=response) as opening:
+                for _ in range(4):
+                    api("GET", "/v1/builds/200")
+        self.assertEqual([call.args[0].headers["Authorization"] for call in opening.call_args_list],
+                         ["Bearer first-token", "Bearer first-token", "Bearer second-token", "Bearer third-token"])
+        self.assertEqual([call.kwargs["now"] for call in auth.apple_token.call_args_list], [100, 640, 1250])
+        self.assertTrue(all(call.args == (env["ASC_PRIVATE_KEY_PATH"], env["ASC_KEY_ID"], env["ASC_ISSUER_ID"]) for call in auth.apple_token.call_args_list))
+
+    def test_static_apple_token_remains_caller_managed(self):
+        api = stores.API("apple", "caller-short-lived-token")
+        with patch("shared_ci.stores.time.time", side_effect=AssertionError("No local key signing")):
+            self.assertEqual(api.authorization(), "Bearer caller-short-lived-token")
+
+    def test_other_providers_never_use_apple_private_key(self):
+        with patch.dict(os.environ, {"ASC_PRIVATE_KEY_PATH": "/temporary/existing-key.p8"}):
+            for provider in ("play", "firebase"):
+                api = stores.API(provider, "google-token")
+                self.assertIsNone(api.apple_key)
+                self.assertEqual(api.authorization(), "Bearer google-token")
+
+    def test_apple_refresh_failure_blocks_request(self):
+        auth = types.ModuleType("shared_ci.auth")
+        auth.apple_token = unittest.mock.Mock(side_effect=PipelineError("Apple token signing failed"))
+        with patch.dict(os.environ, {"ASC_PRIVATE_KEY_PATH": "/temporary/existing-key.p8"}), patch.dict("sys.modules", {"shared_ci.auth": auth}):
+            api = stores.API("apple", "old-token")
+            with patch.object(api.opener, "open") as opening, self.assertRaisesRegex(PipelineError, "signing failed"):
+                api("GET", "/v1/builds/200")
+            opening.assert_not_called()
 
 
 if __name__ == "__main__":

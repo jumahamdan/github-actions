@@ -105,13 +105,28 @@ class API:
     def __init__(self, provider, token, timeout=60):
         self.base = {"play": "https://androidpublisher.googleapis.com", "apple": "https://api.appstoreconnect.apple.com", "firebase": "https://firebaseappdistribution.googleapis.com"}[provider]
         self.token, self.timeout = token, timeout
+        # A processing poll can outlive a ten-minute JWT. The caller keeps its
+        # existing temporary private-key file available until the operation ends.
+        self.apple_key = None
+        self.token_expires = 0
+        if provider == "apple" and os.environ.get("ASC_PRIVATE_KEY_PATH"):
+            self.apple_key = (os.environ["ASC_PRIVATE_KEY_PATH"], os.environ.get("ASC_KEY_ID", ""), os.environ.get("ASC_ISSUER_ID", ""))
         self.opener = urllib.request.build_opener(NoRedirect())
+
+    def authorization(self):
+        if self.apple_key:
+            now = int(time.time())
+            if now >= self.token_expires - 60:
+                from .auth import apple_token
+                self.token = apple_token(*self.apple_key, now=now)
+                self.token_expires = now + 600
+        return "Bearer " + self.token
 
     def __call__(self, method, path, body=None, upload=None):
         if not path.startswith(("/v1/", "/androidpublisher/v3/", "/upload/androidpublisher/v3/")) or "\n" in path:
             raise PipelineError("Invalid store API path")
         data = json.dumps(body, separators=(",", ":")).encode() if body is not None else None
-        headers = {"Authorization": "Bearer " + self.token, "Accept": "application/json"}
+        headers = {"Authorization": self.authorization(), "Accept": "application/json"}
         stream = None
         if upload is not None:
             stream = Path(upload).open("rb")
