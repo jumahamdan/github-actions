@@ -228,14 +228,42 @@ def authenticated_artifact(config, token, request):
         raise PipelineError("Explicit trusted producer event allowlist is required")
     base = f"/repos/{repo}/actions/runs/{config['run_id']}"
     run_info = request(base, token)
-    if (run_info.get("status") != "completed" or run_info.get("conclusion") != "success"
-            or run_info.get("head_sha") != config["expected_source_sha"]
+    current_running = (run_info.get("status") == "in_progress" and os.environ.get("GITHUB_ACTIONS") == "true"
+                       and str(config["run_id"]) == os.environ.get("GITHUB_RUN_ID")
+                       and str(config["run_attempt"]) == os.environ.get("GITHUB_RUN_ATTEMPT")
+                       and repo == os.environ.get("GITHUB_REPOSITORY")
+                       and config["expected_source_sha"] == os.environ.get("GITHUB_SHA"))
+    completed = run_info.get("status") == "completed" and run_info.get("conclusion") == "success"
+    if ((not completed and not current_running) or run_info.get("head_sha") != config["expected_source_sha"]
             or run_info.get("path", "").split("@")[0] != workflow
             or run_info.get("head_repository", {}).get("full_name") != repo
             or run_info.get("run_attempt") != config["run_attempt"] or run_info.get("event") not in events):
         raise PipelineError("Producer run is not successful trusted evidence for the selected source/attempt/workflow")
     started = timestamp(run_info.get("run_started_at"))
     updated = timestamp(run_info.get("updated_at"))
+    if current_running:
+        producer_name = config.get("producer_job")
+        if not isinstance(producer_name, str) or not producer_name.strip() or len(producer_name) > 200:
+            raise PipelineError("Same-run artifact import requires an explicit completed producer job")
+        producers = []
+        for page in range(1, 21):
+            response = request(base + f"/attempts/{config['run_attempt']}/jobs?per_page=100&page={page}", token)
+            batch = response.get("jobs")
+            if not isinstance(batch, list):
+                raise PipelineError("Malformed producer job inventory")
+            producers.extend(job for job in batch if job.get("name") == producer_name)
+            if len(batch) < 100:
+                break
+        else:
+            raise PipelineError("Producer job inventory exceeds pagination limit")
+        if (len(producers) != 1 or producers[0].get("status") != "completed" or producers[0].get("conclusion") != "success"
+                or producers[0].get("run_id") != int(config["run_id"]) or not isinstance(producers[0].get("id"), int)
+                or producers[0]["id"] <= 0):
+            raise PipelineError("Exactly one completed successful producer job is required for same-run import")
+        job = producers[0]
+        started = max(started, timestamp(job.get("started_at")))
+        # run.updated_at can precede a still-running job; the completed producer supplies a bounded upper time.
+        updated = timestamp(job.get("completed_at"))
     matches = []
     for page in range(1, 21):
         response = request(base + f"/artifacts?per_page=100&page={page}", token)
@@ -366,7 +394,7 @@ def import_files(stage, root, records):
 def fetch(config, root, *, request=_api, downloader=download):
     required = {"schema", "operation", "repository", "run_id", "run_attempt", "artifact_name", "expected_workflow",
                 "expected_source_sha", "expected_identity", "token_env", "allowed_events"}
-    strict_keys(config, required | {"max_bytes", "max_files"}, required)
+    strict_keys(config, required | {"max_bytes", "max_files", "producer_job"}, required)
     if config["schema"] != 1 or config["operation"] != "fetch" or not HEX.fullmatch(str(config["expected_identity"])) or not SHA.fullmatch(str(config["expected_source_sha"])):
         raise PipelineError("Invalid artifact fetch selection")
     if not isinstance(config["artifact_name"], str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", config["artifact_name"]):

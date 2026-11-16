@@ -234,6 +234,47 @@ class ArtifactTests(unittest.TestCase):
         with self.assertRaisesRegex(PipelineError, "count"):
             artifacts.package(self.package_config, self.root)
 
+    def same_run(self):
+        self.bundle()
+        self.metadata.update(status="in_progress", conclusion=None, updated_at="2026-01-01T00:00:01Z")
+        self.fetch_config["producer_job"] = "Build Android"
+        self.jobs = [{"id": 123, "run_id": 42, "name": "Build Android", "status": "completed", "conclusion": "success",
+                      "started_at": "2026-01-01T00:01:00Z", "completed_at": "2026-01-01T00:40:00Z"}]
+        self.current_env = {"GITHUB_ACTIONS": "true", "GITHUB_RUN_ID": "42", "GITHUB_RUN_ATTEMPT": "2",
+                            "GITHUB_REPOSITORY": "example/synthetic", "GITHUB_SHA": self.sha}
+
+    def same_run_request(self, path, token):
+        return {"jobs": self.jobs} if "/jobs?" in path else self.request(path, token)
+
+    def test_same_running_workflow_accepts_completed_producer(self):
+        self.same_run()
+        with patch.dict(os.environ, self.current_env):
+            result = artifacts.fetch(self.fetch_config, self.target, request=self.same_run_request, downloader=self.download)
+        self.assertEqual(result["status"], "passed")
+
+    def test_same_running_workflow_rejects_running_failed_or_duplicate_producer(self):
+        self.same_run()
+        baseline = copy.deepcopy(self.jobs)
+        variants = [[], baseline + baseline, [dict(baseline[0], status="in_progress", conclusion=None)], [dict(baseline[0], conclusion="failure")]]
+        with patch.dict(os.environ, self.current_env):
+            for jobs in variants:
+                self.jobs = jobs
+                with self.subTest(jobs=jobs), self.assertRaisesRegex(PipelineError, "producer job"):
+                    artifacts.fetch(self.fetch_config, self.target, request=self.same_run_request, downloader=self.download)
+        self.assertFalse((self.target / "app.aab").exists())
+
+    def test_same_running_workflow_requires_explicit_producer(self):
+        self.same_run()
+        self.fetch_config.pop("producer_job")
+        with patch.dict(os.environ, self.current_env), self.assertRaisesRegex(PipelineError, "explicit"):
+            artifacts.fetch(self.fetch_config, self.target, request=self.same_run_request, downloader=self.download)
+
+    def test_foreign_in_progress_run_is_never_accepted(self):
+        self.same_run()
+        self.current_env["GITHUB_RUN_ID"] = "999"
+        with patch.dict(os.environ, self.current_env), self.assertRaisesRegex(PipelineError, "Producer run"):
+            artifacts.fetch(self.fetch_config, self.target, request=self.same_run_request, downloader=self.download)
+
     def test_stream_download_does_not_forward_token_to_signed_url(self):
         import urllib.error
         from unittest.mock import MagicMock
