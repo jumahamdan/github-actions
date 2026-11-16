@@ -259,6 +259,36 @@ class ArtifactTests(unittest.TestCase):
             result = artifacts.fetch(self.fetch_config, self.target, request=self.same_run_request, downloader=self.download)
         self.assertEqual(result["status"], "passed")
 
+    def test_same_running_pr_authenticates_api_head_independent_of_merge_sha(self):
+        self.same_run()
+        self.metadata["event"] = "pull_request"
+        self.fetch_config["allowed_events"] = ["pull_request"]
+        self.current_env["GITHUB_SHA"] = "f" * 40
+        with patch.dict(os.environ, self.current_env):
+            result = artifacts.fetch(self.fetch_config, self.target, request=self.same_run_request, downloader=self.download)
+        self.assertEqual(result["status"], "passed")
+
+    def test_transport_checks_historical_security_without_refreshing_candidate(self):
+        policy = {"threshold": "high", "max_age_hours": 24, "exceptions": []}
+        atomic_json(self.root / "security-policy.json", policy)
+        created = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=48)
+        security = {"schema": 1, "status": "passed", "policy_identity": fingerprint(policy), "max_age_hours": 24,
+                    "checked_at": (created - dt.timedelta(hours=1)).isoformat(),
+                    "assurance": {"kind": "security", "source_sha": self.sha, "source_tree": self.tree,
+                                  "config_sha256": sha256_file(self.root / "security-policy.json")}}
+        atomic_json(self.root / "security.json", security)
+        self.candidate["inputs"]["security-policy.json"] = {"sha256": sha256_file(self.root / "security-policy.json"), "bytes": (self.root / "security-policy.json").stat().st_size}
+        self.candidate["checks"]["security.json"] = sha256_file(self.root / "security.json")
+        self.candidate["check_requirements"]["security.json"] = {"kind": "security", "config": "security-policy.json"}
+        self.candidate["created_at"] = created.isoformat()
+        self.rehash()
+        self.package_config["expected_identity"] = self.fetch_config["expected_identity"] = self.candidate["identity"]
+        self.bundle()
+        result = self.fetch()
+        self.assertEqual(result["candidate_identity"], self.candidate["identity"])
+        with self.assertRaisesRegex(PipelineError, "stale"):
+            artifacts.verify_checks(self.candidate, self.target)
+
     def test_same_running_workflow_rejects_running_failed_or_duplicate_producer(self):
         self.same_run()
         baseline = copy.deepcopy(self.jobs)

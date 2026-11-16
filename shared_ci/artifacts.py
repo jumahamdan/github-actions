@@ -102,7 +102,7 @@ def verify_manifest(candidate, root, expected_identity, expected_source):
         raise PipelineError("Retained manifest differs from trusted source/candidate selection")
     verify_files(root, candidate["inputs"], allow_empty=True)
     verify_files(root, candidate["artifacts"])
-    verify_checks(candidate, root)
+    verify_checks(candidate, root, historical_security=True)
 
 
 def package(config, root):
@@ -239,8 +239,7 @@ def authenticated_artifact(config, token, request):
     current_running = (run_info.get("status") == "in_progress" and os.environ.get("GITHUB_ACTIONS") == "true"
                        and str(config["run_id"]) == os.environ.get("GITHUB_RUN_ID")
                        and str(config["run_attempt"]) == os.environ.get("GITHUB_RUN_ATTEMPT")
-                       and repo == os.environ.get("GITHUB_REPOSITORY")
-                       and config["expected_source_sha"] == os.environ.get("GITHUB_SHA"))
+                       and repo == os.environ.get("GITHUB_REPOSITORY"))
     completed = run_info.get("status") == "completed" and run_info.get("conclusion") == "success"
     if ((not completed and not current_running) or run_info.get("head_sha") != config["expected_source_sha"]
             or run_info.get("path", "").split("@")[0] != workflow
