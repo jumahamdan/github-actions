@@ -1,0 +1,11 @@
+{
+  "name": "shared-ci-ai-tools",
+  "version": "2.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "dependencies": {
+    "promptfoo": "0.125.1"
+  }
+}
