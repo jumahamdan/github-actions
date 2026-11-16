@@ -18,7 +18,7 @@ def main():
     if output.exists():raise SystemExit('Fixture output must be a fresh directory')
     shutil.copytree(root/'fixtures/caller',output)
     prefix='jumahamdan/github-actions/.github/workflows/'
-    workflow={'name':'Shared library cross-repository contract','on':{'push':{'branches':['main']},'workflow_dispatch':None},
+    workflow={'name':'Shared library cross-repository contract','on':{'push':{'branches':['main']},'pull_request':{'branches':['main']},'workflow_dispatch':None},
               'permissions':{'contents':'read','actions':'read'},'jobs':{
       'build':{'uses':prefix+'v2-checks.yml@'+args.revision,'with':{
         'profile':'shell','config':'.ci/quality.json','artifact-name':'synthetic-build','candidate-config':'.ci/candidate.json',
@@ -26,9 +26,12 @@ def main():
       'verify':{'needs':['build'],'uses':prefix+'v2-evidence.yml@'+args.revision,'with':{
         'config':'build/candidate.json','operation':'verify','artifact-name':'synthetic-verification',
         'artifact-run-id':'${{ github.run_id }}','artifact-run-attempt':'${{ github.run_attempt }}',
+        'artifact-run-head-sha':'${{ github.event.pull_request.head.sha || github.sha }}',
         'artifact-source-sha':'${{ needs.build.outputs.source-sha }}','artifact-identity':'${{ needs.build.outputs.candidate-identity }}',
         'artifact-workflow':'.github/workflows/contract.yml','artifact-input-name':'${{ needs.build.outputs.candidate-artifact-name }}',
-        'artifact-producer-job':'build / run','artifact-allowed-branches':'["main"]'}}}}
+        'artifact-producer-job':'build / run',
+        'artifact-allowed-branches':"${{ format('[\"{0}\"]', github.head_ref || github.ref_name) }}",
+        'artifact-allowed-events':'["push","workflow_dispatch","pull_request"]'}}}}
     target=output/'.github/workflows/contract.yml';target.parent.mkdir(parents=True)
     target.write_text(yaml.safe_dump(workflow,sort_keys=False,width=110))
     (output/'README.md').write_text('# Shared workflow contract fixture\n\nSynthetic, credential-free cross-repository build and artifact-transfer test. No product code or provider deployments.\n')
