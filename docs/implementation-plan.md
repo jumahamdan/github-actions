@@ -1,0 +1,42 @@
+# Shared library implementation plan
+
+Scope: complete the known shared CI/CD capabilities before migrating any consumer. This public repository holds generic code and synthetic fixtures only. The existing checkout has unrelated edits; all work uses this isolated branch from main. Existing v1 callers remain version-pinned; v2 is explicit adoption.
+
+## Architecture
+
+- Small reusable workflows call Python modules in `shared_ci/`, with language tools/providers installed at pinned versions. Caller source and immutable library revision are separate checkouts. Product configuration is JSON, with explicit commands as argument arrays, environments and required inputs; no interpolation of user-controlled text into shell scripts.
+- Shared modules: `common` (validated paths/configuration, scoped environment, bounded processes, redacted output, receipts), `quality`, `security`, `credentials`, `evidence`, `release`, `ai`, `deploy`, `containers`, `mobile`, `monitoring`, `docs`. Each exposes `python -m shared_ci.<module>` and real unit/contract tests. Avoid speculative abstraction: delivery adapters translate explicit validated inputs to actual supported CLI/API operations.
+- Each module owns a configuration contract, synthetic examples, tests for success and deliberate failure, and documentation. Common primitives may cover multiple services; a service-labelled empty hook is not a deliverable.
+- Reusable workflows require an immutable library SHA. They check out caller source, check out this library into a separate directory, then execute the selected module. All runtime inputs use environment variables or JSON files, never direct insertion in shell. Permissions start read-only; credentialed publishing lives in separate trusted jobs.
+- A capability ledger maps every scoped requirement to implementation/tests/examples and explicitly distinguishes fixture/CLI-contract validation from live provider integration. Do not certify consumer accounts or pretend Linux contract tests compile/sign Apple apps.
+
+## Deliverable groups
+
+1. Common execution, credentials/variables contract, release evidence, promotion identity and release-note drafting/publication. Credentials are required by name/presence only, least-privilege per job, never copied to public fixtures or artifacts. Runtime secrets are not Docker build arguments. Existing project OpenAI secrets are used at adoption; no new key or live calls for library tests.
+2. Node/TypeScript, Python, Deno, Flutter, Swift/PHP/shell/PowerShell quality and docs profiles. Real configured checks fail on errors or absent required commands. Keep workflow/applicable-check summaries accurate. Optional Sonar receives matching coverage and a separately maintained target-branch analysis.
+3. Security: secrets, dependency, source, infrastructure/container/workflow scans, configured threshold/freshness/expiring exceptions, reports and plan-aware GitHub integrations. Scanner/DB identity and freshness affect reuse. Templates for Dependabot, SECURITY.md, release categories, docs and caller workflows.
+4. AI: mock tests, live promptfoo/product evaluation, optional advisory review as separate operations. Pinned promptfoo; OpenAI, Anthropic/Claude, Bedrock and existing Gemini configuration; chosen-provider credentials only. Empty/malformed/error results fail. Product gates, prompt/dataset/model/grader/candidate identity, fresh release evaluations, explicit live enablement/trust, call/token/concurrency/retry/deadline bounds. Never call a post-run cost report a hard spending cap; product/credential-side caps remain explicit. No automatic posting or merging from AI review.
+5. Docker/GHCR/Compose/Hetzner: build/test/publish immutable images, multi-component manifests, digest-preserving promotion, verified SSH hosts, no remote rebuild, serialized deployment, pre-migration backup failure gate, health checks, previous manifest and non-destructive rollback. Existing desktop installer proof is distinct from server deployment. Do not move product data or provision hosts.
+6. AWS CDK/site/backend, Firebase Functions/Hosting/rules/indexes/config, Cloudflare, Vercel/Netlify and WordPress packaging adapters. Required configuration checks and product test hooks cover runtime services. Provider-side rebuilds are labelled. Preserve runtime caps, protected data resources and per-product release authority.
+7. Apple Cloud native/Flutter helpers, Android/Play, TestFlight/App Store, Google Test Lab/DDP, Sentry/Crashlytics symbols. Retain identity, signing/embedded-target checks, build numbers, processing/review state, result/error handling and required artifacts. No macOS GitHub runner. WordPress publication stays an explicit handoff until its separate migration.
+8. Legacy entry-point repair/compatibility, self-CI, docs, exact-diff independent review, evidence and immutable release preparation. Do not silently change old consumers or claim known missing functionality complete.
+
+## Verification and rollout
+
+Use standard-library unit tests and isolated synthetic fixtures plus CLI syntax/API contract verification. Real tools are pinned. Fake provider processes exercise arguments, failure codes, malformed results and secret handling without reading actual credentials. Test both success and failure; include stale or mismatched receipts, absent/malformed evidence, unknown config fields, unsafe paths, untrusted ref, missing symbols and interrupted publication. Run actionlint, shell validation and relevant real local tool smoke tests. Do not deploy, publish client artifacts, make paid model/device calls, or mutate product repositories to validate this library.
+
+Implement sequential reviewable batches in this repository, with isolated worktrees for parallel authors and cherry-picked commits. Claude reviews this plan and the final exact diff/evidence; resolve material findings. New shared code remains on a feature branch until checks and review pass. Prepare publication only after its exact content is reviewable under the existing authorization. No application promotion is authorized by this library task.
+
+## Plan-review decisions
+
+The independent review is accepted with these concrete contracts:
+
+- Callers explicitly map named secret roles; no `secrets: inherit`. Credentialed reusable jobs declare an explicit GitHub environment. Non-secret variables are explicit inputs/configuration. Missing required provider roles fail. No new OpenAI key is created.
+- Workflows check the library SHA against GitHub's OIDC `job_workflow_sha` claim before executing checked-out helper code; caller fixtures also enforce matching pins. This requires `id-token: write` for the identity check even in otherwise read-only jobs. Tokens are fetched only from the runner's GitHub OIDC endpoint and never logged. Apple-hosted hooks fetch an exact commit and verify it before execution, or use a hash-verified vendored copy.
+- Temporary derived credentials are masked, stored outside artifact/source paths, and cleaned in `finally`/always steps. Tests prove sanitization and cleanup. Do not assume GitHub masks newly derived values.
+- Server deployment uses immutable images, Compose `--no-build`, a host-side lock, nonempty checksummed backup evidence and strict host keys. Existing public images need no registry secret. For private images support a narrowly scoped existing credential over SSH stdin with temporary Docker configuration and cleanup; do not create a new long-lived host credential.
+- Promptfoo disables telemetry, update checks and remote sharing/generation by default; only aggregate/sanitized results leave the job. Model evaluation uses a distinct invoke-only AWS role, never an implicit deploy role.
+- Existing v1 action/reusable entrypoints stay byte-identical in v2 implementation. New functionality uses new workflow names and module/action paths. The library's own self-CI is repaired; old defective behavior is documented and migration is explicit. Do not move existing tags.
+- Actions use immutable commits; downloaded binaries require checksums; npm/Python tool installations use locked dependencies with integrity data. Tool installation is separate from credentialed execution.
+
+Do not treat every existing caller as immutable: adoption inventory must distinguish pinned SHA, moving tag and main references. Old-owner Actions references remain a consumer migration finding, not a reason to edit multiple products now.
