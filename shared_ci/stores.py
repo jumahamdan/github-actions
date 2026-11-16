@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -358,7 +359,7 @@ def apple_build(settings, inspected, api, timeout, interval):
 
 def apple(config, root, candidate, inspected, api):
     settings = config["apple"]
-    strict_keys(settings, {"app_id", "build_id", "platform", "group_ids", "submit_beta_review", "app_store_version_id", "expected_selected_build", "submission_id"},
+    strict_keys(settings, {"app_id", "build_id", "platform", "group_ids", "submit_beta_review", "app_store_version_id", "expected_selected_build", "submission_id", "localizations"},
                 {"app_id", "build_id", "platform"})
     if settings["platform"] not in ("IOS", "MAC_OS", "TV_OS", "VISION_OS"):
         raise PipelineError("Unsupported Apple platform")
@@ -376,6 +377,62 @@ def apple(config, root, candidate, inspected, api):
         return dict(receipt, state="processing_timeout")
     if config["operation"] == "apple-build":
         return dict(receipt, status="passed", state="processed", availability_verified=False)
+    if config["operation"] == "apple-beta-notes":
+        localizations = settings.get("localizations")
+        if not isinstance(localizations, list) or not localizations:
+            raise PipelineError("Apple beta notes require explicit locale entries")
+        desired, locales = [], set()
+        for entry in localizations:
+            strict_keys(entry, {"locale", "notes", "expected_current_sha256"}, {"locale", "notes", "expected_current_sha256"})
+            locale = entry["locale"]
+            if not isinstance(locale, str) or not re.fullmatch(r"[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*", locale) or locale in locales:
+                raise PipelineError("Invalid or duplicate Apple beta-note locale")
+            locales.add(locale)
+            notes_path = confined_path(root, entry["notes"])
+            if entry["notes"] not in candidate["inputs"] and entry["notes"] not in candidate["artifacts"]:
+                raise PipelineError("Apple beta notes must be candidate-bound")
+            try:
+                notes = notes_path.read_text()
+            except UnicodeError:
+                raise PipelineError("Apple beta notes must be UTF-8 text") from None
+            if not notes.strip() or len(notes) > 4000:
+                raise PipelineError("Apple beta notes are empty or exceed 4000 characters")
+            expected = entry["expected_current_sha256"]
+            if expected is not None and not HEX.fullmatch(str(expected)):
+                raise PipelineError("Expected existing Apple notes digest must be explicit or null")
+            desired.append((locale, notes, expected))
+        existing = collection(api, "/v1/builds/" + build + "/betaBuildLocalizations")
+        by_locale = {}
+        for item in existing:
+            locale = item.get("attributes", {}).get("locale")
+            if not isinstance(locale, str) or locale in by_locale:
+                raise PipelineError("Apple beta localizations contain absent or duplicate locales")
+            by_locale[locale] = item
+        changes, summaries = [], []
+        for locale, notes, expected in desired:
+            current = by_locale.get(locale)
+            old = current.get("attributes", {}).get("whatsNew") if current else None
+            if old is not None and not isinstance(old, str):
+                raise PipelineError("Malformed Apple beta notes")
+            digest = hashlib.sha256(notes.encode()).hexdigest()
+            old_digest = hashlib.sha256(old.encode()).hexdigest() if old is not None else None
+            if old != notes and old_digest != expected:
+                raise PipelineError("Apple beta notes changed since approved selection")
+            if old != notes:
+                changes.append((locale, notes, current))
+            summaries.append({"locale": locale, "sha256": digest})
+        # Preflight every locale before any write. A partial failed run is safely retried by reading again.
+        for locale, notes, current in changes:
+            if current:
+                loc = identifier(current["id"], "beta localization ID")
+                updated = data(api, "PATCH", "/v1/betaBuildLocalizations/" + loc,
+                               {"data": {"type": "betaBuildLocalizations", "id": loc, "attributes": {"whatsNew": notes}}})
+            else:
+                updated = data(api, "POST", "/v1/betaBuildLocalizations", {"data": {"type": "betaBuildLocalizations",
+                               "attributes": {"locale": locale, "whatsNew": notes}, "relationships": {"build": {"data": {"type": "builds", "id": build}}}}})
+            if updated.get("attributes", {}).get("locale") != locale or updated.get("attributes", {}).get("whatsNew") != notes:
+                raise PipelineError("Apple did not retain the selected localized beta notes")
+        return dict(receipt, status="passed", state="beta_notes_updated", localizations=summaries, availability_verified=False)
     if config["operation"] == "testflight":
         groups = settings.get("group_ids")
         if not isinstance(groups, list) or not groups or len(groups) != len(set(groups)):
@@ -473,12 +530,15 @@ def apple(config, root, candidate, inspected, api):
 
 
 def execute(config, root, *, api=None):
+    if config.get("operation") in ("play-inventory", "apple-inventory"):
+        from .store_inventory import execute as inventory
+        return inventory(config, root, api=api)
     required = {"schema", "operation", "candidate", "inspection", "expected_identity", "expected_source_sha", "allowed_refs", "token_env", "state_file"}
     strict_keys(config, required | {"play", "apple", "firebase", "timeout", "poll_interval"}, required)
     if config["schema"] != 1:
         raise PipelineError("Unsupported stores schema")
     play_ops = ("play-inspect", "play-upload", "play-promote")
-    apple_ops = ("apple-build", "testflight", "apple-select", "apple-submit", "apple-status")
+    apple_ops = ("apple-build", "testflight", "apple-select", "apple-submit", "apple-status", "apple-beta-notes")
     operation = config["operation"]
     if operation not in play_ops + apple_ops + ("firebase-distribution",):
         raise PipelineError("Unsupported store operation")

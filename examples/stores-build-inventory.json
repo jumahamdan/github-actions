@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "operation": "play-inventory",
+  "product": "example-app",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "token_env": "PLAY_ACCESS_TOKEN",
+  "remote_highest_output": "receipts/remote-highest.json",
+  "play": {
+    "package": "org.example.app"
+  }
+}

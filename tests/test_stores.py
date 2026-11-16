@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 import os
 import subprocess
@@ -81,12 +82,23 @@ class AppleAPI:
         self.beta = {"internalBuildState": "IN_BETA_TESTING", "externalBuildState": "WAITING_FOR_BETA_REVIEW"}
         self.selected, self.submissions, self.items = None, [], []
         self.app_id, self.sub_state, self.store_state = "100", "READY_FOR_REVIEW", "WAITING_FOR_REVIEW"
+        self.localizations = []
 
     def resource(self, id, attributes=None, relationships=None):
         return {"data": {"id": id, "attributes": attributes or {}, "relationships": relationships or {}}}
 
     def __call__(self, method, path, body=None, upload=None):
         self.calls.append((method, path, body))
+        if path == "/v1/builds/200/betaBuildLocalizations":
+            return {"data": self.localizations}
+        if path == "/v1/betaBuildLocalizations" and method == "POST":
+            item = {"id": "locale" + str(len(self.localizations)), "attributes": body["data"]["attributes"]}
+            self.localizations.append(item)
+            return {"data": item}
+        if path.startswith("/v1/betaBuildLocalizations/") and method == "PATCH":
+            item = next(item for item in self.localizations if item["id"] == path.split("/")[-1])
+            item["attributes"].update(body["data"]["attributes"])
+            return {"data": item}
         if path == "/v1/builds/200":
             return self.resource("200", {"version": "123", "expired": False, "processingState": self.processing})
         if path.endswith("/preReleaseVersion"):
@@ -291,6 +303,38 @@ class StoresTests(unittest.TestCase):
         self.assertEqual(stores.execute(self.config, self.root, api=self.api)["status"], "pending")
         self.api.store_state = "READY_FOR_DISTRIBUTION"
         self.assertTrue(stores.execute(self.config, self.root, api=self.api)["availability_verified"])
+
+    def beta_notes(self):
+        self.apple("apple-beta-notes")
+        (self.root / "notes.txt").write_text("Synthetic testing notes")
+        self.candidate["inputs"]["notes.txt"] = {"sha256": sha256_file(self.root / "notes.txt"), "bytes": (self.root / "notes.txt").stat().st_size}
+        self.candidate["identity"] = fingerprint({key: self.candidate[key] for key in IDENTITY_FIELDS})
+        atomic_json(self.root / "candidate.json", self.candidate)
+        self.config["expected_identity"] = self.candidate["identity"]
+        self.config["apple"]["localizations"] = [{"locale": "en-US", "notes": "notes.txt", "expected_current_sha256": None}]
+
+    def test_apple_beta_notes_create_and_idempotent_retry(self):
+        self.beta_notes()
+        result = stores.execute(self.config, self.root, api=self.api)
+        self.assertEqual(result["state"], "beta_notes_updated")
+        stores.execute(self.config, self.root, api=self.api)
+        self.assertEqual(sum(method == "POST" for method, _, _ in self.api.calls), 1)
+        self.assertEqual(len(self.api.localizations), 1)
+
+    def test_apple_beta_notes_drift_blocks_all_locale_writes(self):
+        self.beta_notes()
+        self.config["apple"]["localizations"].append({"locale": "fr-FR", "notes": "notes.txt", "expected_current_sha256": None})
+        self.api.localizations = [{"id": "fr", "attributes": {"locale": "fr-FR", "whatsNew": "unapproved edit"}}]
+        with self.assertRaisesRegex(PipelineError, "changed since"):
+            stores.execute(self.config, self.root, api=self.api)
+        self.assertFalse(any(method in ("POST", "PATCH") for method, _, _ in self.api.calls))
+
+    def test_apple_beta_notes_patch_matching_existing_digest(self):
+        self.beta_notes()
+        self.api.localizations = [{"id": "en", "attributes": {"locale": "en-US", "whatsNew": "old"}}]
+        self.config["apple"]["localizations"][0]["expected_current_sha256"] = hashlib.sha256(b"old").hexdigest()
+        stores.execute(self.config, self.root, api=self.api)
+        self.assertEqual(self.api.localizations[0]["attributes"]["whatsNew"], "Synthetic testing notes")
 
     def test_source_tree_in_candidate_identity_cannot_change(self):
         self.candidate["source_tree"] = "f" * 40
