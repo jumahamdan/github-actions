@@ -1,0 +1,31 @@
+# Retained build transport
+
+`python -m shared_ci.artifacts --config artifacts.json --root workspace --output receipt.json`
+
+A build is not reusable merely because someone supplies a JSON manifest. This adapter transports the exact candidate files and authenticates the producing GitHub workflow before a later job can use them. Provider-specific store, monitoring, deployment and release adapters still verify their own identities and required evidence.
+
+## Package
+
+Use operation:package with manifest, expected_identity, expected_source_sha and output_dir_env. The named environment variable points to a fresh absolute output directory outside the workspace, normally under RUNNER_TEMP. The adapter checks candidate identity, source tree, clean tracked source, all retained input/artifact bytes and typed check/source/config bindings, then copies only the manifest and files declared in inputs/artifacts/checks. The bundle.json index records the exact hashes and sizes. No glob, arbitrary extra file or entire checkout is uploaded.
+
+Apple archives may use --root for the retained archive and source_root_env for the separate clean Git checkout. All candidate configurations, check receipts and inputs must already exist at their recorded paths under the retained root. No inference from the source checkout substitutes for absent retained evidence.
+
+The result contains status:passed, directory, bundle_index_sha256, candidate_identity, source_sha, files and bytes. Upload exactly directory with a SHA-pinned actions/upload-artifact action and a unique artifact name. If declared input paths are hidden (for example `.github/`), explicitly include hidden files for this prepared directory; the package already applied its explicit allowlist and secret checks. Uploading the caller checkout with include-hidden-files is not equivalent. Choose retention long enough for promotion and symbol re-upload; private artifacts can contain source maps or proprietary binary code even when credentials are excluded.
+
+Known credential/signing paths and common credential signatures are refused. This includes .env files, vault/secrets/.ssh/.aws/.git paths, private key files, keystores, service-account credential names and recognized private-key/token content. These checks supplement the security job; they cannot establish that arbitrary compiled or compressed application data contains no embedded secret. Only declared build products belong in the package.
+
+## Fetch and import
+
+Use operation:fetch with repository, run_id, run_attempt, artifact_name, expected_workflow, expected_source_sha, expected_identity, token_env and allowed_events. These values come from trusted caller selection; do not read them solely from the downloaded archive. The named GitHub credential needs Actions read access to the producer repository.
+
+The adapter verifies a completed successful run, exact source SHA, workflow path, run attempt, allowed event and same head repository. It finds exactly one unexpired named artifact, requires its metadata to identify that run/source and a creation time within the selected attempt, then streams the download to a temporary file. The ZIP must match the SHA256 digest returned by the authenticated GitHub API. GitHub's token is never forwarded to the signed object-storage redirect. The download has a bounded size, per-request timeout and total deadline.
+
+Before extraction/import it refuses duplicate or case-colliding names, traversal, symbolic links, special/encrypted entries, credential paths, extra files, mismatched hashes, oversized contents and a mismatched candidate identity. The full inventory must equal the manifest's declared inputs/artifacts/checks plus manifest. Typed check requirements are verified again, including source/config binding and security freshness. The bundle index is transport metadata and is not imported.
+
+Import uses --root as the existing checked-out source workspace. Its Git tree must equal the candidate tree and tracked files must be clean. A merge commit with the same tree can reuse the original source build; code changes cannot. Existing files must be byte-identical and are left untouched. All conflicts are checked before copying; symbolic-link destinations fail. New files use exclusive creation, and files created by a failed import are removed. This preserves tracked source/configuration while making retained build paths available to provider adapters. Jobs should use their own workspace and serialize stateful store/deployment operations.
+
+The result contains manifest, candidate_identity, source_sha and authenticated provenance (repository, run ID/attempt, workflow, artifact ID and artifact digest). Credential values and signed download URLs are not retained. New files use restrictive permissions; executable tools should be installed through pinned provisioning rather than relying on ZIP permissions. This adapter does not upload/download resumable store state: the wrapper retains operation state separately so a pending review or uncertain commit can be resumed safely.
+
+Limits default to 2 GiB expanded/downloaded bytes and 20,000 files; callers may explicitly increase them up to 8 GiB and 100,000 files. Extremely large image/native bundles need deliberate retention and job timeout settings. Production file transport has not been exercised here: tests use local Git repositories, synthetic archives and mocked authenticated GitHub responses, including deliberate corrupt/stale/unsafe artifacts.
+
+Primary contracts: [GitHub artifact REST API](https://docs.github.com/en/rest/actions/artifacts) and [workflow artifact storage and validation](https://docs.github.com/en/actions/tutorials/store-and-share-data).

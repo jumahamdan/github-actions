@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "operation": "package",
+  "manifest": "candidate.json",
+  "expected_identity": "0000000000000000000000000000000000000000000000000000000000000000",
+  "expected_source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "output_dir_env": "CI_BUNDLE_DIR"
+}

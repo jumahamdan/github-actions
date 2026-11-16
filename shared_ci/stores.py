@@ -42,7 +42,7 @@ def env_secret(name):
     return value
 
 
-def verify_files(root, records):
+def verify_files(root, records, *, allow_empty=False):
     if not isinstance(records, dict) or not records:
         raise PipelineError("Nonempty file evidence is required")
     for relative, record in records.items():
@@ -50,7 +50,7 @@ def verify_files(root, records):
         path = confined_path(root, relative)
         if not path.is_file() or (Path(root) / relative).is_symlink() or not HEX.fullmatch(str(record["sha256"])):
             raise PipelineError("Artifact evidence must describe regular files")
-        if not isinstance(record["bytes"], int) or isinstance(record["bytes"], bool) or record["bytes"] <= 0 or path.stat().st_size != record["bytes"] or sha256_file(path) != record["sha256"]:
+        if not isinstance(record["bytes"], int) or isinstance(record["bytes"], bool) or (record["bytes"] < 0 if allow_empty else record["bytes"] <= 0) or path.stat().st_size != record["bytes"] or sha256_file(path) != record["sha256"]:
             raise PipelineError("Retained artifact changed, empty, or missing")
 
 
@@ -67,7 +67,7 @@ def load_candidate(config, root, kinds):
             or not SHA.fullmatch(str(config["expected_source_sha"]))
             or candidate.get("source_sha") != config["expected_source_sha"]):
         raise PipelineError("Candidate does not match trusted caller selection")
-    verify_files(root, candidate["inputs"])
+    verify_files(root, candidate["inputs"], allow_empty=True)
     verify_files(root, candidate["artifacts"])
     if not isinstance(candidate["checks"], dict) or not candidate["checks"]:
         raise PipelineError("Candidate checks are missing")
