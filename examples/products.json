@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "shared_paths": [
+    ".github/**",
+    ".ci/**"
+  ],
+  "products": {
+    "app": {
+      "paths": [
+        "lib/**",
+        "test/**",
+        "ios/**",
+        "android/**",
+        "pubspec.*"
+      ]
+    },
+    "website": {
+      "paths": [
+        "website/**"
+      ]
+    }
+  }
+}

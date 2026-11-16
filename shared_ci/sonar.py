@@ -19,7 +19,7 @@ def validate_coverage_receipt(receipt, root, coverage, *, repository, run_id, so
         raise PipelineError("verified quality-run repository, run id and source SHA are required")
     if not re.fullmatch(r"[0-9a-f]{40}", source_sha) or not run_id.isdigit():
         raise PipelineError("invalid verified quality-run identity")
-    if not isinstance(receipt, dict) or receipt.get("schema_version") != 1 or receipt.get("kind") != "quality" or receipt.get("status") != "success":
+    if not isinstance(receipt, dict) or receipt.get("schema_version") != 1 or receipt.get("kind") != "quality" or receipt.get("status") != "passed":
         raise PipelineError("not a successful quality receipt")
     if receipt.get("provenance") != {"repository": repository, "run_id": run_id, "sha": source_sha}:
         raise PipelineError("quality receipt does not match the externally verified run")
@@ -37,7 +37,7 @@ def validate_coverage_receipt(receipt, root, coverage, *, repository, run_id, so
         raise PipelineError("quality input fingerprint is invalid")
     if snapshot(root, receipt.get("input_paths", [])) != inputs:
         raise PipelineError("current source inputs differ from tested inputs")
-    summaries = [check.get("test_summary", {}) for check in receipt.get("checks", []) if check.get("kind") == "test" and check.get("status") == "success"]
+    summaries = [check.get("test_summary", {}) for check in receipt.get("checks", []) if check.get("kind") == "test" and check.get("status") == "passed"]
     if not summaries or not all(type(s.get("executed")) is int and s["executed"] > 0 and s.get("failed") == 0 for s in summaries):
         raise PipelineError("quality receipt does not prove executed successful tests")
     hashes = receipt.get("coverage", {})
@@ -125,7 +125,7 @@ def execute(config, root, *, repository, run_id, source_sha):
         arguments.append(f"-Dsonar.branch.name={_text(config.get('branch'), 'branch')}")
     arguments += [f"-D{key}=" + ",".join(values) for key, values in sorted(properties.items())]
     run(arguments, cwd=root, env_names=("SONAR_TOKEN",), timeout=timeout)
-    result = {"schema_version": 1, "kind": "sonar", "status": "success", "mode": config["mode"],
+    result = {"schema_version": 1, "kind": "sonar", "status": "passed", "mode": config["mode"],
               "project_key": config["project_key"], "quality_receipt_sha256": sha256_file(quality_path),
               "provenance": {"repository": repository, "run_id": run_id, "sha": source_sha}, "coverage": hashes,
               "scanner_version": scanner["version"], "quality_gate_waited": True}

@@ -30,6 +30,10 @@ Node projects must provide a real test script that writes JUnit to the configure
 
 ## Workflow and environment contract
 
-Root workflows install the pinned runtime and package manager before calling this module, with immutable action pins and verified downloads. `PYTHONPATH` points to the separately checked-out library. No secrets are required. Explicit `environment_names` can pass non-secret test configuration; names suggesting credentials are rejected, and ambient provider/cloud/GitHub credentials are stripped by the common runner. Use isolated databases and fixture accounts; commands that contact production business APIs are not suitable quality checks.
+Root workflows install the pinned runtime and package manager before calling this module, with immutable action pins and verified downloads. The native self-repository composite action loads the same library revision as its workflow. No secrets are required. Explicit `environment_names` can pass non-secret test configuration; names suggesting credentials are rejected, and ambient provider/cloud/GitHub credentials are stripped by the common runner. Use isolated databases and fixture accounts; commands that contact production business APIs are not suitable quality checks.
 
 Sonar analysis belongs in its separate credentialed workflow, after trusted coverage evidence is available. This module does not invoke it and does not duplicate tests for analysis.
+
+## Signed Android builds
+
+The separate trusted Android build workflow accepts explicit `build_credentials` environment names and `allowed_refs`. These credentials reach only `kind: build` commands; installation, format, lint and tests still receive the non-secret environment. The product Gradle configuration reads the existing keystore path and passwords, and its retained candidate must pass upload-certificate inspection. A PR cannot use this signing path.

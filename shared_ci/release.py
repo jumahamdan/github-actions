@@ -48,13 +48,28 @@ def github_api(method, path, token, body=None, binary=None):
         raise PipelineError("GitHub release response unavailable or invalid") from exc
 
 
-def render(notes, audience):
-    strict_keys(notes, {"schema", "product", "version", "build", "sections", "locales"},
+def render(notes, audience, locale=None):
+    strict_keys(notes, {"schema", "product", "version", "build", "sections", "locales", "required_sections", "max_characters"},
                 {"schema", "product", "version", "build", "sections"})
     if notes["schema"] != 1 or audience not in ("public", "testers", "internal"):
         raise PipelineError("Unsupported notes schema or audience")
     if not isinstance(notes["sections"], list) or not notes["sections"]:
         raise PipelineError("Release notes require authored sections")
+    locales = notes.get("locales", {})
+    if not isinstance(locales, dict) or any(not re.fullmatch(r"[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*", language) for language in locales):
+        raise PipelineError("Invalid release-note locale map")
+    for language, sections in locales.items():
+        render({**notes, "sections": sections, "locales": {}}, audience)
+    if locale is not None:
+        if locale not in locales:
+            raise PipelineError("Selected release-note locale is absent")
+        return render({**notes,"sections":locales[locale],"locales":{}},audience)
+    required = notes.get("required_sections", {})
+    if not isinstance(required,dict) or set(required)-{"public","testers","internal"}:
+        raise PipelineError("Invalid required release-note section policy")
+    for titles in required.values():
+        if not isinstance(titles,list) or not all(isinstance(title,str) and title for title in titles):
+            raise PipelineError("Required section names must be nonempty strings")
     rendered = []
     for section in notes["sections"]:
         strict_keys(section, {"title", "body", "audiences"}, {"title", "body", "audiences"})
@@ -70,7 +85,52 @@ def render(notes, audience):
             rendered.append(f"## {section['title']}\n\n{section['body'].strip()}")
     if not rendered:
         raise PipelineError("Release notes have no content for the selected audience")
-    return "\n\n".join(rendered) + "\n"
+    selected_titles=[section["title"] for section in notes["sections"] if audience in section["audiences"]]
+    if len(selected_titles)!=len(set(selected_titles)) or set(required.get(audience,[]))-set(selected_titles):
+        raise PipelineError("Release notes have duplicate or missing required sections")
+    text="\n\n".join(rendered)+"\n"
+    limit=notes.get("max_characters",50000)
+    if type(limit) is not int or not 1<=limit<=50000 or len(text)>limit:
+        raise PipelineError("Release notes exceed the explicit destination length limit")
+    return text
+
+
+def draft(config, root, *, api=github_api):
+    strict_keys(config,{"schema","repository","previous_tag","candidate_sha","token_env","categories","max_commits"},
+                {"schema","repository","previous_tag","candidate_sha","token_env","categories"})
+    if config["schema"]!=1 or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+",config["repository"]):
+        raise PipelineError("Invalid release draft repository")
+    tag=config["previous_tag"]; candidate=config["candidate_sha"]
+    if not re.fullmatch(r"v[A-Za-z0-9][A-Za-z0-9._+-]*",tag) or not re.fullmatch(r"[0-9a-f]{40}",candidate):
+        raise PipelineError("Release draft boundaries must be explicit tag and commit")
+    if not isinstance(config["categories"],dict) or not all(isinstance(k,str) and isinstance(v,str) and v for k,v in config["categories"].items()):
+        raise PipelineError("Release category mapping is invalid")
+    base=run(["git","rev-parse","--verify","refs/tags/"+tag+"^{commit}"],cwd=root).stdout.strip()
+    if run(["git","merge-base","--is-ancestor",base,candidate],cwd=root,check=False).returncode:
+        raise PipelineError("Previous release is not an ancestor of the candidate")
+    commits=run(["git","rev-list",base+".."+candidate],cwd=root).stdout.splitlines()
+    maximum=config.get("max_commits",500)
+    if type(maximum) is not int or not 1<=maximum<=1000 or not commits or len(commits)>maximum:
+        raise PipelineError("Release comparison is empty or exceeds its configured bound")
+    token=os.environ.get(config["token_env"],"")
+    if not token:raise PipelineError("Release draft requires its named read-only GitHub credential")
+    prefix="/repos/"+config["repository"]
+    changes=[]; seen=set(); boundaries=set(commits)
+    for sha in commits:
+        for pr in _pages(api,prefix+"/commits/"+sha+"/pulls",token):
+            if not pr.get("merged_at") or pr.get("merge_commit_sha") not in boundaries or pr.get("number") in seen:
+                continue
+            if pr.get("base",{}).get("repo",{}).get("full_name")!=config["repository"]:
+                raise PipelineError("Release comparison returned a different repository")
+            seen.add(pr["number"])
+            labels={label["name"] for label in pr.get("labels",[])}
+            category=next((value for label,value in config["categories"].items() if label in labels),"Changes")
+            route=(pr.get("head",{}).get("ref"),pr.get("base",{}).get("ref"))
+            changes.append({"number":pr["number"],"title":pr["title"],"category":category,"promotion":route in (("develop","staging"),("staging","main"))})
+    result=draft_from_prs(changes,previous_tag=tag,candidate_sha=candidate)
+    result["boundaries_verified"]=True
+    result["previous_sha"]=base
+    return result
 
 
 def draft_from_prs(changes, *, previous_tag, candidate_sha):
@@ -280,7 +340,7 @@ def main():
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(render(config, args.audience))
     elif args.operation == "draft":
-        atomic_json(args.output, draft_from_prs(config["changes"], previous_tag=config["previous_tag"], candidate_sha=config["candidate_sha"]))
+        atomic_json(args.output, draft(config,args.root))
     else:
         atomic_json(args.output, publish(config, args.root))
 

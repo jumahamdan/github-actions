@@ -21,10 +21,10 @@ class SonarTests(unittest.TestCase):
         (self.root / "coverage.info").write_text('TN:unit\nSF:src/app.js\nDA:1,1\nend_of_record\n')
         self.identity = {"repository": "example/product", "run_id": "123", "source_sha": "a" * 40}
         inputs = {"src/app.js": sha256_file(self.root / "src/app.js")}
-        self.receipt = {"schema_version": 1, "kind": "quality", "status": "success", "created_at": datetime.now(timezone.utc).isoformat(),
+        self.receipt = {"schema_version": 1, "kind": "quality", "status": "passed", "created_at": datetime.now(timezone.utc).isoformat(),
                         "provenance": {"repository": "example/product", "run_id": "123", "sha": "a" * 40}, "inputs": inputs,
                         "input_paths": ["src"], "input_digest": input_digest(inputs),
-                        "checks": [{"kind": "test", "status": "success", "test_summary": {"executed": 2, "failed": 0}}],
+                        "checks": [{"kind": "test", "status": "passed", "test_summary": {"executed": 2, "failed": 0}}],
                         "coverage": {"coverage.info": sha256_file(self.root / "coverage.info")}}
         self.coverage = [{"path": "coverage.info", "property": "sonar.javascript.lcov.reportPaths"}]
         self.config = {"version": 1, "mode": "branch", "project_key": "example-product", "host_url": "https://sonarcloud.io",

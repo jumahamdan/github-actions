@@ -10,12 +10,36 @@ from pathlib import Path
 from unittest.mock import patch
 
 from shared_ci.common import PipelineError
-from shared_ci.release import APIError, draft_from_prs, render, publish
+from shared_ci.release import APIError, draft, draft_from_prs, render, publish
 from shared_ci.assurance import stamp
 from shared_ci.evidence import create
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_locales_required_sections_and_limits_are_enforced(self):
+        notes={"schema":1,"product":"example","version":"1.0","build":"1","sections":[{"title":"Changes","body":"A useful fix.","audiences":["public"]}],"required_sections":{"public":["Changes"]},"locales":{"fr":[{"title":"Changes","body":"Une correction utile.","audiences":["public"]}]}}
+        self.assertIn("correction",render(notes,"public","fr"))
+        notes["required_sections"]["public"].append("Missing")
+        with self.assertRaises(PipelineError):render(notes,"public")
+        notes["required_sections"]={};notes["max_characters"]=2
+        with self.assertRaises(PipelineError):render(notes,"public")
+
+    def test_draft_uses_actual_git_boundaries_and_merged_pull_requests(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            def git(*args):return subprocess.run(["git",*args],cwd=root,check=True,capture_output=True,text=True).stdout.strip()
+            git("init","-q");git("config","user.name","Fixture");git("config","user.email","fixture@example.invalid")
+            (root/"code").write_text("old");git("add","code");git("commit","-qm","base");git("tag","v1")
+            base=git("rev-parse","HEAD");(root/"code").write_text("new");git("commit","-qam","change");head=git("rev-parse","HEAD")
+            valid={"number":3,"title":"A real change","merged_at":"2026-01-01T00:00:00Z","merge_commit_sha":head,"labels":[{"name":"feature"}],"head":{"ref":"feature/a"},"base":{"ref":"develop","repo":{"full_name":"owner/example"}}}
+            def api(*args):return [valid,{**valid,"number":2,"merge_commit_sha":base},{**valid,"number":4,"head":{"ref":"develop"},"base":{"ref":"staging","repo":{"full_name":"owner/example"}}}]
+            config={"schema":1,"repository":"owner/example","previous_tag":"v1","candidate_sha":head,"token_env":"GH_TOKEN","categories":{"feature":"Added"}}
+            with patch.dict(os.environ,{"GH_TOKEN":"synthetic"}):
+                result=draft(config,root,api=api)
+                self.assertTrue(result["boundaries_verified"])
+                self.assertEqual(result["categories"],{"Added":["- A real change (#3)"]})
+                config["candidate_sha"]=base
+                with self.assertRaises(PipelineError):draft(config,root,api=api)
     def test_public_notes_cannot_include_internal_section(self):
         notes = {"schema": 1, "product": "example", "version": "1.0.0", "build": "1", "sections": [
             {"title": "What's new", "body": "A clearer sign-in screen.", "audiences": ["public", "internal"]},

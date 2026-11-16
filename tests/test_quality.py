@@ -30,7 +30,7 @@ class QualityTests(unittest.TestCase):
     def test_real_process_success_proves_executed_tests_and_coverage(self):
         result = execute(self.config, self.root)
         self.assertEqual(result["checks"][0]["test_summary"]["executed"], 1)
-        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["status"], "passed")
         self.assertEqual(json.loads((self.root / "receipt.json").read_text()), result)
         self.assertIn("coverage.info", result["coverage"])
 
@@ -81,6 +81,17 @@ class QualityTests(unittest.TestCase):
         (self.root / "test_runner.py").write_text("import os\nfrom pathlib import Path\nassert 'OPENAI_API_KEY' not in os.environ\nPath('result.xml').write_text('<testsuite><testcase name=\"env\"/></testsuite>')\nPath('coverage.info').write_text('safe')\n")
         with patch.dict(os.environ, {"OPENAI_API_KEY": "synthetic-not-real"}):
             execute(self.config, self.root)
+
+    def test_signing_credentials_only_reach_trusted_build(self):
+        self.config["build_credentials"] = ["ANDROID_STORE_PASSWORD"]
+        self.config["allowed_refs"] = ["refs/heads/staging"]
+        self.config["checks"].insert(0, {"name":"build","kind":"build","command":[sys.executable,"-c","import os; assert os.environ['ANDROID_STORE_PASSWORD']=='synthetic'"]})
+        self.config["required_checks"].append("build")
+        (self.root / "test_runner.py").write_text("import os\nfrom pathlib import Path\nassert 'ANDROID_STORE_PASSWORD' not in os.environ\nPath('result.xml').write_text('<testsuite><testcase name=\"scope\"/></testsuite>')\nPath('coverage.info').write_text('safe')\n")
+        with patch.dict(os.environ, {"ANDROID_STORE_PASSWORD":"synthetic","GITHUB_ACTIONS":"true","GITHUB_EVENT_NAME":"push","GITHUB_REF":"refs/heads/staging"}):
+            self.assertEqual(execute(self.config, self.root)["status"],"passed")
+        with patch.dict(os.environ, {"ANDROID_STORE_PASSWORD":"synthetic","GITHUB_ACTIONS":"true","GITHUB_EVENT_NAME":"pull_request","GITHUB_REF":"refs/pull/1/merge"}):
+            with self.assertRaises(PipelineError):execute(self.config,self.root)
 
     def test_placeholder_commands_rejected(self):
         for command in [["echo", "passes"], ["true"], ["npm", "test", "--", "--passWithNoTests"], ["bash", "-c", "true"]]:

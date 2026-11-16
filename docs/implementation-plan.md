@@ -4,10 +4,10 @@ Scope: complete the known shared CI/CD capabilities before migrating any consume
 
 ## Architecture
 
-- Small reusable workflows call Python modules in `shared_ci/`, with language tools/providers installed at pinned versions. Caller source and immutable library revision are separate checkouts. Product configuration is JSON, with explicit commands as argument arrays, environments and required inputs; no interpolation of user-controlled text into shell scripts.
+- Small reusable workflows call Python modules in `shared_ci/`, with language tools/providers installed at pinned versions. GitHub native self-repository action references bind helper code to the reusable workflow revision. Product configuration is JSON, with explicit commands as argument arrays, environments and required inputs; no interpolation of user-controlled text into shell scripts.
 - Shared modules: `common` (validated paths/configuration, scoped environment, bounded processes, redacted output, receipts), `quality`, `security`, `credentials`, `evidence`, `release`, `ai`, `deploy`, `containers`, `mobile`, `monitoring`, `docs`. Each exposes `python -m shared_ci.<module>` and real unit/contract tests. Avoid speculative abstraction: delivery adapters translate explicit validated inputs to actual supported CLI/API operations.
 - Each module owns a configuration contract, synthetic examples, tests for success and deliberate failure, and documentation. Common primitives may cover multiple services; a service-labelled empty hook is not a deliverable.
-- Reusable workflows require an immutable library SHA. They check out caller source, check out this library into a separate directory, then execute the selected module. All runtime inputs use environment variables or JSON files, never direct insertion in shell. Permissions start read-only; credentialed publishing lives in separate trusted jobs.
+- Callers pin reusable workflows to an immutable library SHA. Workflows check out caller source and load helper actions using the native `$/` reference. All runtime inputs use environment variables or JSON files, never direct insertion in shell. Permissions start read-only; credentialed publishing lives in separate trusted jobs.
 - A capability ledger maps every scoped requirement to implementation/tests/examples and explicitly distinguishes fixture/CLI-contract validation from live provider integration. Do not certify consumer accounts or pretend Linux contract tests compile/sign Apple apps.
 
 ## Deliverable groups
@@ -32,7 +32,7 @@ Implement sequential reviewable batches in this repository, with isolated worktr
 The independent review is accepted with these concrete contracts:
 
 - Callers explicitly map named secret roles; no `secrets: inherit`. Credentialed reusable jobs declare an explicit GitHub environment. Non-secret variables are explicit inputs/configuration. Missing required provider roles fail. No new OpenAI key is created.
-- Workflows check the library SHA against GitHub's OIDC `job_workflow_sha` claim before executing checked-out helper code; caller fixtures also enforce matching pins. This requires `id-token: write` for the identity check even in otherwise read-only jobs. Tokens are fetched only from the runner's GitHub OIDC endpoint and never logged. Apple-hosted hooks fetch an exact commit and verify it before execution, or use a hash-verified vendored copy.
+- Native `$/actions/...` references bind helper and workflow code. GitHub OIDC permissions are requested only for actual federated provider authentication. Apple loaders verify their exact library commit.
 - Temporary derived credentials are masked, stored outside artifact/source paths, and cleaned in `finally`/always steps. Tests prove sanitization and cleanup. Do not assume GitHub masks newly derived values.
 - Server deployment uses immutable images, Compose `--no-build`, a host-side lock, nonempty checksummed backup evidence and strict host keys. Existing public images need no registry secret. For private images support a narrowly scoped existing credential over SSH stdin with temporary Docker configuration and cleanup; do not create a new long-lived host credential.
 - Promptfoo disables telemetry, update checks and remote sharing/generation by default; only aggregate/sanitized results leave the job. Model evaluation uses a distinct invoke-only AWS role, never an implicit deploy role.
@@ -40,3 +40,7 @@ The independent review is accepted with these concrete contracts:
 - Actions use immutable commits; downloaded binaries require checksums; npm/Python tool installations use locked dependencies with integrity data. Tool installation is separate from credentialed execution.
 
 Do not treat every existing caller as immutable: adoption inventory must distinguish pinned SHA, moving tag and main references. Old-owner Actions references remain a consumer migration finding, not a reason to edit multiple products now.
+
+## Verified simplification for GitHub.com
+
+Current GitHub documentation supports the native `$/actions/...` self-repository reference. It loads an action from the same repository and commit as the reusable workflow, including nested composite actions. Use this mechanism for v2 helper execution instead of a second independently supplied library SHA and mandatory OIDC identity request. Callers still pin the reusable workflow by full SHA. OIDC is requested only for actual federated authentication. This permits ordinary fork PR quality checks without granting identity/write permissions. GitHub Enterprise Server does not support this syntax and is outside the known consumer inventory. Source: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#example-using-an-action-in-the-same-repository-as-the-workflow-at-the-running-commit-recommended

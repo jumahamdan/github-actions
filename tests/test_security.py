@@ -5,10 +5,16 @@ import tempfile
 import unittest
 
 from shared_ci.common import PipelineError
-from shared_ci.security import normalize, policy, require_fresh, scan
+from shared_ci.security import normalize, policy, require_fresh, scan, scanner_intelligence
 
 
 class SecurityTests(unittest.TestCase):
+    def test_stale_actual_database_is_refused(self):
+        item={"format":"trivy","version":"1.0.0","rules_identity":"builtin:1.0.0","database_identity":{
+            "command":[sys.executable,"-c","print('{\"VulnerabilityDB\":{\"Version\":2,\"UpdatedAt\":\"2000-01-01T00:00:00Z\"}}')"],"max_age_hours":24}}
+        with tempfile.TemporaryDirectory() as root:
+            with self.assertRaisesRegex(PipelineError,"stale"):
+                scanner_intelligence(item,root,root)
     def test_codeql_cvss_severity_overrides_sarif_display_level(self):
         report = {"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "CodeQL", "rules": [
             {"id": "example", "properties": {"security-severity": "9.8"}}]}},
@@ -43,7 +49,7 @@ class SecurityTests(unittest.TestCase):
             cfg = {"schema": 1, "threshold": "high", "max_age_hours": 24, "scans": [{
                 "id": "fixture", "format": "gitleaks", "command": [sys.executable, "-c", "print('[]'); raise SystemExit(1)", "--redact"],
                 "version_command": [sys.executable, "-c", "print('1.0.0')"], "version": "1.0.0", "output": "stdout",
-                "rules_identity": "fixture-1", "database_identity": "fixture-1"}]}
+                "rules_identity": "builtin:1.0.0", "database_identity": "none"}]}
             with self.assertRaises(PipelineError):
                 scan(cfg, root)
             cfg["scans"][0]["command"][2] = "print('[]')"

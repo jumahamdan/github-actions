@@ -142,7 +142,7 @@ def execute(config, root):
             result = validate_link(root, path, target)
             local_count += result == "local"
             external_count += result == "external"
-    receipt = {"schema_version": 1, "kind": "documentation", "status": "success", "documents": len(paths),
+    receipt = {"schema_version": 1, "kind": "documentation", "status": "passed", "documents": len(paths),
                "local_links_checked": local_count, "external_links_not_fetched": external_count,
                "generated": generated_results,
                "files": {p.relative_to(root).as_posix(): sha256_file(p) for p in sorted(paths)}}

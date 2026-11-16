@@ -1,0 +1,64 @@
+name: Shared workflow module
+description: Execute a validated module from the same immutable revision as the reusable workflow.
+inputs:
+  receipt-path:
+    description: Optional retained receipt path relative to caller root
+    default: ''
+  credentials-config:
+    description: Optional named credentials and temporary secret-file contract
+    default: ''
+  module:
+    description: Shared module name
+    required: true
+  config:
+    description: Caller configuration path relative to root
+    required: true
+  root:
+    description: Caller root relative to workspace
+    default: .
+  operation:
+    description: Explicit operation for evidence or release modules
+    default: ''
+  audience:
+    description: Release-note audience
+    default: public
+  job-results:
+    description: Results supplied by the caller required-check gate
+    default: '{}'
+outputs:
+  plan:
+    description: Product applicability and branch phase JSON
+    value: ${{ steps.execute.outputs.plan }}
+  candidate-identity:
+    description: Created candidate identity
+    value: ${{ steps.execute.outputs.candidate-identity }}
+  source-sha:
+    description: Created candidate source revision
+    value: ${{ steps.execute.outputs.source-sha }}
+  receipt:
+    description: Sanitized receipt file
+    value: ${{ steps.execute.outputs.receipt }}
+  bundle:
+    description: Allowlisted artifact directory
+    value: ${{ steps.execute.outputs.bundle }}
+  status:
+    description: Module verdict
+    value: ${{ steps.execute.outputs.status }}
+runs:
+  using: composite
+  steps:
+    - name: Execute library module
+      id: execute
+      shell: bash
+      env:
+        SHARED_RECEIPT_PATH: ${{ inputs.receipt-path }}
+        SHARED_CREDENTIALS_CONFIG: ${{ inputs.credentials-config }}
+        SHARED_MODULE: ${{ inputs.module }}
+        SHARED_CONFIG: ${{ inputs.config }}
+        SHARED_ROOT: ${{ inputs.root }}
+        SHARED_OPERATION: ${{ inputs.operation }}
+        SHARED_AUDIENCE: ${{ inputs.audience }}
+        SHARED_JOB_RESULTS: ${{ inputs.job-results }}
+        SHARED_ACTION_PATH: ${{ github.action_path }}
+        SHARED_ACTION_REF: ${{ github.action_ref }}
+      run: python3 "$SHARED_ACTION_PATH/../../scripts/run-module.py"

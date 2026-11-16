@@ -4,17 +4,18 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .common import PipelineError, atomic_json, confined_path, load_json, run, sha256_file, strict_keys
+from .common import PipelineError, atomic_json, confined_path, load_json, run, sha256_file, strict_keys, trusted_context
 
 PROFILES = {"node", "python", "deno", "flutter", "swift", "php", "shell", "powershell"}
 KEYS = {"version", "profile", "working_directory", "toolchain", "lockfiles", "install", "checks",
-        "required_checks", "inputs", "immutable_paths", "coverage", "environment_names", "receipt", "timeout"}
+        "required_checks", "inputs", "immutable_paths", "coverage", "environment_names", "receipt", "timeout", "build_credentials", "allowed_refs"}
 
 
 def _list(value, name, *, nonempty=False):
@@ -201,6 +202,13 @@ def execute(config, root, *, config_hash=None):
     # This lane is credential-free. Credentialed scanners/evaluations have separate modules.
     if any(re.search(r"(?:TOKEN|SECRET|PASSWORD|API_KEY|CREDENTIAL|PRIVATE_KEY)", n) for n in environment):
         raise PipelineError("quality checks must not receive credential variables")
+    build_credentials = config.get("build_credentials", [])
+    if not isinstance(build_credentials, list) or any(not isinstance(n, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]*", n) for n in build_credentials):
+        raise PipelineError("Build credentials must be explicit environment names")
+    if build_credentials:
+        trusted_context(config.get("allowed_refs", []))
+        if any(not os.environ.get(n) for n in build_credentials):
+            raise PipelineError("A required build credential is missing")
     inputs = snapshot(root, config["inputs"])
     immutable_paths = config.get("immutable_paths", config["inputs"])
     immutable = snapshot(root, immutable_paths)
@@ -259,12 +267,13 @@ def execute(config, root, *, config_hash=None):
                 if not report.is_file():
                     raise PipelineError("test report path must be a regular file")
                 report.unlink()  # A prior run's results can never prove this execution.
-        output = run(command, cwd=cwd, env_names=environment, timeout=_positive(check.get("timeout", timeout), "check timeout"))
+        selected_environment = environment + (build_credentials if kind == "build" else [])
+        output = run(command, cwd=cwd, env_names=selected_environment, timeout=_positive(check.get("timeout", timeout), "check timeout"))
         if report is not None and check["test_report"]["format"] == "flutter-machine":
             if report.is_symlink():
                 raise PipelineError("test report cannot be a symlink")
             report.write_text(output.stdout, encoding="utf-8")
-        result = {"name": check["name"], "kind": kind, "status": "success"}
+        result = {"name": check["name"], "kind": kind, "status": "passed"}
         if report is not None:
             result["test_summary"] = parse_test_report(report, check["test_report"]["format"])
         if snapshot(root, immutable_paths) != immutable:
@@ -278,11 +287,10 @@ def execute(config, root, *, config_hash=None):
         if not path.is_file() or path.stat().st_size == 0:
             raise PipelineError("coverage report is missing or empty")
         coverage[name] = sha256_file(path)
-    receipt = {"schema_version": 1, "kind": "quality", "status": "success", "profile": config["profile"],
+    receipt = {"schema_version": 1, "kind": "quality", "status": "passed", "profile": config["profile"],
                "created_at": datetime.now(timezone.utc).isoformat(), "input_digest": input_digest(inputs),
                "inputs": inputs, "input_paths": config["inputs"], "lockfiles": lock_hashes, "toolchain": tools, "checks": results,
                "coverage": coverage, "config_sha256": config_hash}
-    import os
     receipt["provenance"] = {"repository": os.environ.get("GITHUB_REPOSITORY"), "run_id": os.environ.get("GITHUB_RUN_ID"),
                              "sha": os.environ.get("GITHUB_SHA")}
     if config.get("receipt"):

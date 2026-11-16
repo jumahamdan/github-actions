@@ -1,0 +1,198 @@
+name: Shared v2 container-build
+'on':
+  workflow_call:
+    inputs:
+      config:
+        description: Configuration path relative to caller root
+        required: true
+        type: string
+      root:
+        description: Caller root relative to workspace
+        required: false
+        type: string
+        default: .
+      python-version:
+        description: Exact Python version
+        required: false
+        type: string
+        default: 3.12.3
+      node-version:
+        description: Exact Node version
+        required: false
+        type: string
+        default: 22.23.4
+      binary-manifest:
+        description: Caller checksum manifest for extra CLI tools
+        required: false
+        type: string
+        default: ''
+      npm-tools:
+        description: Caller lockfile-based CLI tool directory
+        required: false
+        type: string
+        default: ''
+      artifact-name:
+        description: Unique receipt artifact name
+        required: true
+        type: string
+      python-tools:
+        description: Hash-locked caller pip requirements file
+        type: string
+        required: false
+        default: ''
+      credentials-config:
+        description: Named credential contract relative to caller root
+        type: string
+        required: false
+        default: ''
+      receipt-path:
+        type: string
+        description: Retained module receipt path relative to caller root
+        required: false
+        default: ''
+      candidate-config:
+        description: Optional evidence.create configuration after this operation
+        type: string
+        required: false
+        default: ''
+      candidate-manifest:
+        description: Retained candidate manifest path
+        type: string
+        required: false
+        default: .ci-output/candidate.json
+      artifact-run-id:
+        description: Producer run ID; empty disables import
+        type: string
+        required: false
+        default: ''
+      artifact-run-attempt:
+        description: Producer run attempt
+        type: string
+        required: false
+        default: '1'
+      artifact-source-sha:
+        description: Expected original candidate commit
+        type: string
+        required: false
+        default: ''
+      artifact-identity:
+        description: Expected selected candidate identity
+        type: string
+        required: false
+        default: ''
+      artifact-workflow:
+        description: Trusted producer workflow path
+        type: string
+        required: false
+        default: ''
+      artifact-input-name:
+        description: Unique candidate artifact to import
+        type: string
+        required: false
+        default: ''
+      artifact-producer-job:
+        description: Completed producer job name for same-run transport
+        type: string
+        required: false
+        default: ''
+      candidate-retention-days:
+        description: Retention covering promotion and symbol recovery
+        type: number
+        required: false
+        default: 90
+    outputs:
+      status:
+        description: Module verdict
+        value: ${{ jobs.run.outputs.status }}
+      candidate-identity:
+        description: candidate-identity
+        value: ${{ jobs.run.outputs.candidate-identity }}
+      source-sha:
+        description: source-sha
+        value: ${{ jobs.run.outputs.source-sha }}
+    secrets:
+      ARTIFACT_READ_TOKEN:
+        description: Optional existing token when GitHub token cannot read producer artifacts
+        required: false
+permissions:
+  contents: read
+  actions: read
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      status: ${{ steps.execute.outputs.status }}
+      candidate-identity: ${{ steps.package.outputs.candidate-identity }}
+      source-sha: ${{ steps.package.outputs.source-sha }}
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        fetch-depth: 0
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: ${{ inputs.python-version }}
+    - uses: $/actions/v2-setup
+      with:
+        binary-manifest: ${{ inputs.binary-manifest }}
+        npm-tools: ${{ inputs.npm-tools }}
+        ai-tools: 'false'
+        python-tools: ${{ inputs.python-tools }}
+    - id: import-candidate
+      if: ${{ inputs.artifact-run-id != '' }}
+      uses: $/actions/v2-artifacts
+      with:
+        operation: fetch
+        root: ${{ inputs.root }}
+        run-id: ${{ inputs.artifact-run-id }}
+        run-attempt: ${{ inputs.artifact-run-attempt }}
+        source-sha: ${{ inputs.artifact-source-sha }}
+        identity: ${{ inputs.artifact-identity }}
+        workflow: ${{ inputs.artifact-workflow }}
+        artifact-name: ${{ inputs.artifact-input-name }}
+        producer-job: ${{ inputs.artifact-producer-job }}
+      env:
+        GH_ARTIFACT_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+    - id: execute
+      uses: $/actions/v2-run
+      with:
+        module: containers
+        config: ${{ inputs.config }}
+        root: ${{ inputs.root }}
+        credentials-config: ${{ inputs.credentials-config }}
+        receipt-path: ${{ inputs.receipt-path }}
+    - name: Preserve sanitized evidence
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.execute.outputs.bundle }}
+        if-no-files-found: error
+        retention-days: 7
+        include-hidden-files: false
+      if: ${{ always() && steps.execute.outputs.bundle != '' }}
+    - id: candidate
+      if: ${{ inputs.candidate-config != '' }}
+      uses: $/actions/v2-run
+      with:
+        module: evidence
+        operation: create
+        config: ${{ inputs.candidate-config }}
+        root: ${{ inputs.root }}
+        receipt-path: ${{ inputs.candidate-manifest }}
+    - id: package
+      if: ${{ inputs.candidate-config != '' }}
+      uses: $/actions/v2-artifacts
+      with:
+        operation: package
+        root: ${{ inputs.root }}
+        manifest: ${{ inputs.candidate-manifest }}
+    - name: Retain exact candidate
+      if: ${{ inputs.candidate-config != '' }}
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      with:
+        name: ${{ inputs.artifact-name }}-candidate
+        path: ${{ steps.package.outputs.directory }}
+        if-no-files-found: error
+        include-hidden-files: true
+        retention-days: ${{ inputs.candidate-retention-days }}

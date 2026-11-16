@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""Composite-action entry point. Values arrive via environment, never shell source."""
+
+import importlib
+import contextlib
+import json
+import os
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+LIBRARY = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(LIBRARY))
+
+from shared_ci.common import PipelineError, atomic_json, confined_path, load_json, run, sha256_file
+from shared_ci.assurance import stamp
+
+
+def main():
+    started=time.monotonic()
+    name = os.environ.get("SHARED_MODULE", "")
+    if name not in {"quality", "docs", "credentials", "security", "evidence", "release", "ai", "containers",
+                    "sonar", "deploy", "health", "wordpress", "mobile", "stores", "monitoring", "gate", "plan"}:
+        raise PipelineError("Unknown shared workflow module")
+    workspace = Path(os.environ.get("GITHUB_WORKSPACE", os.getcwd())).resolve()
+    root = confined_path(workspace, os.environ.get("SHARED_ROOT", "."))
+    path = confined_path(root, os.environ.get("SHARED_CONFIG", ""))
+    config = load_json(path)
+    # A fresh artifact directory cannot contain caller-planted files or provider credentials.
+    output = Path(tempfile.mkdtemp(prefix=f"shared-ci-{name}-", dir=os.environ.get("RUNNER_TEMP", "/tmp"))) / "receipt.json"
+    if os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
+            stream.write(f"receipt={output}\nbundle={output.parent}\n")
+    module = importlib.import_module("shared_ci." + name)
+    operation = os.environ.get("SHARED_OPERATION", "")
+    if name == "mobile" and operation and config.get("operation") != operation:
+        raise PipelineError("Mobile configuration does not match this workflow's supported operation")
+    if name == "quality":
+        result = module.execute(config, root, config_hash=sha256_file(path))
+    elif name == "credentials":
+        result = {"status": "passed", **module.preflight(config)}
+    elif name == "security":
+        result = module.scan(config, root)
+    elif name == "ai":
+        result = module.execute(config, root, output, source_revision=os.environ.get("GITHUB_SHA"))
+    elif name == "evidence":
+        if operation not in ("create", "verify"):
+            raise PipelineError("Evidence operation must be create or verify")
+        result = getattr(module, operation)(config, root)
+    elif name == "release":
+        if operation == "publish":
+            result = module.publish(config, root)
+        elif operation == "render":
+            notes = module.render(config, os.environ.get("SHARED_AUDIENCE", "public"))
+            (output.parent / "notes.md").write_text(notes)
+            result = {"schema": 1, "status": "passed", "state": "draft", "notes_sha256": sha256_file(output.parent / "notes.md")}
+        elif operation == "draft":
+            result = module.draft(config, root)
+            result["status"] = "passed"
+            result["state"] = "draft"
+        else:
+            raise PipelineError("Unknown release operation")
+    elif name == "gate":
+        result = module.evaluate(config, json.loads(os.environ.get("SHARED_JOB_RESULTS", "{}")))
+    elif name == "sonar":
+        from shared_ci.evidence import fetch_receipt
+        repository = os.environ.get("GITHUB_REPOSITORY", "")
+        run_id = os.environ.get("QUALITY_RUN_ID", "")
+        source = os.environ.get("QUALITY_SOURCE_SHA", "")
+        verified = fetch_receipt(repository, run_id, os.environ.get("QUALITY_ARTIFACT", ""), source,
+                                 os.environ.get("QUALITY_WORKFLOW", ""), os.environ.get("GH_TOKEN", ""),
+                                 coverage_paths=[entry["path"] for entry in config["coverage"]])
+        receipt_path = confined_path(root, config["quality_receipt"], False)
+        for relative, data in verified["coverage_files"].items():
+            target = confined_path(root, relative, False)
+            if target in (path, receipt_path) or relative in verified["receipt"].get("inputs", {}):
+                raise PipelineError("Coverage destination would overwrite source/configuration")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+        atomic_json(receipt_path, verified["receipt"])
+        result = module.execute(config, root, repository=repository, run_id=run_id, source_sha=source)
+    else:
+        try:
+            result = module.execute(config, root)
+        finally:
+            if name == "stores" and config.get("state_file"):
+                state = confined_path(root, config["state_file"], False)
+                if state.is_file():
+                    # State contains only the module's operation IDs and reconciliation progress.
+                    atomic_json(output.parent / "operation-state.json", load_json(state))
+    if not isinstance(result, dict) or result.get("status") not in ("passed", "advisory"):
+        if isinstance(result, dict):
+            atomic_json(output, result)
+        raise PipelineError("Shared module did not produce a passing result")
+    result["library"] = {"module_sha256": sha256_file(Path(module.__file__)),
+                         "reference": os.environ.get("SHARED_ACTION_REF", "")}
+    result["elapsed_seconds"]=round(time.monotonic()-started,3)
+    stamp(result, name, path, root)
+    atomic_json(output, result)
+    receipt_relative = os.environ.get("SHARED_RECEIPT_PATH", "") or config.get("receipt", "")
+    if receipt_relative:
+        receipt_target = confined_path(root, receipt_relative, False)
+        if receipt_target == path:
+            raise PipelineError("Receipt cannot overwrite configuration")
+        if run(["git", "ls-files", "--error-unmatch", "--", str(receipt_target.relative_to(root))], cwd=root, check=False).returncode == 0:
+            raise PipelineError("Receipt cannot overwrite tracked source")
+        atomic_json(receipt_target, result)
+    # Only the small allowlisted receipt/coverage bundle is uploaded; never a workspace glob.
+    coverage = result.get("coverage", {}) if name == "quality" else {}
+    if coverage:
+        directory = output.parent / "coverage"
+        directory.mkdir(exist_ok=True)
+        for relative, digest in coverage.items():
+            source_path = confined_path(root, relative)
+            if sha256_file(source_path) != digest:
+                raise PipelineError("Coverage changed before artifact preservation")
+            (directory / digest).write_bytes(source_path.read_bytes())
+    if os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
+            stream.write(f"receipt={output}\nbundle={output.parent}\nstatus={result['status']}\n")
+            if name == "evidence" and operation == "create":
+                stream.write(f"candidate-identity={result['identity']}\nsource-sha={result['source_sha']}\n")
+            if name == "plan":
+                stream.write("plan="+json.dumps(result,separators=(",",":"))+"\n")
+    print(json.dumps({"module": name, "status": result["status"]}))
+
+
+if __name__ == "__main__":
+    try:
+        from shared_ci.credentials import materialize
+        from shared_ci.auth import existing_apple_credentials
+        contract = os.environ.get("SHARED_CREDENTIALS_CONFIG", "")
+        workspace = Path(os.environ.get("GITHUB_WORKSPACE", os.getcwd())).resolve()
+        root = confined_path(workspace, os.environ.get("SHARED_ROOT", "."))
+        credential_context = materialize(load_json(confined_path(root, contract))) if contract else contextlib.nullcontext({})
+        previous = dict(os.environ)
+        try:
+            with credential_context as credentials:
+                os.environ.update(credentials)
+                token = existing_apple_credentials()
+                if token:
+                    os.environ["ASC_BEARER_TOKEN"] = token
+                main()
+        finally:
+            os.environ.clear()
+            os.environ.update(previous)
+    except (PipelineError, OSError, ValueError, KeyError, TypeError) as exc:
+        # Configuration errors are safe; never show a raw provider/tool traceback.
+        print(f"Shared workflow failed: {exc}", file=sys.stderr)
+        raise SystemExit(1)

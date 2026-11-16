@@ -9,7 +9,45 @@ import re
 import tempfile
 from pathlib import Path
 
-from .common import PipelineError, atomic_json, cli_error, confined_path, fingerprint, load_json, run, strict_keys
+from .common import PipelineError, atomic_json, cli_error, confined_path, fingerprint, load_json, run, sha256_file, strict_keys
+
+
+def scanner_intelligence(item, root, cwd):
+    rules = item["rules_identity"]
+    if rules == "builtin:" + item["version"]:
+        observed_rules = rules
+    elif isinstance(rules, dict) and rules:
+        observed_rules = {}
+        for relative, digest in rules.items():
+            observed_rules[relative] = sha256_file(confined_path(root, relative))
+            if observed_rules[relative] != digest:
+                raise PipelineError("Security rules differ from their reviewed checksums")
+    else:
+        raise PipelineError("Rules require version-bound builtins or checksummed local files")
+    database = item["database_identity"]
+    if item["format"] == "trivy":
+        strict_keys(database, {"command", "max_age_hours"}, {"command", "max_age_hours"})
+        if type(database["max_age_hours"]) not in (int, float) or not 0 < database["max_age_hours"] <= 168:
+            raise PipelineError("Trivy database age must be bounded")
+        observed = json.loads(run(database["command"], cwd=cwd, timeout=30).stdout)
+        db = observed.get("VulnerabilityDB", {})
+        try:
+            updated = dt.datetime.fromisoformat(db["UpdatedAt"].replace("Z", "+00:00"))
+            age = (dt.datetime.now(dt.timezone.utc) - updated).total_seconds() / 3600
+        except (KeyError, ValueError, TypeError) as exc:
+            raise PipelineError("Trivy database freshness evidence is missing") from exc
+        if not 0 <= age <= database["max_age_hours"] or not db.get("Version"):
+            raise PipelineError("Trivy vulnerability database is stale or invalid")
+        observed_database = {"version": db["Version"], "updated_at": db["UpdatedAt"], "metadata_sha256": fingerprint(db)}
+    elif item["format"] in ("npm", "pip-audit") and database == "online":
+        if any(part in ("--offline", "--prefer-offline") for part in item["command"]):
+            raise PipelineError("Online advisory scan cannot use offline results")
+        observed_database = "online-query-at-scan-time"
+    elif item["format"] in ("gitleaks", "semgrep", "sarif") and database == "none":
+        observed_database = "not-used"
+    else:
+        raise PipelineError("Scanner database requires an observed freshness contract")
+    return observed_rules, observed_database
 
 LEVELS = {"info": 0, "low": 1, "moderate": 2, "medium": 2, "high": 3, "critical": 4, "unknown": 4}
 
@@ -139,9 +177,6 @@ def scan(config, root):
             version = run(item["version_command"], cwd=cwd, timeout=30).stdout.strip()
             if not isinstance(item["version"], str) or not re.search(r"(?<![\w.])" + re.escape(item["version"]) + r"(?![\w.])", version):
                 raise PipelineError("Security scanner version does not match its pin")
-            for key in ("rules_identity", "database_identity"):
-                if not isinstance(item[key], str) or not item[key].strip():
-                    raise PipelineError("Scanner rule/database identity is required")
             report_path = Path(temporary) / f"{index}.json"
             command = [part.replace("{report}", str(report_path)) for part in item["command"]]
             if item["format"] == "gitleaks" and not any(part.startswith("--redact") for part in command):
@@ -159,13 +194,15 @@ def scan(config, root):
             else:
                 raise PipelineError("Scanner output must be file or stdout")
             findings = normalize(item["format"], raw)
+            observed_rules, observed_database = scanner_intelligence(item, root, cwd)
             if completed.returncode and not findings:
                 raise PipelineError("Scanner exited unsuccessfully without valid findings")
             all_findings.extend(findings)
             records.append({"id": item["id"], "format": item["format"], "version": item["version"],
-                            "rules": item["rules_identity"], "database": item["database_identity"], "finding_count": len(findings)})
+                            "rules": observed_rules, "database": observed_database, "finding_count": len(findings)})
     counts = policy(all_findings, config["threshold"], config.get("exceptions", []))
     result = {"schema": 1, "status": "failed" if counts["blocking"] else "passed", "counts": counts,
+              "findings": all_findings,
               "scanners": records, "checked_at": dt.datetime.now(dt.timezone.utc).isoformat(),
               "max_age_hours": config["max_age_hours"], "policy_identity": fingerprint(config)}
     return result
