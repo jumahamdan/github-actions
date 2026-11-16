@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "profile": "flutter",
+  "toolchain": [
+    {
+      "command": [
+        "flutter",
+        "--version"
+      ],
+      "version": "3.47.6"
+    }
+  ],
+  "lockfiles": [
+    "pubspec.lock"
+  ],
+  "inputs": [
+    "pubspec.yaml",
+    "pubspec.lock",
+    "lib",
+    "test"
+  ],
+  "checks": [
+    {
+      "name": "format",
+      "kind": "format",
+      "command": [
+        "dart",
+        "format",
+        "--output=none",
+        "--set-exit-if-changed",
+        "lib",
+        "test"
+      ]
+    },
+    {
+      "name": "analyze",
+      "kind": "lint",
+      "command": [
+        "flutter",
+        "analyze",
+        "--fatal-infos"
+      ]
+    },
+    {
+      "name": "tests",
+      "kind": "test",
+      "command": [
+        "flutter",
+        "test",
+        "--machine",
+        "--coverage"
+      ],
+      "test_report": {
+        "path": ".ci-results/flutter.jsonl",
+        "format": "flutter-machine"
+      }
+    }
+  ],
+  "required_checks": [
+    "format",
+    "analyze",
+    "tests"
+  ],
+  "receipt": ".ci-results/flutter-quality.json",
+  "install": [
+    "flutter",
+    "pub",
+    "get",
+    "--enforce-lockfile"
+  ],
+  "coverage": [
+    "coverage/lcov.info"
+  ]
+}

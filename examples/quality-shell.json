@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "profile": "shell",
+  "toolchain": [
+    {
+      "command": [
+        "shellcheck",
+        "--version"
+      ],
+      "version": "0.10.0"
+    }
+  ],
+  "lockfiles": [],
+  "inputs": [
+    "scripts"
+  ],
+  "checks": [
+    {
+      "name": "lint",
+      "kind": "lint",
+      "command": [
+        "shellcheck",
+        "scripts/release.sh"
+      ]
+    }
+  ],
+  "required_checks": [
+    "lint"
+  ],
+  "receipt": ".ci-results/shell-quality.json"
+}

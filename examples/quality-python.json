@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "profile": "python",
+  "toolchain": [
+    {
+      "command": [
+        "python3",
+        "--version"
+      ],
+      "version": "3.12.9"
+    },
+    {
+      "command": [
+        "uv",
+        "--version"
+      ],
+      "version": "0.6.17"
+    }
+  ],
+  "lockfiles": [
+    "uv.lock"
+  ],
+  "inputs": [
+    "pyproject.toml",
+    "uv.lock",
+    "src",
+    "tests"
+  ],
+  "checks": [
+    {
+      "name": "format",
+      "kind": "format",
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "format",
+        "--check",
+        "."
+      ]
+    },
+    {
+      "name": "lint",
+      "kind": "lint",
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "check",
+        "."
+      ]
+    },
+    {
+      "name": "tests",
+      "kind": "test",
+      "command": [
+        "uv",
+        "run",
+        "pytest",
+        "--junitxml=.ci-results/junit.xml"
+      ],
+      "test_report": {
+        "path": ".ci-results/junit.xml",
+        "format": "junit"
+      }
+    }
+  ],
+  "required_checks": [
+    "format",
+    "lint",
+    "tests"
+  ],
+  "receipt": ".ci-results/python-quality.json",
+  "install": [
+    "uv",
+    "sync",
+    "--frozen"
+  ]
+}

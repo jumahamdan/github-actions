@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "profile": "powershell",
+  "toolchain": [
+    {
+      "command": [
+        "pwsh",
+        "--version"
+      ],
+      "version": "7.4.7"
+    }
+  ],
+  "lockfiles": [],
+  "inputs": [
+    "scripts",
+    "tests"
+  ],
+  "checks": [
+    {
+      "name": "analyze",
+      "kind": "lint",
+      "command": [
+        "pwsh",
+        "-NoProfile",
+        "-File",
+        "scripts/analyze.ps1"
+      ]
+    },
+    {
+      "name": "tests",
+      "kind": "test",
+      "command": [
+        "pwsh",
+        "-NoProfile",
+        "-File",
+        "scripts/test.ps1"
+      ],
+      "test_report": {
+        "path": ".ci-results/junit.xml",
+        "format": "junit"
+      }
+    }
+  ],
+  "required_checks": [
+    "analyze",
+    "tests"
+  ],
+  "receipt": ".ci-results/powershell-quality.json"
+}
