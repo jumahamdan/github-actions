@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "quality_config": "ci/quality.json",
+  "source": {
+    "repository": "your-org/your-product",
+    "workflow": ".github/workflows/ci.yml",
+    "run_id": {"env": "QUALITY_RUN_ID"},
+    "run_head_sha": {"env": "QUALITY_RUN_HEAD_SHA"},
+    "source_sha": {"env": "QUALITY_TESTED_SHA"},
+    "artifact": "quality-checks"
+  },
+  "token_env": "GH_TOKEN",
+  "max_age_seconds": 86400
+}
