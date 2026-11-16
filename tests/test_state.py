@@ -25,6 +25,7 @@ class StateTests(unittest.TestCase):
         self.env = patch.dict(os.environ, dict(TRUST, GITHUB_REPOSITORY="example/app", GITHUB_RUN_ID="42", GITHUB_RUN_ATTEMPT="2", GH_STATE_TOKEN="synthetic-state-token"), clear=True)
         self.env.start()
         self.selection = {"schema": 1, "operation": "restore", "repository": "example/app", "run_id": "42", "run_attempt": 1,
+                          "run_head_sha": "a" * 40,
                           "artifact_name": "store-state-attempt-1", "expected_workflow": ".github/workflows/store.yml", "producer_job": "Store / Execute",
                           "allowed_branches": ["staging"], "allowed_events": ["workflow_dispatch"], "allowed_conclusions": ["success", "failure", "cancelled"], "token_env": "GH_STATE_TOKEN"}
         self.metadata = {"id": 42, "run_attempt": 1, "status": "completed", "conclusion": "failure", "head_sha": "a" * 40,
@@ -105,6 +106,23 @@ class StateTests(unittest.TestCase):
         self.metadata["conclusion"] = "cancelled"
         self.job["conclusion"] = "cancelled"
         self.assertEqual(self.restore()["phase"], "commit_started")
+
+    def test_promotion_run_head_can_differ_from_original_candidate_source(self):
+        self.prepare()
+        self.selection["run_head_sha"] = "b" * 40
+        self.metadata["head_sha"] = "b" * 40
+        self.job["head_sha"] = "b" * 40
+        self.item["workflow_run"]["head_sha"] = "b" * 40
+        result = self.restore()
+        self.assertEqual(result["provenance"]["run_head_sha"], "b" * 40)
+        self.assertEqual(result["candidate_identity"], self.candidate["identity"])
+        self.assertEqual(self.envelope["source_sha"], "a" * 40)
+
+    def test_wrong_selected_prior_run_head_refused(self):
+        self.prepare()
+        self.selection["run_head_sha"] = "b" * 40
+        with self.assertRaisesRegex(PipelineError, "untrusted source"):
+            self.restore()
 
     def test_failed_conclusion_requires_explicit_allowlist(self):
         self.prepare()

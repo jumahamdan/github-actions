@@ -95,6 +95,9 @@ def authenticated_state_artifact(selection, config, token, request):
     if (not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", str(repository))
             or repository != os.environ.get("GITHUB_REPOSITORY") or not str(selection["run_id"]).isdigit()):
         raise PipelineError("Store state must come from the selected current repository/run")
+    run_head = selection["run_head_sha"]
+    if not SHA.fullmatch(str(run_head)):
+        raise PipelineError("Explicit prior store workflow head SHA is required")
     attempt = selection["run_attempt"]
     if not isinstance(attempt, int) or isinstance(attempt, bool) or attempt < 1:
         raise PipelineError("Exact positive prior state run attempt is required")
@@ -120,7 +123,7 @@ def authenticated_state_artifact(selection, config, token, request):
     metadata = request(attempt_path, token)
     if (metadata.get("id") != int(selection["run_id"]) or metadata.get("run_attempt") != attempt
             or metadata.get("status") != "completed" or metadata.get("conclusion") not in conclusions
-            or metadata.get("head_sha") != config["expected_source_sha"]
+            or metadata.get("head_sha") != run_head
             or metadata.get("path", "").split("@")[0] != workflow
             or metadata.get("head_repository", {}).get("full_name") != repository
             or metadata.get("head_branch") not in branches or metadata.get("event") not in events):
@@ -138,7 +141,7 @@ def authenticated_state_artifact(selection, config, token, request):
     if (len(jobs) != 1 or jobs[0].get("run_id") != int(selection["run_id"])
             or not isinstance(jobs[0].get("id"), int) or jobs[0]["id"] <= 0
             or jobs[0].get("status") != "completed" or jobs[0].get("conclusion") not in conclusions
-            or jobs[0].get("head_sha") != config["expected_source_sha"] or jobs[0].get("head_branch") != metadata.get("head_branch")):
+            or jobs[0].get("head_sha") != run_head or jobs[0].get("head_branch") != metadata.get("head_branch")):
         raise PipelineError("Exactly one completed approved state producer job is required")
     job = jobs[0]
     start = max(timestamp(metadata.get("run_started_at")), timestamp(job.get("started_at")))
@@ -162,7 +165,7 @@ def authenticated_state_artifact(selection, config, token, request):
     artifact = matches[0]
     if (not isinstance(artifact.get("id"), int) or artifact["id"] <= 0
             or artifact.get("workflow_run", {}).get("id") != int(selection["run_id"])
-            or artifact.get("workflow_run", {}).get("head_sha") != config["expected_source_sha"]
+            or artifact.get("workflow_run", {}).get("head_sha") != run_head
             or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(artifact.get("digest", "")))
             or not isinstance(artifact.get("size_in_bytes"), int) or not 0 < artifact["size_in_bytes"] <= MAX_ARCHIVE):
         raise PipelineError("State artifact source, digest or bounded size is invalid")
@@ -203,7 +206,7 @@ def read_envelope(archive_path, temporary, config):
 
 
 def restore(selection, root, *, store_config, request=_api, downloader=download):
-    required = {"schema", "operation", "repository", "run_id", "run_attempt", "artifact_name", "expected_workflow", "producer_job",
+    required = {"schema", "operation", "repository", "run_id", "run_attempt", "run_head_sha", "artifact_name", "expected_workflow", "producer_job",
                 "allowed_branches", "allowed_events", "allowed_conclusions", "token_env"}
     strict_keys(selection, required, required)
     if selection["schema"] != 1 or selection["operation"] != "restore":
@@ -239,6 +242,7 @@ def restore(selection, root, *, store_config, request=_api, downloader=download)
             "candidate_identity": store_config["expected_identity"], "request_fingerprint": fingerprint(store_config), "phase": value["phase"],
             "state_sha256": hashlib.sha256(expected_bytes).hexdigest(), "state_file": store_config["state_file"],
             "provenance": {"repository": selection["repository"], "run_id": str(selection["run_id"]), "run_attempt": selection["run_attempt"],
+                           "run_head_sha": selection["run_head_sha"],
                            "workflow": selection["expected_workflow"], "producer_job_id": producer["id"], "producer_conclusion": producer["conclusion"],
                            "artifact_id": artifact["id"], "artifact_digest": artifact["digest"]}}
 

@@ -4,6 +4,7 @@
   "repository": "example/product",
   "run_id": "10001",
   "run_attempt": 1,
+  "run_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "artifact_name": "store-state-10001-1",
   "expected_workflow": ".github/workflows/release.yml",
   "producer_job": "Store / Execute",
