@@ -1,6 +1,7 @@
 #!/bin/bash
 # Vendor this small loader into ci_scripts; review its SHA when adopting a library revision.
 set -euo pipefail
+python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else "Shared Apple hooks require Python 3.11 or newer; install the pinned Python toolchain in ci_post_clone first.")'
 : "${CI_PRIMARY_REPOSITORY_PATH:?Xcode Cloud repository required}"
 : "${CI_XCODE_CLOUD:?Xcode Cloud required}"
 : "${SHARED_LIBRARY_REPOSITORY:?Exact HTTPS GitHub repository required}"

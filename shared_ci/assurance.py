@@ -16,7 +16,7 @@ def library_identity(library_root):
                 "actions/v2-*/action.yml", "actions/v2-*/action.yaml",
                 ".github/workflows/v2-*.yml", ".github/workflows/v2-*.yaml",
                 "tooling/ai/package-lock.json", "tooling/ai/package.json",
-                "tooling/binaries.json", "requirements-ci.txt")
+                "tooling/binaries.json", "tooling/requirements-ci.txt", "examples/tools-*.json")
     selected = {}
     for pattern in patterns:
         for path in sorted(root.glob(pattern)):

@@ -100,6 +100,16 @@ name: Shared v2 container-build
         type: number
         required: false
         default: 90
+      check-digests:
+        type: string
+        description: Trusted required receipt digests from prior step/job outputs
+        required: false
+        default: '{}'
+      tool-bundles:
+        description: Reviewed built-in tool bundles
+        type: string
+        required: false
+        default: ''
     outputs:
       status:
         description: Module verdict
@@ -110,6 +120,12 @@ name: Shared v2 container-build
       source-sha:
         description: source-sha
         value: ${{ jobs.run.outputs.source-sha }}
+      receipt-sha256:
+        description: receipt-sha256
+        value: ${{ jobs.run.outputs.receipt-sha256 }}
+      state:
+        description: state
+        value: ${{ jobs.run.outputs.state }}
     secrets:
       ARTIFACT_READ_TOKEN:
         description: Optional existing token when GitHub token cannot read producer artifacts
@@ -125,6 +141,8 @@ jobs:
       status: ${{ steps.execute.outputs.status }}
       candidate-identity: ${{ steps.package.outputs.candidate-identity }}
       source-sha: ${{ steps.package.outputs.source-sha }}
+      receipt-sha256: ${{ steps.execute.outputs.receipt-sha256 }}
+      state: ${{ steps.execute.outputs.state }}
     steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       with:
@@ -139,6 +157,7 @@ jobs:
         npm-tools: ${{ inputs.npm-tools }}
         ai-tools: 'false'
         python-tools: ${{ inputs.python-tools }}
+        tool-bundles: ${{ inputs.tool-bundles }}
     - id: import-candidate
       if: ${{ inputs.artifact-run-id != '' }}
       uses: $/actions/v2-artifacts
@@ -172,7 +191,7 @@ jobs:
         include-hidden-files: false
       if: ${{ always() && steps.execute.outputs.bundle != '' }}
     - id: candidate
-      if: ${{ inputs.candidate-config != '' }}
+      if: ${{ inputs.candidate-config != '' && steps.execute.outputs.status == 'passed' }}
       uses: $/actions/v2-run
       with:
         module: evidence
@@ -180,15 +199,18 @@ jobs:
         config: ${{ inputs.candidate-config }}
         root: ${{ inputs.root }}
         receipt-path: ${{ inputs.candidate-manifest }}
+        check-digests: ${{ inputs.check-digests }}
+        current-receipt-path: ${{ steps.execute.outputs.retained-path }}
+        current-receipt-sha: ${{ steps.execute.outputs.receipt-sha256 }}
     - id: package
-      if: ${{ inputs.candidate-config != '' }}
+      if: ${{ inputs.candidate-config != '' && steps.execute.outputs.status == 'passed' }}
       uses: $/actions/v2-artifacts
       with:
         operation: package
         root: ${{ inputs.root }}
         manifest: ${{ inputs.candidate-manifest }}
     - name: Retain exact candidate
-      if: ${{ inputs.candidate-config != '' }}
+      if: ${{ inputs.candidate-config != '' && steps.execute.outputs.status == 'passed' }}
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
       with:
         name: ${{ inputs.artifact-name }}-candidate

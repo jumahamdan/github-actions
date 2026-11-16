@@ -13,6 +13,9 @@ inputs:
   python-tools:
     description: Optional hash-locked pip requirements file in caller workspace
     default: ''
+  tool-bundles:
+    description: 'Reviewed built-in bundles: sonar,google-sdk,bundletool,android-build-tools'
+    default: ''
 runs:
   using: composite
   steps:
@@ -24,4 +27,5 @@ runs:
       NPM_TOOLS: ${{ inputs.npm-tools }}
       INSTALL_AI_TOOLS: ${{ inputs.ai-tools }}
       PYTHON_TOOLS: ${{ inputs.python-tools }}
+      TOOL_BUNDLES: ${{ inputs.tool-bundles }}
     run: python3 "$LIBRARY_ACTION_PATH/../../scripts/setup-tools.py"

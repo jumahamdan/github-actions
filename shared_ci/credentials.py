@@ -78,17 +78,22 @@ def _mask(value):
     if os.environ.get("GITHUB_ACTIONS") == "true" and value:
         safe = value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
         print("::add-mask::" + safe, flush=True)
+        if "\n" in value or "\r" in value:
+            for line in value.splitlines():
+                if line and not line.startswith("-----"):
+                    print("::add-mask::" + line.replace("%", "%25"), flush=True)
 
 
-def _strings(value):
-    if isinstance(value, str):
+def _strings(value, *, sensitive=False):
+    if isinstance(value, str) and sensitive:
         yield value
     elif isinstance(value, dict):
-        for child in value.values():
-            yield from _strings(child)
+        for key, child in value.items():
+            secret_field = bool(re.search(r"(?:private_key|client_secret|refresh_token|access_token|password|secret|api_key)", key, re.I))
+            yield from _strings(child, sensitive=sensitive or secret_field)
     elif isinstance(value, list):
         for child in value:
-            yield from _strings(child)
+            yield from _strings(child, sensitive=sensitive)
 
 
 @contextlib.contextmanager

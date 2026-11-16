@@ -19,6 +19,9 @@ def evaluate(config, results):
         result = results[job].get("result") if isinstance(results[job], dict) else results[job]
         if applicable and result != "success":
             raise PipelineError(f"Applicable check did not succeed: {job}")
+        if applicable and isinstance(results[job],dict) and "status" in results[job].get("outputs",{}):
+            if results[job]["outputs"]["status"] != "passed":
+                raise PipelineError(f"Required operation remains pending or advisory: {job}")
         if not applicable and result not in ("success", "skipped"):
             raise PipelineError(f"Unexpected failure of an inapplicable check: {job}")
         decisions[job] = "passed" if applicable else "not-applicable"

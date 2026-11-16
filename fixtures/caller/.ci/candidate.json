@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "product": "synthetic-fixture",
+  "version": "1.0.0",
+  "build": "1",
+  "library_sha": "workflow",
+  "inputs": ["scripts/check.py", ".ci/quality.json"],
+  "artifacts": ["build/app.bin"],
+  "checks": [{"path": "build/quality.json", "kind": "quality", "config": ".ci/quality.json"}],
+  "toolchain": {"python": "3.12.3", "bash": "5.2.21"}
+}

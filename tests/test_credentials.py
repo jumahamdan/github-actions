@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from shared_ci.common import PipelineError
 from shared_ci.credentials import materialize, preflight
@@ -40,6 +41,16 @@ class CredentialTests(unittest.TestCase):
         with self.assertRaises(PipelineError):
             with materialize(cfg, {"SIGNING": "not-base64"}):
                 pass
+
+    def test_json_masks_credentials_without_masking_public_project_metadata(self):
+        cfg={"schema":1,"files":[{"name":"SA_JSON","required":True,"encoding":"text","format":"json","output_env":"GOOGLE_APPLICATION_CREDENTIALS"}]}
+        value=json.dumps({"type":"service_account","project_id":"public-project","private_key":"synthetic-key","client_email":"account@example.invalid"})
+        with patch("shared_ci.credentials._mask") as mask:
+            with materialize(cfg,{"SA_JSON":value}):pass
+        masked=[c.args[0] for c in mask.call_args_list]
+        self.assertIn("synthetic-key",masked)
+        self.assertNotIn("public-project",masked)
+        self.assertNotIn("service_account",masked)
 
 
 if __name__ == "__main__":

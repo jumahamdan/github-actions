@@ -109,7 +109,7 @@ def execute(config, root, *, repository, run_id, source_sha):
         raise PipelineError("installed SonarScanner version differs from configuration")
     arguments = command + [f"-Dsonar.projectKey={_text(config['project_key'], 'project key')}",
                            f"-Dsonar.host.url={config['host_url']}", "-Dsonar.sources=" + ",".join(sources),
-                           "-Dsonar.qualitygate.wait=true", f"-Dsonar.scm.revision={source_sha}"]
+                           "-Dsonar.qualitygate.wait=true", f"-Dsonar.scm.revision={os.environ.get('GITHUB_SHA') or source_sha}"]
     if config.get("organization"):
         arguments.append(f"-Dsonar.organization={_text(config['organization'], 'organization')}")
     if config["mode"] == "pull_request":

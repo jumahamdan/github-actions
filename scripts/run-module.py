@@ -5,6 +5,7 @@ import importlib
 import contextlib
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -14,14 +15,14 @@ LIBRARY = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(LIBRARY))
 
 from shared_ci.common import PipelineError, atomic_json, confined_path, load_json, run, sha256_file
-from shared_ci.assurance import stamp
+from shared_ci.assurance import stamp, library_identity
 
 
 def main():
     started=time.monotonic()
     name = os.environ.get("SHARED_MODULE", "")
     if name not in {"quality", "docs", "credentials", "security", "evidence", "release", "ai", "containers",
-                    "sonar", "deploy", "health", "wordpress", "mobile", "stores", "monitoring", "gate", "plan"}:
+                    "sonar", "deploy", "health", "wordpress", "mobile", "stores", "monitoring", "gate", "plan", "reuse"}:
         raise PipelineError("Unknown shared workflow module")
     workspace = Path(os.environ.get("GITHUB_WORKSPACE", os.getcwd())).resolve()
     root = confined_path(workspace, os.environ.get("SHARED_ROOT", "."))
@@ -47,7 +48,25 @@ def main():
     elif name == "evidence":
         if operation not in ("create", "verify"):
             raise PipelineError("Evidence operation must be create or verify")
-        result = getattr(module, operation)(config, root)
+        library_revision=os.environ.get("SHARED_ACTION_REF", "")
+        if not re.fullmatch(r"[0-9a-f]{40}",library_revision):
+            raise PipelineError("Candidate evidence requires an immutable executing action revision")
+        if operation == "create":
+            if config["library_sha"] not in ("workflow",library_revision):
+                raise PipelineError("Candidate library revision differs from the executing helper")
+            config={**config,"library_sha":library_revision}
+            expected=json.loads(os.environ.get("SHARED_CHECK_DIGESTS","{}"))
+            current_path=os.environ.get("SHARED_CURRENT_RECEIPT_PATH","")
+            current_digest=os.environ.get("SHARED_CURRENT_RECEIPT_SHA","")
+            if current_path and current_digest:
+                if current_path in expected and expected[current_path]!=current_digest:
+                    raise PipelineError("Conflicting trusted check selection")
+                expected[current_path]=current_digest
+            if not expected:
+                raise PipelineError("Candidate creation requires trusted check digests from workflow outputs")
+            result=module.create(config,root,expected_checks=expected)
+        else:
+            result=module.verify(config,root,expected_library_sha=library_revision)
     elif name == "release":
         if operation == "publish":
             result = module.publish(config, root)
@@ -68,7 +87,7 @@ def main():
         repository = os.environ.get("GITHUB_REPOSITORY", "")
         run_id = os.environ.get("QUALITY_RUN_ID", "")
         source = os.environ.get("QUALITY_SOURCE_SHA", "")
-        verified = fetch_receipt(repository, run_id, os.environ.get("QUALITY_ARTIFACT", ""), source,
+        verified = fetch_receipt(repository, run_id, os.environ.get("QUALITY_ARTIFACT", ""), os.environ.get("QUALITY_RUN_HEAD_SHA", source),
                                  os.environ.get("QUALITY_WORKFLOW", ""), os.environ.get("GH_TOKEN", ""),
                                  coverage_paths=[entry["path"] for entry in config["coverage"]])
         receipt_path = confined_path(root, config["quality_receipt"], False)
@@ -89,14 +108,16 @@ def main():
                 if state.is_file():
                     # State contains only the module's operation IDs and reconciliation progress.
                     atomic_json(output.parent / "operation-state.json", load_json(state))
-    if not isinstance(result, dict) or result.get("status") not in ("passed", "advisory"):
+    accepted = ("passed", "advisory", "pending") if name == "stores" else ("passed", "advisory")
+    if not isinstance(result, dict) or result.get("status") not in accepted:
         if isinstance(result, dict):
             atomic_json(output, result)
         raise PipelineError("Shared module did not produce a passing result")
     result["library"] = {"module_sha256": sha256_file(Path(module.__file__)),
-                         "reference": os.environ.get("SHARED_ACTION_REF", "")}
+                         "reference": os.environ.get("SHARED_ACTION_REF", ""), "identity": library_identity(LIBRARY)}
     result["elapsed_seconds"]=round(time.monotonic()-started,3)
-    stamp(result, name, path, root)
+    if name != "reuse":
+        stamp(result, name, path, root)
     atomic_json(output, result)
     receipt_relative = os.environ.get("SHARED_RECEIPT_PATH", "") or config.get("receipt", "")
     if receipt_relative:
@@ -106,6 +127,8 @@ def main():
         if run(["git", "ls-files", "--error-unmatch", "--", str(receipt_target.relative_to(root))], cwd=root, check=False).returncode == 0:
             raise PipelineError("Receipt cannot overwrite tracked source")
         atomic_json(receipt_target, result)
+    else:
+        receipt_relative=""
     # Only the small allowlisted receipt/coverage bundle is uploaded; never a workspace glob.
     coverage = result.get("coverage", {}) if name == "quality" else {}
     if coverage:
@@ -119,6 +142,10 @@ def main():
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
             stream.write(f"receipt={output}\nbundle={output.parent}\nstatus={result['status']}\n")
+            stream.write(f"receipt-sha256={sha256_file(output)}\nretained-path={receipt_relative}\n")
+            state=result.get("state","")
+            if state and isinstance(state,str) and re.fullmatch(r"[A-Za-z0-9_-]+",state):
+                stream.write(f"state={state}\n")
             if name == "evidence" and operation == "create":
                 stream.write(f"candidate-identity={result['identity']}\nsource-sha={result['source_sha']}\n")
             if name == "plan":

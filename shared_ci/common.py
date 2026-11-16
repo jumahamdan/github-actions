@@ -107,7 +107,7 @@ def redact(text, values):
 def scoped_environment(names=(), extra=None):
     # No ambient cloud, model, registry, GitHub or package credentials.
     base = {key: os.environ[key] for key in ("PATH", "HOME", "TMPDIR", "TEMP", "SystemRoot") if key in os.environ}
-    base.update({"CI": "true", "NO_COLOR": "1", "LANG": "C.UTF-8"})
+    base.update({"CI": "true", "NO_COLOR": "1", "PYTHONDONTWRITEBYTECODE": "1", "LANG": "C.UTF-8"})
     for name in names:
         if not isinstance(name, str) or not _ENV_NAME.fullmatch(name):
             raise PipelineError("Invalid environment variable name")

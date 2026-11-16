@@ -1,0 +1,2306 @@
+{
+  "schema": 1,
+  "services": [
+    {
+      "id": "MOB-01",
+      "service": "Apple / Xcode Cloud",
+      "modules": [
+        "mobile",
+        "evidence",
+        "artifacts"
+      ],
+      "example": "examples/mobile-apple-archive.json",
+      "adoption": "Native targets, signing, real Cloud/emergency build, durable private evidence storage and an installed upgrade require product proof.",
+      "tests": [
+        {
+          "file": "tests/test_mobile.py",
+          "cases": [
+            "test_unsigned_archive_proves_identity_symbols_and_is_not_distributable",
+            "test_signed_archive_checks_every_target",
+            "test_archive_negative_identity_executable_extension_and_extra_bundle",
+            "test_symbol_mismatch_or_bad_signing_blocks",
+            "test_signed_archive_refuses_pr_failed_build_or_wrong_build_number",
+            "test_flutter_bootstrap_uses_enforced_locks_and_no_archive_compile",
+            "test_native_bootstrap_checks_tool_and_locks_before_and_after",
+            "test_build_number_is_monotonic_and_keeps_persistent_ledger",
+            "test_build_number_rejects_stale_cross_product_or_unserialized",
+            "test_derive_apk_once_preserves_aab_identity_and_cleans_passwords",
+            "test_derive_rejects_wrong_multi_signer_missing_apk_or_tool_checksum",
+            "test_real_device_command_contracts_and_private_token_cleanup",
+            "test_testlab_unknown_partial_flaky_cancelled_duplicate_or_wrong_matrix_fails",
+            "test_ddp_requires_all_nested_states_and_exact_devices",
+            "test_device_disallows_implicit_live_or_forks_and_retires_testlab",
+            "test_device_tool_mismatch_submission_unknown_and_cli_errors_fail",
+            "test_loader_uses_exact_commit_cleans_checkout_and_rejects_changed_revision",
+            "test_failed_cli_removes_previous_passing_receipt",
+            "test_unknown_config_fields_and_traversal_fail"
+          ]
+        },
+        {
+          "file": "tests/test_evidence.py",
+          "cases": [
+            "test_source_attribution_and_check_contract_cannot_be_relabelled",
+            "test_authenticated_coverage_bytes_are_verified",
+            "test_changed_artifact_and_input_fail",
+            "test_changed_toolchain_fails",
+            "test_download_verifies_provenance_digest_and_archive"
+          ]
+        },
+        {
+          "file": "tests/test_artifacts.py",
+          "cases": [
+            "test_roundtrip_verifies_origin_and_preserves_tracked_source",
+            "test_package_fresh_outside_workspace_only",
+            "test_package_rejects_changed_inputs",
+            "test_secret_names_and_content_rejected",
+            "test_symlink_source_rejected",
+            "test_wrong_run_source_workflow_fork_attempt_event_fail",
+            "test_stale_previous_attempt_artifact_rejected",
+            "test_missing_or_duplicate_artifact_rejected",
+            "test_download_digest_mismatch_rejected",
+            "test_unexpected_file_rejected_even_in_authenticated_archive",
+            "test_zip_traversal_and_symlink_rejected",
+            "test_duplicate_zip_names_rejected",
+            "test_existing_conflict_does_not_partially_import",
+            "test_existing_symlink_rejected_even_identical_content",
+            "test_candidate_identity_selection_mismatch_rejected",
+            "test_source_tree_mismatch_refuses_import",
+            "test_package_file_and_byte_limits",
+            "test_same_running_workflow_accepts_completed_producer",
+            "test_same_running_workflow_rejects_running_failed_or_duplicate_producer",
+            "test_same_running_workflow_requires_explicit_producer",
+            "test_foreign_in_progress_run_is_never_accepted",
+            "test_stream_download_does_not_forward_token_to_signed_url"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "MOB-02",
+      "service": "TestFlight / App Store",
+      "modules": [
+        "stores",
+        "store_inventory"
+      ],
+      "example": "examples/stores-apple.json",
+      "adoption": "Select actual tester groups, legal/review metadata, approved store build and promotion authority.",
+      "tests": [
+        {
+          "file": "tests/test_stores.py",
+          "cases": [
+            "test_upload_exact_bytes_and_no_cancellation_default",
+            "test_completed_receipt_retry_does_not_republish",
+            "test_existing_bundle_reuses_matching_hash",
+            "test_conflicting_existing_version_fails",
+            "test_track_drift_fails_before_upload",
+            "test_promote_existing_bundle_without_upload",
+            "test_only_documented_review_rejection_allows_defer",
+            "test_unrelated_400_does_not_fallback",
+            "test_uncertain_commit_retry_refuses",
+            "test_draft_remains_pending",
+            "test_changed_artifact_and_receipt_fail",
+            "test_inspection_not_bound_fails",
+            "test_source_selection_mismatch_fails",
+            "test_untrusted_ref_and_unknown_config_fail",
+            "test_apple_group_assignment_is_idempotent",
+            "test_apple_wrong_app_fails",
+            "test_apple_processing_timeout_is_pending",
+            "test_apple_failed_processing_blocks",
+            "test_apple_build_selection_conflict_blocks",
+            "test_apple_submission_uses_review_submission_api",
+            "test_apple_active_submission_requires_explicit_id",
+            "test_apple_status_only_passes_downloadable_release",
+            "test_apple_beta_notes_create_and_idempotent_retry",
+            "test_apple_beta_notes_drift_blocks_all_locale_writes",
+            "test_apple_beta_notes_patch_matching_existing_digest",
+            "test_source_tree_in_candidate_identity_cannot_change",
+            "test_wrong_check_source_fails_even_with_rehashed_identity",
+            "test_state_cannot_overwrite_candidate",
+            "test_aab_jar_signer_must_match",
+            "test_api_headers_secret_not_url_and_redirects_disabled"
+          ]
+        },
+        {
+          "file": "tests/test_store_inventory.py",
+          "cases": [
+            "test_play_all_tracks_bundles_apks_and_no_commit",
+            "test_play_error_deletes_uncommitted_edit_and_no_receipt",
+            "test_apple_all_pages_including_failed_expired_builds",
+            "test_apple_dotted_build_refuses_integer_allocator",
+            "test_apple_wrong_app_fails",
+            "test_inventory_untrusted_context_fails"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "MOB-03",
+      "service": "Android / Google Play",
+      "modules": [
+        "mobile",
+        "stores",
+        "store_inventory"
+      ],
+      "example": "examples/mobile-android-derive.json",
+      "adoption": "Product Gradle signing, upload-key pin, Play App Signing and an actual installed upgrade require verification.",
+      "tests": [
+        {
+          "file": "tests/test_mobile.py",
+          "cases": [
+            "test_unsigned_archive_proves_identity_symbols_and_is_not_distributable",
+            "test_signed_archive_checks_every_target",
+            "test_archive_negative_identity_executable_extension_and_extra_bundle",
+            "test_symbol_mismatch_or_bad_signing_blocks",
+            "test_signed_archive_refuses_pr_failed_build_or_wrong_build_number",
+            "test_flutter_bootstrap_uses_enforced_locks_and_no_archive_compile",
+            "test_native_bootstrap_checks_tool_and_locks_before_and_after",
+            "test_build_number_is_monotonic_and_keeps_persistent_ledger",
+            "test_build_number_rejects_stale_cross_product_or_unserialized",
+            "test_derive_apk_once_preserves_aab_identity_and_cleans_passwords",
+            "test_derive_rejects_wrong_multi_signer_missing_apk_or_tool_checksum",
+            "test_real_device_command_contracts_and_private_token_cleanup",
+            "test_testlab_unknown_partial_flaky_cancelled_duplicate_or_wrong_matrix_fails",
+            "test_ddp_requires_all_nested_states_and_exact_devices",
+            "test_device_disallows_implicit_live_or_forks_and_retires_testlab",
+            "test_device_tool_mismatch_submission_unknown_and_cli_errors_fail",
+            "test_loader_uses_exact_commit_cleans_checkout_and_rejects_changed_revision",
+            "test_failed_cli_removes_previous_passing_receipt",
+            "test_unknown_config_fields_and_traversal_fail"
+          ]
+        },
+        {
+          "file": "tests/test_stores.py",
+          "cases": [
+            "test_upload_exact_bytes_and_no_cancellation_default",
+            "test_completed_receipt_retry_does_not_republish",
+            "test_existing_bundle_reuses_matching_hash",
+            "test_conflicting_existing_version_fails",
+            "test_track_drift_fails_before_upload",
+            "test_promote_existing_bundle_without_upload",
+            "test_only_documented_review_rejection_allows_defer",
+            "test_unrelated_400_does_not_fallback",
+            "test_uncertain_commit_retry_refuses",
+            "test_draft_remains_pending",
+            "test_changed_artifact_and_receipt_fail",
+            "test_inspection_not_bound_fails",
+            "test_source_selection_mismatch_fails",
+            "test_untrusted_ref_and_unknown_config_fail",
+            "test_apple_group_assignment_is_idempotent",
+            "test_apple_wrong_app_fails",
+            "test_apple_processing_timeout_is_pending",
+            "test_apple_failed_processing_blocks",
+            "test_apple_build_selection_conflict_blocks",
+            "test_apple_submission_uses_review_submission_api",
+            "test_apple_active_submission_requires_explicit_id",
+            "test_apple_status_only_passes_downloadable_release",
+            "test_apple_beta_notes_create_and_idempotent_retry",
+            "test_apple_beta_notes_drift_blocks_all_locale_writes",
+            "test_apple_beta_notes_patch_matching_existing_digest",
+            "test_source_tree_in_candidate_identity_cannot_change",
+            "test_wrong_check_source_fails_even_with_rehashed_identity",
+            "test_state_cannot_overwrite_candidate",
+            "test_aab_jar_signer_must_match",
+            "test_api_headers_secret_not_url_and_redirects_disabled"
+          ]
+        },
+        {
+          "file": "tests/test_store_inventory.py",
+          "cases": [
+            "test_play_all_tracks_bundles_apks_and_no_commit",
+            "test_play_error_deletes_uncommitted_edit_and_no_receipt",
+            "test_apple_all_pages_including_failed_expired_builds",
+            "test_apple_dotted_build_refuses_integer_allocator",
+            "test_apple_wrong_app_fails",
+            "test_inventory_untrusted_context_fails"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "MOB-04",
+      "service": "Google device testing",
+      "modules": [
+        "mobile"
+      ],
+      "example": "examples/mobile-testlab-robo.json",
+      "adoption": "Declare isolated scenarios, device matrix and quota; live paid device runs are opt-in. Test Lab retirement is enforced; DDP has no Robo fallback.",
+      "tests": [
+        {
+          "file": "tests/test_mobile.py",
+          "cases": [
+            "test_unsigned_archive_proves_identity_symbols_and_is_not_distributable",
+            "test_signed_archive_checks_every_target",
+            "test_archive_negative_identity_executable_extension_and_extra_bundle",
+            "test_symbol_mismatch_or_bad_signing_blocks",
+            "test_signed_archive_refuses_pr_failed_build_or_wrong_build_number",
+            "test_flutter_bootstrap_uses_enforced_locks_and_no_archive_compile",
+            "test_native_bootstrap_checks_tool_and_locks_before_and_after",
+            "test_build_number_is_monotonic_and_keeps_persistent_ledger",
+            "test_build_number_rejects_stale_cross_product_or_unserialized",
+            "test_derive_apk_once_preserves_aab_identity_and_cleans_passwords",
+            "test_derive_rejects_wrong_multi_signer_missing_apk_or_tool_checksum",
+            "test_real_device_command_contracts_and_private_token_cleanup",
+            "test_testlab_unknown_partial_flaky_cancelled_duplicate_or_wrong_matrix_fails",
+            "test_ddp_requires_all_nested_states_and_exact_devices",
+            "test_device_disallows_implicit_live_or_forks_and_retires_testlab",
+            "test_device_tool_mismatch_submission_unknown_and_cli_errors_fail",
+            "test_loader_uses_exact_commit_cleans_checkout_and_rejects_changed_revision",
+            "test_failed_cli_removes_previous_passing_receipt",
+            "test_unknown_config_fields_and_traversal_fail"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "MOB-05",
+      "service": "Other test layers",
+      "modules": [
+        "quality",
+        "sonar",
+        "reuse"
+      ],
+      "example": "examples/quality-flutter.json",
+      "adoption": "Actual application assertions, data isolation and thresholds belong to the product. The library validates real command execution and nonempty test evidence; it does not certify runtime business behavior.",
+      "tests": [
+        {
+          "file": "tests/test_quality.py",
+          "cases": [
+            "test_real_process_success_proves_executed_tests_and_coverage",
+            "test_nonzero_and_timeout_block",
+            "test_prior_report_cannot_be_reused",
+            "test_unknown_field_missing_required_check_tool_mismatch_fail",
+            "test_mutating_check_fails",
+            "test_reports_cannot_overwrite_inputs",
+            "test_paths_locks_and_credentials",
+            "test_ambient_credentials_not_passed",
+            "test_signing_credentials_only_reach_trusted_build",
+            "test_placeholder_commands_rejected",
+            "test_placeholder_npm_script_rejected",
+            "test_locked_install_contracts",
+            "test_junit_requires_executed_successful_cases",
+            "test_flutter_report_success_and_incomplete_failure"
+          ]
+        },
+        {
+          "file": "tests/test_sonar.py",
+          "cases": [
+            "test_matching_receipt",
+            "test_stale_identity_source_coverage_and_new_source_fail",
+            "test_empty_tests_and_forged_fingerprint_fail",
+            "test_branch_analysis_waits_for_gate_without_rerunning_tests",
+            "test_same_repo_allowed_pr_uses_pr_parameters",
+            "test_fork_or_missing_token_never_reports_success",
+            "test_scanner_error_and_version_mismatch_block",
+            "test_invalid_host_config_and_metadata_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_reuse.py",
+          "cases": [
+            "test_real_quality_run_reused_on_new_commit_without_executing_checks",
+            "test_same_tree_new_merge_sha_can_reuse",
+            "test_changed_selected_input_or_lock_fails_even_after_commit",
+            "test_new_file_in_selected_directory_invalidates",
+            "test_changed_config_including_required_checks_or_tool_version_fails",
+            "test_missing_failed_duplicate_empty_tests_or_tampered_receipt_fail",
+            "test_original_freshness_cannot_be_extended",
+            "test_authenticated_run_metadata_artifact_bytes_and_expiry_fail_closed",
+            "test_explicit_env_ids_supported_but_missing_ids_never_guessed",
+            "test_nonreproducible_environment_and_build_credentials_require_fresh_run",
+            "test_dirty_unselected_tracked_file_still_refused",
+            "test_library_code_workflow_helper_or_tool_lock_change_invalidates",
+            "test_symlink_implementation_and_missing_library_refused",
+            "test_config_schema_paths_and_bounds",
+            "test_cli_does_not_overwrite_source_or_leave_stale_success"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "FB-01",
+      "service": "Functions",
+      "modules": [
+        "deploy"
+      ],
+      "example": "examples/deploy-firebase-functions.json",
+      "adoption": "Functions rebuild from exact source and locks; verify runtime/regions and resulting revisions.",
+      "tests": [
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "FB-02",
+      "service": "Firestore / Storage",
+      "modules": [
+        "deploy",
+        "quality"
+      ],
+      "example": "examples/deploy-firebase-rules.json",
+      "adoption": "Product allow/deny emulator assertions, index readiness and data restore must be configured.",
+      "tests": [
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_quality.py",
+          "cases": [
+            "test_real_process_success_proves_executed_tests_and_coverage",
+            "test_nonzero_and_timeout_block",
+            "test_prior_report_cannot_be_reused",
+            "test_unknown_field_missing_required_check_tool_mismatch_fail",
+            "test_mutating_check_fails",
+            "test_reports_cannot_overwrite_inputs",
+            "test_paths_locks_and_credentials",
+            "test_ambient_credentials_not_passed",
+            "test_signing_credentials_only_reach_trusted_build",
+            "test_placeholder_commands_rejected",
+            "test_placeholder_npm_script_rejected",
+            "test_locked_install_contracts",
+            "test_junit_requires_executed_successful_cases",
+            "test_flutter_report_success_and_incomplete_failure"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "FB-03",
+      "service": "Hosting",
+      "modules": [
+        "deploy",
+        "health"
+      ],
+      "example": "examples/deploy-firebase-hosting.json",
+      "adoption": "Configure and verify the actual product account, targets and recovery procedure during adoption.",
+      "tests": [
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_health.py",
+          "cases": [
+            "test_real_http_checks_headers_body_json_and_records_only_hash",
+            "test_status_body_header_json_redirect_and_size_fail",
+            "test_private_target_dns_and_expected_address",
+            "test_dns_deadline_does_not_block_caller",
+            "test_retry_count_is_bounded",
+            "test_credentials_require_trusted_context_and_https",
+            "test_tls_verification_and_expiry",
+            "test_empty_unknown_and_secret_url_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "FB-04",
+      "service": "Remote Config / App Check / identity",
+      "modules": [
+        "deploy",
+        "quality"
+      ],
+      "example": "examples/deploy-config-snapshot.json",
+      "adoption": "Snapshot/diff detects declared config drift; preserve console ownership, app registration, attestation and existing identity choices.",
+      "tests": [
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_quality.py",
+          "cases": [
+            "test_real_process_success_proves_executed_tests_and_coverage",
+            "test_nonzero_and_timeout_block",
+            "test_prior_report_cannot_be_reused",
+            "test_unknown_field_missing_required_check_tool_mismatch_fail",
+            "test_mutating_check_fails",
+            "test_reports_cannot_overwrite_inputs",
+            "test_paths_locks_and_credentials",
+            "test_ambient_credentials_not_passed",
+            "test_signing_credentials_only_reach_trusted_build",
+            "test_placeholder_commands_rejected",
+            "test_placeholder_npm_script_rejected",
+            "test_locked_install_contracts",
+            "test_junit_requires_executed_successful_cases",
+            "test_flutter_report_success_and_incomplete_failure"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "FB-05",
+      "service": "FCM / scheduled integrations",
+      "modules": [
+        "quality",
+        "deploy"
+      ],
+      "example": "examples/deploy-runtime-checks.json",
+      "adoption": "Actual application assertions, data isolation and thresholds belong to the product. The library validates real command execution and nonempty test evidence; it does not certify runtime business behavior.",
+      "tests": [
+        {
+          "file": "tests/test_quality.py",
+          "cases": [
+            "test_real_process_success_proves_executed_tests_and_coverage",
+            "test_nonzero_and_timeout_block",
+            "test_prior_report_cannot_be_reused",
+            "test_unknown_field_missing_required_check_tool_mismatch_fail",
+            "test_mutating_check_fails",
+            "test_reports_cannot_overwrite_inputs",
+            "test_paths_locks_and_credentials",
+            "test_ambient_credentials_not_passed",
+            "test_signing_credentials_only_reach_trusted_build",
+            "test_placeholder_commands_rejected",
+            "test_placeholder_npm_script_rejected",
+            "test_locked_install_contracts",
+            "test_junit_requires_executed_successful_cases",
+            "test_flutter_report_success_and_incomplete_failure"
+          ]
+        },
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "FB-06",
+      "service": "Analytics / Performance / In-App Messaging",
+      "modules": [
+        "quality"
+      ],
+      "example": "examples/deploy-runtime-checks.json",
+      "adoption": "Product tests cover telemetry configuration, consent and sampling; library adoption does not enable collection.",
+      "tests": [
+        {
+          "file": "tests/test_quality.py",
+          "cases": [
+            "test_real_process_success_proves_executed_tests_and_coverage",
+            "test_nonzero_and_timeout_block",
+            "test_prior_report_cannot_be_reused",
+            "test_unknown_field_missing_required_check_tool_mismatch_fail",
+            "test_mutating_check_fails",
+            "test_reports_cannot_overwrite_inputs",
+            "test_paths_locks_and_credentials",
+            "test_ambient_credentials_not_passed",
+            "test_signing_credentials_only_reach_trusted_build",
+            "test_placeholder_commands_rejected",
+            "test_placeholder_npm_script_rejected",
+            "test_locked_install_contracts",
+            "test_junit_requires_executed_successful_cases",
+            "test_flutter_report_success_and_incomplete_failure"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "FB-07",
+      "service": "App Distribution",
+      "modules": [
+        "app_distribution"
+      ],
+      "example": "examples/stores-firebase-distribution.json",
+      "adoption": "Optional existing use only. Distribution follows required device and symbol evidence; provider does not expose a binary digest.",
+      "tests": [
+        {
+          "file": "tests/test_app_distribution.py",
+          "cases": [
+            "test_exact_apk_upload_then_verified_group_distribution",
+            "test_completed_retry_does_not_notify_groups_again",
+            "test_existing_version_requires_reconciliation_without_upload",
+            "test_mismatched_device_apk_fails_before_provider",
+            "test_mismatched_symbol_bytes_fail_before_provider",
+            "test_missing_required_symbol_check_refuses",
+            "test_malformed_cli_json_blocks_and_retry_does_not_upload_again",
+            "test_different_returned_app_blocks_distribution",
+            "test_notes_mismatch_blocks_distribution",
+            "test_lost_distribution_response_blocks_duplicate_notification",
+            "test_processing_timeout_pending_then_resume_without_upload"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "OBS-01",
+      "service": "Crashlytics",
+      "modules": [
+        "monitoring"
+      ],
+      "example": "examples/monitoring-crashlytics.json",
+      "adoption": "Match actual dSYMs/Dart/R8 outputs; native upload stays on the Apple host. Verify a readable test crash and consent behavior.",
+      "tests": [
+        {
+          "file": "tests/test_monitoring.py",
+          "cases": [
+            "test_native_requires_expected_ids_and_waits",
+            "test_changed_dsym_fails_before_tool",
+            "test_missing_native_binary_proof_fails",
+            "test_tool_version_pin_enforced_before_credentials",
+            "test_upload_failure_is_required_failure",
+            "test_release_identity_mismatch_blocks",
+            "test_source_map_debug_id_matches_injected_bundle",
+            "test_source_map_missing_injected_id_fails",
+            "test_r8_uses_aab_embedded_mapping_and_uuid",
+            "test_r8_wrong_mapping_fails",
+            "test_dart_compares_packaged_build_id",
+            "test_dart_different_build_id_blocks_upload",
+            "test_crashlytics_apple_script_hash_and_app_binding",
+            "test_crashlytics_dart_adc_is_env_not_command",
+            "test_crashlytics_gradle_only_upload_task_can_execute",
+            "test_crashlytics_gradle_rebuild_dependency_fails_dry_run",
+            "test_crashlytics_gradle_skipped_upload_fails",
+            "test_xcode_native_guard_requires_current_successful_apple_archive",
+            "test_deploy_marker_needs_successful_matching_receipt",
+            "test_uploaded_file_mutation_fails_postcheck"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "OBS-02",
+      "service": "Sentry",
+      "modules": [
+        "monitoring"
+      ],
+      "example": "examples/monitoring-sentry.json",
+      "adoption": "Keep existing Sentry enabled; verify matching symbols, source maps and environment separation without enabling extra telemetry.",
+      "tests": [
+        {
+          "file": "tests/test_monitoring.py",
+          "cases": [
+            "test_native_requires_expected_ids_and_waits",
+            "test_changed_dsym_fails_before_tool",
+            "test_missing_native_binary_proof_fails",
+            "test_tool_version_pin_enforced_before_credentials",
+            "test_upload_failure_is_required_failure",
+            "test_release_identity_mismatch_blocks",
+            "test_source_map_debug_id_matches_injected_bundle",
+            "test_source_map_missing_injected_id_fails",
+            "test_r8_uses_aab_embedded_mapping_and_uuid",
+            "test_r8_wrong_mapping_fails",
+            "test_dart_compares_packaged_build_id",
+            "test_dart_different_build_id_blocks_upload",
+            "test_crashlytics_apple_script_hash_and_app_binding",
+            "test_crashlytics_dart_adc_is_env_not_command",
+            "test_crashlytics_gradle_only_upload_task_can_execute",
+            "test_crashlytics_gradle_rebuild_dependency_fails_dry_run",
+            "test_crashlytics_gradle_skipped_upload_fails",
+            "test_xcode_native_guard_requires_current_successful_apple_archive",
+            "test_deploy_marker_needs_successful_matching_receipt",
+            "test_uploaded_file_mutation_fails_postcheck"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AWS-01",
+      "service": "CDK / CloudFormation",
+      "modules": [
+        "deploy",
+        "quality"
+      ],
+      "example": "examples/deploy-aws-cdk.json",
+      "adoption": "Configure and verify the actual product account, targets and recovery procedure during adoption.",
+      "tests": [
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_quality.py",
+          "cases": [
+            "test_real_process_success_proves_executed_tests_and_coverage",
+            "test_nonzero_and_timeout_block",
+            "test_prior_report_cannot_be_reused",
+            "test_unknown_field_missing_required_check_tool_mismatch_fail",
+            "test_mutating_check_fails",
+            "test_reports_cannot_overwrite_inputs",
+            "test_paths_locks_and_credentials",
+            "test_ambient_credentials_not_passed",
+            "test_signing_credentials_only_reach_trusted_build",
+            "test_placeholder_commands_rejected",
+            "test_placeholder_npm_script_rejected",
+            "test_locked_install_contracts",
+            "test_junit_requires_executed_successful_cases",
+            "test_flutter_report_success_and_incomplete_failure"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AWS-02",
+      "service": "IAM / STS / KMS / SSM Parameter Store",
+      "modules": [
+        "deploy",
+        "credentials"
+      ],
+      "example": "examples/deploy-aws-cdk.json",
+      "adoption": "Scope trust/IAM/KMS/SSM; configured runtime SSM overrides are protected. Never retain secret values.",
+      "tests": [
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_credentials.py",
+          "cases": [
+            "test_presence_report_never_contains_values",
+            "test_public_variable_cannot_declare_api_key",
+            "test_secret_files_private_and_removed_on_failure",
+            "test_invalid_blob_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AWS-03",
+      "service": "Cognito",
+      "modules": [
+        "quality",
+        "health"
+      ],
+      "example": "examples/deploy-runtime-checks.json",
+      "adoption": "Actual application assertions, data isolation and thresholds belong to the product. The library validates real command execution and nonempty test evidence; it does not certify runtime business behavior.",
+      "tests": [
+        {
+          "file": "tests/test_quality.py",
+          "cases": [
+            "test_real_process_success_proves_executed_tests_and_coverage",
+            "test_nonzero_and_timeout_block",
+            "test_prior_report_cannot_be_reused",
+            "test_unknown_field_missing_required_check_tool_mismatch_fail",
+            "test_mutating_check_fails",
+            "test_reports_cannot_overwrite_inputs",
+            "test_paths_locks_and_credentials",
+            "test_ambient_credentials_not_passed",
+            "test_signing_credentials_only_reach_trusted_build",
+            "test_placeholder_commands_rejected",
+            "test_placeholder_npm_script_rejected",
+            "test_locked_install_contracts",
+            "test_junit_requires_executed_successful_cases",
+            "test_flutter_report_success_and_incomplete_failure"
+          ]
+        },
+        {
+          "file": "tests/test_health.py",
+          "cases": [
+            "test_real_http_checks_headers_body_json_and_records_only_hash",
+            "test_status_body_header_json_redirect_and_size_fail",
+            "test_private_target_dns_and_expected_address",
+            "test_dns_deadline_does_not_block_caller",
+            "test_retry_count_is_bounded",
+            "test_credentials_require_trusted_context_and_https",
+            "test_tls_verification_and_expiry",
+            "test_empty_unknown_and_secret_url_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AWS-04",
+      "service": "API Gateway / Lambda",
+      "modules": [
+        "deploy",
+        "quality",
+        "health"
+      ],
+      "example": "examples/deploy-aws-cdk.json",
+      "adoption": "Actual application assertions, data isolation and thresholds belong to the product. The library validates real command execution and nonempty test evidence; it does not certify runtime business behavior.",
+      "tests": [
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_quality.py",
+          "cases": [
+            "test_real_process_success_proves_executed_tests_and_coverage",
+            "test_nonzero_and_timeout_block",
+            "test_prior_report_cannot_be_reused",
+            "test_unknown_field_missing_required_check_tool_mismatch_fail",
+            "test_mutating_check_fails",
+            "test_reports_cannot_overwrite_inputs",
+            "test_paths_locks_and_credentials",
+            "test_ambient_credentials_not_passed",
+            "test_signing_credentials_only_reach_trusted_build",
+            "test_placeholder_commands_rejected",
+            "test_placeholder_npm_script_rejected",
+            "test_locked_install_contracts",
+            "test_junit_requires_executed_successful_cases",
+            "test_flutter_report_success_and_incomplete_failure"
+          ]
+        },
+        {
+          "file": "tests/test_health.py",
+          "cases": [
+            "test_real_http_checks_headers_body_json_and_records_only_hash",
+            "test_status_body_header_json_redirect_and_size_fail",
+            "test_private_target_dns_and_expected_address",
+            "test_dns_deadline_does_not_block_caller",
+            "test_retry_count_is_bounded",
+            "test_credentials_require_trusted_context_and_https",
+            "test_tls_verification_and_expiry",
+            "test_empty_unknown_and_secret_url_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AWS-05",
+      "service": "DynamoDB / streams / backups",
+      "modules": [
+        "deploy",
+        "quality"
+      ],
+      "example": "examples/deploy-aws-cdk.json",
+      "adoption": "Configure protected tables, stream tests, PITR/retention and isolated restore tests. No unimplemented backup stack is implied.",
+      "tests": [
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_quality.py",
+          "cases": [
+            "test_real_process_success_proves_executed_tests_and_coverage",
+            "test_nonzero_and_timeout_block",
+            "test_prior_report_cannot_be_reused",
+            "test_unknown_field_missing_required_check_tool_mismatch_fail",
+            "test_mutating_check_fails",
+            "test_reports_cannot_overwrite_inputs",
+            "test_paths_locks_and_credentials",
+            "test_ambient_credentials_not_passed",
+            "test_signing_credentials_only_reach_trusted_build",
+            "test_placeholder_commands_rejected",
+            "test_placeholder_npm_script_rejected",
+            "test_locked_install_contracts",
+            "test_junit_requires_executed_successful_cases",
+            "test_flutter_report_success_and_incomplete_failure"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AWS-06",
+      "service": "S3 / CloudFront / CloudFront Functions",
+      "modules": [
+        "deploy",
+        "health"
+      ],
+      "example": "examples/deploy-aws-static.json",
+      "adoption": "Configure and verify the actual product account, targets and recovery procedure during adoption.",
+      "tests": [
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_health.py",
+          "cases": [
+            "test_real_http_checks_headers_body_json_and_records_only_hash",
+            "test_status_body_header_json_redirect_and_size_fail",
+            "test_private_target_dns_and_expected_address",
+            "test_dns_deadline_does_not_block_caller",
+            "test_retry_count_is_bounded",
+            "test_credentials_require_trusted_context_and_https",
+            "test_tls_verification_and_expiry",
+            "test_empty_unknown_and_secret_url_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AWS-07",
+      "service": "Route 53 / ACM",
+      "modules": [
+        "deploy",
+        "health"
+      ],
+      "example": "examples/deploy-health.json",
+      "adoption": "Declare owned DNS zones, certificate identity, expected resolution and TLS expiry; no registrar migration.",
+      "tests": [
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_health.py",
+          "cases": [
+            "test_real_http_checks_headers_body_json_and_records_only_hash",
+            "test_status_body_header_json_redirect_and_size_fail",
+            "test_private_target_dns_and_expected_address",
+            "test_dns_deadline_does_not_block_caller",
+            "test_retry_count_is_bounded",
+            "test_credentials_require_trusted_context_and_https",
+            "test_tls_verification_and_expiry",
+            "test_empty_unknown_and_secret_url_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AWS-08",
+      "service": "SES / EventBridge",
+      "modules": [
+        "quality",
+        "deploy"
+      ],
+      "example": "examples/deploy-runtime-checks.json",
+      "adoption": "Actual application assertions, data isolation and thresholds belong to the product. The library validates real command execution and nonempty test evidence; it does not certify runtime business behavior.",
+      "tests": [
+        {
+          "file": "tests/test_quality.py",
+          "cases": [
+            "test_real_process_success_proves_executed_tests_and_coverage",
+            "test_nonzero_and_timeout_block",
+            "test_prior_report_cannot_be_reused",
+            "test_unknown_field_missing_required_check_tool_mismatch_fail",
+            "test_mutating_check_fails",
+            "test_reports_cannot_overwrite_inputs",
+            "test_paths_locks_and_credentials",
+            "test_ambient_credentials_not_passed",
+            "test_signing_credentials_only_reach_trusted_build",
+            "test_placeholder_commands_rejected",
+            "test_placeholder_npm_script_rejected",
+            "test_locked_install_contracts",
+            "test_junit_requires_executed_successful_cases",
+            "test_flutter_report_success_and_incomplete_failure"
+          ]
+        },
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AWS-09",
+      "service": "CloudWatch / CloudTrail / SNS",
+      "modules": [
+        "deploy",
+        "health",
+        "quality"
+      ],
+      "example": "examples/deploy-config-snapshot.json",
+      "adoption": "Declare audit/retention/alarms; a live notification-delivery check belongs to authorized product adoption.",
+      "tests": [
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_health.py",
+          "cases": [
+            "test_real_http_checks_headers_body_json_and_records_only_hash",
+            "test_status_body_header_json_redirect_and_size_fail",
+            "test_private_target_dns_and_expected_address",
+            "test_dns_deadline_does_not_block_caller",
+            "test_retry_count_is_bounded",
+            "test_credentials_require_trusted_context_and_https",
+            "test_tls_verification_and_expiry",
+            "test_empty_unknown_and_secret_url_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_quality.py",
+          "cases": [
+            "test_real_process_success_proves_executed_tests_and_coverage",
+            "test_nonzero_and_timeout_block",
+            "test_prior_report_cannot_be_reused",
+            "test_unknown_field_missing_required_check_tool_mismatch_fail",
+            "test_mutating_check_fails",
+            "test_reports_cannot_overwrite_inputs",
+            "test_paths_locks_and_credentials",
+            "test_ambient_credentials_not_passed",
+            "test_signing_credentials_only_reach_trusted_build",
+            "test_placeholder_commands_rejected",
+            "test_placeholder_npm_script_rejected",
+            "test_locked_install_contracts",
+            "test_junit_requires_executed_successful_cases",
+            "test_flutter_report_success_and_incomplete_failure"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AWS-10",
+      "service": "Bedrock / inference profiles",
+      "modules": [
+        "ai",
+        "deploy"
+      ],
+      "example": "examples/ai-live.json",
+      "adoption": "Explicit model/inference profile, synthetic dataset and product gate; preserve runtime caps/off-switch. Paid inference is disabled by default.",
+      "tests": [
+        {
+          "file": "tests/test_ai.py",
+          "cases": [
+            "test_mock_executes_real_process_and_exports_only_aggregate",
+            "test_live_only_selected_secret_and_tool_validation_has_no_secret",
+            "test_no_live_optin_fails_before_tool",
+            "test_untrusted_context_fails_before_tool",
+            "test_missing_secret_reports_name_never_value",
+            "test_version_mismatch_prevents_eval",
+            "test_nonexact_version_rejected",
+            "test_incomplete_or_malformed_outputs_never_pass",
+            "test_failed_threshold_writes_failed_aggregate_then_blocks",
+            "test_product_threshold_can_accept_assertion_fail_exit",
+            "test_review_is_advisory_not_release_evidence",
+            "test_product_gate_is_real_and_blocks",
+            "test_product_runner_contract",
+            "test_postrun_usage_gate_is_not_treated_as_spend_cap",
+            "test_postrun_cost_gate",
+            "test_deadline_cleans_private_files",
+            "test_wrong_source_revision_blocks",
+            "test_changed_inputs_change_receipt_identity",
+            "test_unknown_fields_bad_types_paths_and_counts_rejected",
+            "test_mock_remote_or_executable_assertions_rejected",
+            "test_native_config_output_and_env_override_rejected",
+            "test_release_http_requires_revision_proof",
+            "test_provider_contracts_and_output_caps",
+            "test_provider_env_crossovers_and_missing_models_rejected",
+            "test_live_implicit_grader_is_rejected",
+            "test_old_receipt_is_removed_before_a_failed_execution",
+            "test_revision_probe_mismatch_and_redirect_safe"
+          ]
+        },
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AWS-11",
+      "service": "Cost visibility",
+      "modules": [
+        "quality"
+      ],
+      "example": "examples/deploy-runtime-checks.json",
+      "adoption": "Run product cost/configuration tests; receipts record execution duration. Actual spend, budget alerts and provider caps require account evidence.",
+      "tests": [
+        {
+          "file": "tests/test_quality.py",
+          "cases": [
+            "test_real_process_success_proves_executed_tests_and_coverage",
+            "test_nonzero_and_timeout_block",
+            "test_prior_report_cannot_be_reused",
+            "test_unknown_field_missing_required_check_tool_mismatch_fail",
+            "test_mutating_check_fails",
+            "test_reports_cannot_overwrite_inputs",
+            "test_paths_locks_and_credentials",
+            "test_ambient_credentials_not_passed",
+            "test_signing_credentials_only_reach_trusted_build",
+            "test_placeholder_commands_rejected",
+            "test_placeholder_npm_script_rejected",
+            "test_locked_install_contracts",
+            "test_junit_requires_executed_successful_cases",
+            "test_flutter_report_success_and_incomplete_failure"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "WEB-01",
+      "service": "WordPress / Hostinger",
+      "modules": [
+        "wordpress",
+        "health"
+      ],
+      "example": "examples/wordpress-package.json",
+      "adoption": "Deterministic tested ZIP plus installation/backup/cache/rollback handoff. Dashboard installation and full-site migration stay separate.",
+      "tests": [
+        {
+          "file": "tests/test_wordpress.py",
+          "cases": [
+            "test_deterministic_zip_and_manual_handoff",
+            "test_php_exact_version_and_syntax_check",
+            "test_missing_php_tool_rejected",
+            "test_invalid_html_rejected",
+            "test_secret_traversal_symlink_and_empty_file_lists_rejected",
+            "test_output_and_receipt_cannot_overwrite_sources"
+          ]
+        },
+        {
+          "file": "tests/test_health.py",
+          "cases": [
+            "test_real_http_checks_headers_body_json_and_records_only_hash",
+            "test_status_body_header_json_redirect_and_size_fail",
+            "test_private_target_dns_and_expected_address",
+            "test_dns_deadline_does_not_block_caller",
+            "test_retry_count_is_bounded",
+            "test_credentials_require_trusted_context_and_https",
+            "test_tls_verification_and_expiry",
+            "test_empty_unknown_and_secret_url_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "WEB-02",
+      "service": "Cloudflare / Workers / OpenNext / R2",
+      "modules": [
+        "deploy",
+        "health"
+      ],
+      "example": "examples/deploy-cloudflare-opennext.json",
+      "adoption": "Configure and verify the actual product account, targets and recovery procedure during adoption.",
+      "tests": [
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_health.py",
+          "cases": [
+            "test_real_http_checks_headers_body_json_and_records_only_hash",
+            "test_status_body_header_json_redirect_and_size_fail",
+            "test_private_target_dns_and_expected_address",
+            "test_dns_deadline_does_not_block_caller",
+            "test_retry_count_is_bounded",
+            "test_credentials_require_trusted_context_and_https",
+            "test_tls_verification_and_expiry",
+            "test_empty_unknown_and_secret_url_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "WEB-03",
+      "service": "Vercel / Netlify",
+      "modules": [
+        "deploy",
+        "health"
+      ],
+      "example": "examples/deploy-vercel-prebuilt.json",
+      "adoption": "Confirm actual host; prebuilt identity versus source rebuild is explicit. Netlify has its own companion example.",
+      "tests": [
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_health.py",
+          "cases": [
+            "test_real_http_checks_headers_body_json_and_records_only_hash",
+            "test_status_body_header_json_redirect_and_size_fail",
+            "test_private_target_dns_and_expected_address",
+            "test_dns_deadline_does_not_block_caller",
+            "test_retry_count_is_bounded",
+            "test_credentials_require_trusted_context_and_https",
+            "test_tls_verification_and_expiry",
+            "test_empty_unknown_and_secret_url_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "WEB-04",
+      "service": "Docker / GHCR / servers",
+      "modules": [
+        "containers"
+      ],
+      "example": "examples/containers/deploy.json",
+      "adoption": "Configure and verify the actual product account, targets and recovery procedure during adoption.",
+      "tests": [
+        {
+          "file": "tests/test_containers.py",
+          "cases": [
+            "test_build_saves_only_tested_image_and_hashes_archive",
+            "test_failure_never_creates_candidate",
+            "test_rejects_missing_tests_secret_build_args_and_path_escape",
+            "test_rejects_option_injection_and_mutable_deploy_images",
+            "test_publish_uses_archive_without_rebuild_and_verifies_remote",
+            "test_corrupt_archive_prevents_publish",
+            "test_untrusted_publish_never_contacts_registry",
+            "test_existing_different_tag_blocks_all_pushes",
+            "test_promotion_preserves_digest_and_handles_retry",
+            "test_changed_destination_blocks_promotion",
+            "test_registry_auth_stays_on_stdin_and_temporary_config_is_removed",
+            "test_manifest_contains_every_pinned_component_and_verifies_registry",
+            "test_deploy_stdin_transport_and_receipt_identity",
+            "test_remote_wrong_manifest_is_rejected",
+            "test_private_manifest_collection_requires_trust",
+            "test_source_mismatch_prevents_build",
+            "test_ssh_uses_verified_keys_and_fixed_bootstrap",
+            "test_deploy_records_backup_hash_and_verifies_running_image",
+            "test_backup_producer_failure_blocks_pull_migration_and_up",
+            "test_empty_backup_is_not_success",
+            "test_host_lock_blocks_concurrent_deployment",
+            "test_health_failure_preserves_previous_manifest",
+            "test_rollback_uses_preserved_previous_images_without_volume_removal",
+            "test_manual_database_recovery_prevents_automatic_image_rollback",
+            "test_changed_current_release_prevents_any_commands",
+            "test_last_healthy_recovery_after_failed_first_upgrade",
+            "test_tampered_preserved_files_block_rollback",
+            "test_remote_command_deadline_stops_process",
+            "test_public_runtime_env_and_remote_build_are_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "DATA-01",
+      "service": "PostgreSQL / PostGIS / migrations",
+      "modules": [
+        "containers",
+        "quality"
+      ],
+      "example": "examples/containers/rollback.json",
+      "adoption": "Product database/schema/migration/restore assertions remain explicit. Image rollback cannot reverse a destructive migration.",
+      "tests": [
+        {
+          "file": "tests/test_containers.py",
+          "cases": [
+            "test_build_saves_only_tested_image_and_hashes_archive",
+            "test_failure_never_creates_candidate",
+            "test_rejects_missing_tests_secret_build_args_and_path_escape",
+            "test_rejects_option_injection_and_mutable_deploy_images",
+            "test_publish_uses_archive_without_rebuild_and_verifies_remote",
+            "test_corrupt_archive_prevents_publish",
+            "test_untrusted_publish_never_contacts_registry",
+            "test_existing_different_tag_blocks_all_pushes",
+            "test_promotion_preserves_digest_and_handles_retry",
+            "test_changed_destination_blocks_promotion",
+            "test_registry_auth_stays_on_stdin_and_temporary_config_is_removed",
+            "test_manifest_contains_every_pinned_component_and_verifies_registry",
+            "test_deploy_stdin_transport_and_receipt_identity",
+            "test_remote_wrong_manifest_is_rejected",
+            "test_private_manifest_collection_requires_trust",
+            "test_source_mismatch_prevents_build",
+            "test_ssh_uses_verified_keys_and_fixed_bootstrap",
+            "test_deploy_records_backup_hash_and_verifies_running_image",
+            "test_backup_producer_failure_blocks_pull_migration_and_up",
+            "test_empty_backup_is_not_success",
+            "test_host_lock_blocks_concurrent_deployment",
+            "test_health_failure_preserves_previous_manifest",
+            "test_rollback_uses_preserved_previous_images_without_volume_removal",
+            "test_manual_database_recovery_prevents_automatic_image_rollback",
+            "test_changed_current_release_prevents_any_commands",
+            "test_last_healthy_recovery_after_failed_first_upgrade",
+            "test_tampered_preserved_files_block_rollback",
+            "test_remote_command_deadline_stops_process",
+            "test_public_runtime_env_and_remote_build_are_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_quality.py",
+          "cases": [
+            "test_real_process_success_proves_executed_tests_and_coverage",
+            "test_nonzero_and_timeout_block",
+            "test_prior_report_cannot_be_reused",
+            "test_unknown_field_missing_required_check_tool_mismatch_fail",
+            "test_mutating_check_fails",
+            "test_reports_cannot_overwrite_inputs",
+            "test_paths_locks_and_credentials",
+            "test_ambient_credentials_not_passed",
+            "test_signing_credentials_only_reach_trusted_build",
+            "test_placeholder_commands_rejected",
+            "test_placeholder_npm_script_rejected",
+            "test_locked_install_contracts",
+            "test_junit_requires_executed_successful_cases",
+            "test_flutter_report_success_and_incomplete_failure"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "EXT-01",
+      "service": "External APIs and scheduled business work",
+      "modules": [
+        "quality"
+      ],
+      "example": "examples/deploy-runtime-checks.json",
+      "adoption": "Use mock/isolated external integrations; do not send customer messages, publish content or run business schedules as CI.",
+      "tests": [
+        {
+          "file": "tests/test_quality.py",
+          "cases": [
+            "test_real_process_success_proves_executed_tests_and_coverage",
+            "test_nonzero_and_timeout_block",
+            "test_prior_report_cannot_be_reused",
+            "test_unknown_field_missing_required_check_tool_mismatch_fail",
+            "test_mutating_check_fails",
+            "test_reports_cannot_overwrite_inputs",
+            "test_paths_locks_and_credentials",
+            "test_ambient_credentials_not_passed",
+            "test_signing_credentials_only_reach_trusted_build",
+            "test_placeholder_commands_rejected",
+            "test_placeholder_npm_script_rejected",
+            "test_locked_install_contracts",
+            "test_junit_requires_executed_successful_cases",
+            "test_flutter_report_success_and_incomplete_failure"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "REL-01",
+      "service": "Release notes",
+      "modules": [
+        "release"
+      ],
+      "example": "examples/release-notes.json",
+      "adoption": "Author meaningful audience-specific summaries, required sections, locales and destination limits.",
+      "tests": [
+        {
+          "file": "tests/test_release.py",
+          "cases": [
+            "test_locales_required_sections_and_limits_are_enforced",
+            "test_draft_uses_actual_git_boundaries_and_merged_pull_requests",
+            "test_public_notes_cannot_include_internal_section",
+            "test_draft_deduplicates_promotions_and_requires_changes",
+            "test_draft_upload_resume_publish_and_rerun_are_idempotent",
+            "test_interrupted_upload_stays_draft_and_zero_byte_starter_is_recovered",
+            "test_published_assets_are_never_replaced_or_repaired",
+            "test_corrupt_asset_unknown_asset_or_different_notes_fail_without_mutation",
+            "test_tag_current_checkout_expected_library_and_toolchain_are_required",
+            "test_candidate_artifact_check_and_source_mutation_block_before_api",
+            "test_renamed_or_duplicate_asset_names_fail_before_remote_writes",
+            "test_remote_inventory_or_publish_state_cannot_claim_success",
+            "test_tag_move_during_upload_blocks_publication",
+            "test_asset_mutation_between_verification_and_upload_is_detected",
+            "test_draft_lookup_and_asset_inventory_paginate",
+            "test_more_than_one_page_of_assets_is_verified_on_rerun",
+            "test_annotated_tag_chain_and_malformed_remote_states",
+            "test_ambiguous_drafts_missing_token_and_unsafe_event_fail"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "REL-02",
+      "service": "Release publication",
+      "modules": [
+        "release",
+        "evidence",
+        "artifacts",
+        "stores"
+      ],
+      "example": "examples/release-notes.json",
+      "adoption": "Owner selects promotion; GitHub publication, tester distribution, review and public store availability are different states.",
+      "tests": [
+        {
+          "file": "tests/test_release.py",
+          "cases": [
+            "test_locales_required_sections_and_limits_are_enforced",
+            "test_draft_uses_actual_git_boundaries_and_merged_pull_requests",
+            "test_public_notes_cannot_include_internal_section",
+            "test_draft_deduplicates_promotions_and_requires_changes",
+            "test_draft_upload_resume_publish_and_rerun_are_idempotent",
+            "test_interrupted_upload_stays_draft_and_zero_byte_starter_is_recovered",
+            "test_published_assets_are_never_replaced_or_repaired",
+            "test_corrupt_asset_unknown_asset_or_different_notes_fail_without_mutation",
+            "test_tag_current_checkout_expected_library_and_toolchain_are_required",
+            "test_candidate_artifact_check_and_source_mutation_block_before_api",
+            "test_renamed_or_duplicate_asset_names_fail_before_remote_writes",
+            "test_remote_inventory_or_publish_state_cannot_claim_success",
+            "test_tag_move_during_upload_blocks_publication",
+            "test_asset_mutation_between_verification_and_upload_is_detected",
+            "test_draft_lookup_and_asset_inventory_paginate",
+            "test_more_than_one_page_of_assets_is_verified_on_rerun",
+            "test_annotated_tag_chain_and_malformed_remote_states",
+            "test_ambiguous_drafts_missing_token_and_unsafe_event_fail"
+          ]
+        },
+        {
+          "file": "tests/test_evidence.py",
+          "cases": [
+            "test_source_attribution_and_check_contract_cannot_be_relabelled",
+            "test_authenticated_coverage_bytes_are_verified",
+            "test_changed_artifact_and_input_fail",
+            "test_changed_toolchain_fails",
+            "test_download_verifies_provenance_digest_and_archive"
+          ]
+        },
+        {
+          "file": "tests/test_artifacts.py",
+          "cases": [
+            "test_roundtrip_verifies_origin_and_preserves_tracked_source",
+            "test_package_fresh_outside_workspace_only",
+            "test_package_rejects_changed_inputs",
+            "test_secret_names_and_content_rejected",
+            "test_symlink_source_rejected",
+            "test_wrong_run_source_workflow_fork_attempt_event_fail",
+            "test_stale_previous_attempt_artifact_rejected",
+            "test_missing_or_duplicate_artifact_rejected",
+            "test_download_digest_mismatch_rejected",
+            "test_unexpected_file_rejected_even_in_authenticated_archive",
+            "test_zip_traversal_and_symlink_rejected",
+            "test_duplicate_zip_names_rejected",
+            "test_existing_conflict_does_not_partially_import",
+            "test_existing_symlink_rejected_even_identical_content",
+            "test_candidate_identity_selection_mismatch_rejected",
+            "test_source_tree_mismatch_refuses_import",
+            "test_package_file_and_byte_limits",
+            "test_same_running_workflow_accepts_completed_producer",
+            "test_same_running_workflow_rejects_running_failed_or_duplicate_producer",
+            "test_same_running_workflow_requires_explicit_producer",
+            "test_foreign_in_progress_run_is_never_accepted",
+            "test_stream_download_does_not_forward_token_to_signed_url"
+          ]
+        },
+        {
+          "file": "tests/test_stores.py",
+          "cases": [
+            "test_upload_exact_bytes_and_no_cancellation_default",
+            "test_completed_receipt_retry_does_not_republish",
+            "test_existing_bundle_reuses_matching_hash",
+            "test_conflicting_existing_version_fails",
+            "test_track_drift_fails_before_upload",
+            "test_promote_existing_bundle_without_upload",
+            "test_only_documented_review_rejection_allows_defer",
+            "test_unrelated_400_does_not_fallback",
+            "test_uncertain_commit_retry_refuses",
+            "test_draft_remains_pending",
+            "test_changed_artifact_and_receipt_fail",
+            "test_inspection_not_bound_fails",
+            "test_source_selection_mismatch_fails",
+            "test_untrusted_ref_and_unknown_config_fail",
+            "test_apple_group_assignment_is_idempotent",
+            "test_apple_wrong_app_fails",
+            "test_apple_processing_timeout_is_pending",
+            "test_apple_failed_processing_blocks",
+            "test_apple_build_selection_conflict_blocks",
+            "test_apple_submission_uses_review_submission_api",
+            "test_apple_active_submission_requires_explicit_id",
+            "test_apple_status_only_passes_downloadable_release",
+            "test_apple_beta_notes_create_and_idempotent_retry",
+            "test_apple_beta_notes_drift_blocks_all_locale_writes",
+            "test_apple_beta_notes_patch_matching_existing_digest",
+            "test_source_tree_in_candidate_identity_cannot_change",
+            "test_wrong_check_source_fails_even_with_rehashed_identity",
+            "test_state_cannot_overwrite_candidate",
+            "test_aab_jar_signer_must_match",
+            "test_api_headers_secret_not_url_and_redirects_disabled"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "SEC-01",
+      "service": "Dependencies",
+      "modules": [
+        "security"
+      ],
+      "example": "examples/security-npm.json",
+      "adoption": "Declare applicable ecosystems and refreshed advisories; Dependabot update policy is product-owned.",
+      "tests": [
+        {
+          "file": "tests/test_security.py",
+          "cases": [
+            "test_duplicate_findings_keep_highest_severity_in_either_order",
+            "test_duplicate_findings_across_real_scanner_processes_keep_blocker",
+            "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
+            "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
+            "test_stale_actual_database_is_refused",
+            "test_codeql_cvss_severity_overrides_sarif_display_level",
+            "test_stale_security_receipt_cannot_be_reused",
+            "test_secret_value_never_leaves_normalizer",
+            "test_error_schema_is_not_clean_scan",
+            "test_unknown_severity_blocks_and_exceptions_expire",
+            "test_actual_command_failure_cannot_return_clean"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "SEC-02",
+      "service": "Source-code security",
+      "modules": [
+        "security"
+      ],
+      "example": "examples/security-codeql.json",
+      "adoption": "CodeQL supports selected Linux languages only; configure language-appropriate alternatives and entitlement. No Dart/PHP coverage claim.",
+      "tests": [
+        {
+          "file": "tests/test_security.py",
+          "cases": [
+            "test_duplicate_findings_keep_highest_severity_in_either_order",
+            "test_duplicate_findings_across_real_scanner_processes_keep_blocker",
+            "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
+            "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
+            "test_stale_actual_database_is_refused",
+            "test_codeql_cvss_severity_overrides_sarif_display_level",
+            "test_stale_security_receipt_cannot_be_reused",
+            "test_secret_value_never_leaves_normalizer",
+            "test_error_schema_is_not_clean_scan",
+            "test_unknown_severity_blocks_and_exceptions_expire",
+            "test_actual_command_failure_cannot_return_clean"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "SEC-03",
+      "service": "Secrets",
+      "modules": [
+        "security",
+        "credentials"
+      ],
+      "example": "examples/security-gitleaks.json",
+      "adoption": "CI secret scanning is distinct from push protection. Verify entitlement and credential revocation procedure.",
+      "tests": [
+        {
+          "file": "tests/test_security.py",
+          "cases": [
+            "test_duplicate_findings_keep_highest_severity_in_either_order",
+            "test_duplicate_findings_across_real_scanner_processes_keep_blocker",
+            "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
+            "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
+            "test_stale_actual_database_is_refused",
+            "test_codeql_cvss_severity_overrides_sarif_display_level",
+            "test_stale_security_receipt_cannot_be_reused",
+            "test_secret_value_never_leaves_normalizer",
+            "test_error_schema_is_not_clean_scan",
+            "test_unknown_severity_blocks_and_exceptions_expire",
+            "test_actual_command_failure_cannot_return_clean"
+          ]
+        },
+        {
+          "file": "tests/test_credentials.py",
+          "cases": [
+            "test_presence_report_never_contains_values",
+            "test_public_variable_cannot_declare_api_key",
+            "test_secret_files_private_and_removed_on_failure",
+            "test_invalid_blob_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "SEC-04",
+      "service": "Infrastructure, containers and Actions",
+      "modules": [
+        "security",
+        "deploy",
+        "containers"
+      ],
+      "example": "examples/security-trivy.json",
+      "adoption": "Configure and verify the actual product account, targets and recovery procedure during adoption.",
+      "tests": [
+        {
+          "file": "tests/test_security.py",
+          "cases": [
+            "test_duplicate_findings_keep_highest_severity_in_either_order",
+            "test_duplicate_findings_across_real_scanner_processes_keep_blocker",
+            "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
+            "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
+            "test_stale_actual_database_is_refused",
+            "test_codeql_cvss_severity_overrides_sarif_display_level",
+            "test_stale_security_receipt_cannot_be_reused",
+            "test_secret_value_never_leaves_normalizer",
+            "test_error_schema_is_not_clean_scan",
+            "test_unknown_severity_blocks_and_exceptions_expire",
+            "test_actual_command_failure_cannot_return_clean"
+          ]
+        },
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_containers.py",
+          "cases": [
+            "test_build_saves_only_tested_image_and_hashes_archive",
+            "test_failure_never_creates_candidate",
+            "test_rejects_missing_tests_secret_build_args_and_path_escape",
+            "test_rejects_option_injection_and_mutable_deploy_images",
+            "test_publish_uses_archive_without_rebuild_and_verifies_remote",
+            "test_corrupt_archive_prevents_publish",
+            "test_untrusted_publish_never_contacts_registry",
+            "test_existing_different_tag_blocks_all_pushes",
+            "test_promotion_preserves_digest_and_handles_retry",
+            "test_changed_destination_blocks_promotion",
+            "test_registry_auth_stays_on_stdin_and_temporary_config_is_removed",
+            "test_manifest_contains_every_pinned_component_and_verifies_registry",
+            "test_deploy_stdin_transport_and_receipt_identity",
+            "test_remote_wrong_manifest_is_rejected",
+            "test_private_manifest_collection_requires_trust",
+            "test_source_mismatch_prevents_build",
+            "test_ssh_uses_verified_keys_and_fixed_bootstrap",
+            "test_deploy_records_backup_hash_and_verifies_running_image",
+            "test_backup_producer_failure_blocks_pull_migration_and_up",
+            "test_empty_backup_is_not_success",
+            "test_host_lock_blocks_concurrent_deployment",
+            "test_health_failure_preserves_previous_manifest",
+            "test_rollback_uses_preserved_previous_images_without_volume_removal",
+            "test_manual_database_recovery_prevents_automatic_image_rollback",
+            "test_changed_current_release_prevents_any_commands",
+            "test_last_healthy_recovery_after_failed_first_upgrade",
+            "test_tampered_preserved_files_block_rollback",
+            "test_remote_command_deadline_stops_process",
+            "test_public_runtime_env_and_remote_build_are_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "SEC-05",
+      "service": "Policy, findings and reporting",
+      "modules": [
+        "security"
+      ],
+      "example": "examples/security-semgrep.json",
+      "adoption": "Explicit severity/freshness, observed scanner rules/DB and scoped expiring exceptions; verify private reporting contact and GitHub entitlement.",
+      "tests": [
+        {
+          "file": "tests/test_security.py",
+          "cases": [
+            "test_duplicate_findings_keep_highest_severity_in_either_order",
+            "test_duplicate_findings_across_real_scanner_processes_keep_blocker",
+            "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
+            "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
+            "test_stale_actual_database_is_refused",
+            "test_codeql_cvss_severity_overrides_sarif_display_level",
+            "test_stale_security_receipt_cannot_be_reused",
+            "test_secret_value_never_leaves_normalizer",
+            "test_error_schema_is_not_clean_scan",
+            "test_unknown_severity_blocks_and_exceptions_expire",
+            "test_actual_command_failure_cannot_return_clean"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "DOC-01",
+      "service": "Documentation checks",
+      "modules": [
+        "docs"
+      ],
+      "example": "examples/docs.json",
+      "adoption": "Versioned product facts/generators and documentation changes accompany behavior changes.",
+      "tests": [
+        {
+          "file": "tests/test_docs.py",
+          "cases": [
+            "test_local_links_and_duplicate_heading_anchors",
+            "test_reference_html_and_escaped_filename_links",
+            "test_code_fences_and_inline_examples_are_not_links",
+            "test_missing_link_anchor_and_escape_fail",
+            "test_broken_symlink_escape_fails",
+            "test_declared_generator_drift_and_failure",
+            "test_current_generator_passes",
+            "test_no_match_unknown_fields_missing_required_and_output_collision",
+            "test_unicode_anchor_and_heading_link"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "DOC-02",
+      "service": "Documentation navigation",
+      "modules": [
+        "docs"
+      ],
+      "example": "examples/docs.json",
+      "adoption": "README/index/recovery templates provide navigation. Wiki enablement and audience are optional product choices.",
+      "tests": [
+        {
+          "file": "tests/test_docs.py",
+          "cases": [
+            "test_local_links_and_duplicate_heading_anchors",
+            "test_reference_html_and_escaped_filename_links",
+            "test_code_fences_and_inline_examples_are_not_links",
+            "test_missing_link_anchor_and_escape_fail",
+            "test_broken_symlink_escape_fails",
+            "test_declared_generator_drift_and_failure",
+            "test_current_generator_passes",
+            "test_no_match_unknown_fields_missing_required_and_output_collision",
+            "test_unicode_anchor_and_heading_link"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "CFG-01",
+      "service": "Secrets and variables",
+      "modules": [
+        "credentials"
+      ],
+      "example": "examples/credentials-android.json",
+      "adoption": "Configure and verify the actual product account, targets and recovery procedure during adoption.",
+      "tests": [
+        {
+          "file": "tests/test_credentials.py",
+          "cases": [
+            "test_presence_report_never_contains_values",
+            "test_public_variable_cannot_declare_api_key",
+            "test_secret_files_private_and_removed_on_failure",
+            "test_invalid_blob_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "CFG-02",
+      "service": "Authentication and lifecycle",
+      "modules": [
+        "auth",
+        "credentials"
+      ],
+      "example": "examples/credentials-apple.json",
+      "adoption": "Use existing secrets or scoped federation; verify expiry/rotation/revocation and signing identity ownership.",
+      "tests": [
+        {
+          "file": "tests/test_auth.py",
+          "cases": [
+            "test_existing_key_produces_ten_minute_es256_token"
+          ]
+        },
+        {
+          "file": "tests/test_credentials.py",
+          "cases": [
+            "test_presence_report_never_contains_values",
+            "test_public_variable_cannot_declare_api_key",
+            "test_secret_files_private_and_removed_on_failure",
+            "test_invalid_blob_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "CFG-03",
+      "service": "Environment configuration",
+      "modules": [
+        "deploy",
+        "credentials",
+        "plan"
+      ],
+      "example": "examples/deploy-aws-static.json",
+      "adoption": "Configure and verify the actual product account, targets and recovery procedure during adoption.",
+      "tests": [
+        {
+          "file": "tests/test_deploy.py",
+          "cases": [
+            "test_cdk_inspects_real_change_set_before_execution_and_preserves_runtime",
+            "test_protected_replacement_nested_and_unknown_changes_fail_before_execution",
+            "test_runtime_parameter_cannot_become_stack_owned",
+            "test_cdk_validate_noop_rollback_and_paginated_failures",
+            "test_untrusted_environment_hash_credentials_and_version_fail",
+            "test_static_prebuilt_sync_and_invalidation_wait",
+            "test_emulator_exec_requires_fresh_executed_tests_and_demo_project",
+            "test_function_rebuild_exception_and_revision",
+            "test_hosting_uses_live_channel_and_rules_match_actual_bytes",
+            "test_firestore_indexes_and_field_override_verify_readiness",
+            "test_worker_prebuilt_identity_and_promotion",
+            "test_vercel_prebuilt_and_source_and_rest_identity",
+            "test_netlify_prebuilt_no_build_and_explicit_source_build",
+            "test_snapshot_retains_hash_only_and_checks_declared_baseline",
+            "test_cli_failure_malformed_response_and_input_mutation_fail",
+            "test_runtime_override_change_after_execute_blocks_release",
+            "test_old_emulator_report_cannot_pass_without_new_execution",
+            "test_jsonc_and_unknown_contract_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_credentials.py",
+          "cases": [
+            "test_presence_report_never_contains_values",
+            "test_public_variable_cannot_declare_api_key",
+            "test_secret_files_private_and_removed_on_failure",
+            "test_invalid_blob_rejected"
+          ]
+        },
+        {
+          "file": "tests/test_plan.py",
+          "cases": [
+            "test_feature_checks_only_changed_product",
+            "test_promotion_verifies_and_does_not_request_duplicate_checks",
+            "test_invalid_route_and_privileged_pr_event_fail"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AI-01",
+      "service": "Deterministic AI tests",
+      "modules": [
+        "ai"
+      ],
+      "example": "examples/ai-mock.json",
+      "adoption": "Configure and verify the actual product account, targets and recovery procedure during adoption.",
+      "tests": [
+        {
+          "file": "tests/test_ai.py",
+          "cases": [
+            "test_mock_executes_real_process_and_exports_only_aggregate",
+            "test_live_only_selected_secret_and_tool_validation_has_no_secret",
+            "test_no_live_optin_fails_before_tool",
+            "test_untrusted_context_fails_before_tool",
+            "test_missing_secret_reports_name_never_value",
+            "test_version_mismatch_prevents_eval",
+            "test_nonexact_version_rejected",
+            "test_incomplete_or_malformed_outputs_never_pass",
+            "test_failed_threshold_writes_failed_aggregate_then_blocks",
+            "test_product_threshold_can_accept_assertion_fail_exit",
+            "test_review_is_advisory_not_release_evidence",
+            "test_product_gate_is_real_and_blocks",
+            "test_product_runner_contract",
+            "test_postrun_usage_gate_is_not_treated_as_spend_cap",
+            "test_postrun_cost_gate",
+            "test_deadline_cleans_private_files",
+            "test_wrong_source_revision_blocks",
+            "test_changed_inputs_change_receipt_identity",
+            "test_unknown_fields_bad_types_paths_and_counts_rejected",
+            "test_mock_remote_or_executable_assertions_rejected",
+            "test_native_config_output_and_env_override_rejected",
+            "test_release_http_requires_revision_proof",
+            "test_provider_contracts_and_output_caps",
+            "test_provider_env_crossovers_and_missing_models_rejected",
+            "test_live_implicit_grader_is_rejected",
+            "test_old_receipt_is_removed_before_a_failed_execution",
+            "test_revision_probe_mismatch_and_redirect_safe"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AI-02",
+      "service": "Live evaluations",
+      "modules": [
+        "ai"
+      ],
+      "example": "examples/ai-live.json",
+      "adoption": "Explicit providers/models/judges, endpoint revision and meaningful product assertions; no paid calls in library verification.",
+      "tests": [
+        {
+          "file": "tests/test_ai.py",
+          "cases": [
+            "test_mock_executes_real_process_and_exports_only_aggregate",
+            "test_live_only_selected_secret_and_tool_validation_has_no_secret",
+            "test_no_live_optin_fails_before_tool",
+            "test_untrusted_context_fails_before_tool",
+            "test_missing_secret_reports_name_never_value",
+            "test_version_mismatch_prevents_eval",
+            "test_nonexact_version_rejected",
+            "test_incomplete_or_malformed_outputs_never_pass",
+            "test_failed_threshold_writes_failed_aggregate_then_blocks",
+            "test_product_threshold_can_accept_assertion_fail_exit",
+            "test_review_is_advisory_not_release_evidence",
+            "test_product_gate_is_real_and_blocks",
+            "test_product_runner_contract",
+            "test_postrun_usage_gate_is_not_treated_as_spend_cap",
+            "test_postrun_cost_gate",
+            "test_deadline_cleans_private_files",
+            "test_wrong_source_revision_blocks",
+            "test_changed_inputs_change_receipt_identity",
+            "test_unknown_fields_bad_types_paths_and_counts_rejected",
+            "test_mock_remote_or_executable_assertions_rejected",
+            "test_native_config_output_and_env_override_rejected",
+            "test_release_http_requires_revision_proof",
+            "test_provider_contracts_and_output_caps",
+            "test_provider_env_crossovers_and_missing_models_rejected",
+            "test_live_implicit_grader_is_rejected",
+            "test_old_receipt_is_removed_before_a_failed_execution",
+            "test_revision_probe_mismatch_and_redirect_safe"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AI-03",
+      "service": "Budgets and privacy",
+      "modules": [
+        "ai"
+      ],
+      "example": "examples/ai-live.json",
+      "adoption": "Concurrency/retry/token/time bounds are enforced where controlled; post-run usage gates are not a hard currency cap.",
+      "tests": [
+        {
+          "file": "tests/test_ai.py",
+          "cases": [
+            "test_mock_executes_real_process_and_exports_only_aggregate",
+            "test_live_only_selected_secret_and_tool_validation_has_no_secret",
+            "test_no_live_optin_fails_before_tool",
+            "test_untrusted_context_fails_before_tool",
+            "test_missing_secret_reports_name_never_value",
+            "test_version_mismatch_prevents_eval",
+            "test_nonexact_version_rejected",
+            "test_incomplete_or_malformed_outputs_never_pass",
+            "test_failed_threshold_writes_failed_aggregate_then_blocks",
+            "test_product_threshold_can_accept_assertion_fail_exit",
+            "test_review_is_advisory_not_release_evidence",
+            "test_product_gate_is_real_and_blocks",
+            "test_product_runner_contract",
+            "test_postrun_usage_gate_is_not_treated_as_spend_cap",
+            "test_postrun_cost_gate",
+            "test_deadline_cleans_private_files",
+            "test_wrong_source_revision_blocks",
+            "test_changed_inputs_change_receipt_identity",
+            "test_unknown_fields_bad_types_paths_and_counts_rejected",
+            "test_mock_remote_or_executable_assertions_rejected",
+            "test_native_config_output_and_env_override_rejected",
+            "test_release_http_requires_revision_proof",
+            "test_provider_contracts_and_output_caps",
+            "test_provider_env_crossovers_and_missing_models_rejected",
+            "test_live_implicit_grader_is_rejected",
+            "test_old_receipt_is_removed_before_a_failed_execution",
+            "test_revision_probe_mismatch_and_redirect_safe"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "AI-04",
+      "service": "Optional AI review",
+      "modules": [
+        "ai"
+      ],
+      "example": "examples/ai-live.json",
+      "adoption": "Review mode is advisory and cannot satisfy release evidence. No automatic comments, issues or merges.",
+      "tests": [
+        {
+          "file": "tests/test_ai.py",
+          "cases": [
+            "test_mock_executes_real_process_and_exports_only_aggregate",
+            "test_live_only_selected_secret_and_tool_validation_has_no_secret",
+            "test_no_live_optin_fails_before_tool",
+            "test_untrusted_context_fails_before_tool",
+            "test_missing_secret_reports_name_never_value",
+            "test_version_mismatch_prevents_eval",
+            "test_nonexact_version_rejected",
+            "test_incomplete_or_malformed_outputs_never_pass",
+            "test_failed_threshold_writes_failed_aggregate_then_blocks",
+            "test_product_threshold_can_accept_assertion_fail_exit",
+            "test_review_is_advisory_not_release_evidence",
+            "test_product_gate_is_real_and_blocks",
+            "test_product_runner_contract",
+            "test_postrun_usage_gate_is_not_treated_as_spend_cap",
+            "test_postrun_cost_gate",
+            "test_deadline_cleans_private_files",
+            "test_wrong_source_revision_blocks",
+            "test_changed_inputs_change_receipt_identity",
+            "test_unknown_fields_bad_types_paths_and_counts_rejected",
+            "test_mock_remote_or_executable_assertions_rejected",
+            "test_native_config_output_and_env_override_rejected",
+            "test_release_http_requires_revision_proof",
+            "test_provider_contracts_and_output_caps",
+            "test_provider_env_crossovers_and_missing_models_rejected",
+            "test_live_implicit_grader_is_rejected",
+            "test_old_receipt_is_removed_before_a_failed_execution",
+            "test_revision_probe_mismatch_and_redirect_safe"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    },
+    {
+      "id": "SRV-01",
+      "service": "Hetzner and Compose servers",
+      "modules": [
+        "containers"
+      ],
+      "example": "examples/containers/deploy.json",
+      "adoption": "Verify actual host, SSH keys, immutable components, backup and restore. No provisioning or data-location change is implied.",
+      "tests": [
+        {
+          "file": "tests/test_containers.py",
+          "cases": [
+            "test_build_saves_only_tested_image_and_hashes_archive",
+            "test_failure_never_creates_candidate",
+            "test_rejects_missing_tests_secret_build_args_and_path_escape",
+            "test_rejects_option_injection_and_mutable_deploy_images",
+            "test_publish_uses_archive_without_rebuild_and_verifies_remote",
+            "test_corrupt_archive_prevents_publish",
+            "test_untrusted_publish_never_contacts_registry",
+            "test_existing_different_tag_blocks_all_pushes",
+            "test_promotion_preserves_digest_and_handles_retry",
+            "test_changed_destination_blocks_promotion",
+            "test_registry_auth_stays_on_stdin_and_temporary_config_is_removed",
+            "test_manifest_contains_every_pinned_component_and_verifies_registry",
+            "test_deploy_stdin_transport_and_receipt_identity",
+            "test_remote_wrong_manifest_is_rejected",
+            "test_private_manifest_collection_requires_trust",
+            "test_source_mismatch_prevents_build",
+            "test_ssh_uses_verified_keys_and_fixed_bootstrap",
+            "test_deploy_records_backup_hash_and_verifies_running_image",
+            "test_backup_producer_failure_blocks_pull_migration_and_up",
+            "test_empty_backup_is_not_success",
+            "test_host_lock_blocks_concurrent_deployment",
+            "test_health_failure_preserves_previous_manifest",
+            "test_rollback_uses_preserved_previous_images_without_volume_removal",
+            "test_manual_database_recovery_prevents_automatic_image_rollback",
+            "test_changed_current_release_prevents_any_commands",
+            "test_last_healthy_recovery_after_failed_first_upgrade",
+            "test_tampered_preserved_files_block_rollback",
+            "test_remote_command_deadline_stops_process",
+            "test_public_runtime_env_and_remote_build_are_rejected"
+          ]
+        }
+      ],
+      "verification": "contract fixtures; live product proof at adoption"
+    }
+  ]
+}

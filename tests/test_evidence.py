@@ -74,6 +74,14 @@ class EvidenceTests(unittest.TestCase):
             with self.assertRaises(PipelineError):
                 verify(candidate, root, expected_toolchain={"compiler": "9.9.9"})
 
+    def test_forged_receipt_cannot_replace_trusted_step_digest(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d);candidate=self.make_candidate(root)
+            config={k:candidate[k] for k in ("schema","product","version","build","library_sha","toolchain")}
+            config.update(inputs=list(candidate["inputs"]),artifacts=list(candidate["artifacts"]),checks=[{"path":p,**r} for p,r in candidate["check_requirements"].items()])
+            with self.assertRaisesRegex(PipelineError,"trusted workflow"):
+                create(config,root,expected_checks={"checks.json":"0"*64})
+
     def test_download_verifies_provenance_digest_and_archive(self):
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as archive:

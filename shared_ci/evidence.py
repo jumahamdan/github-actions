@@ -62,7 +62,7 @@ def file_records(root, paths):
     return records
 
 
-def create(config, root, *, source_root=None):
+def create(config, root, *, source_root=None, expected_checks=None):
     strict_keys(config, {"schema", "product", "version", "build", "library_sha", "inputs", "artifacts", "toolchain", "checks"},
                 {"schema", "product", "version", "build", "library_sha", "inputs", "artifacts", "toolchain", "checks"})
     if config["schema"] != 1 or not SHA.fullmatch(config["library_sha"]):
@@ -85,6 +85,8 @@ def create(config, root, *, source_root=None):
             raise PipelineError("Candidate contains a missing or unsuccessful check")
         checks[relative] = sha256_file(confined_path(root, relative))
         requirements[relative] = {k: entry[k] for k in ("kind", "config")}
+    if expected_checks is not None and (not isinstance(expected_checks, dict) or expected_checks != checks):
+        raise PipelineError("Candidate check hashes do not match the trusted workflow step outputs")
     source_root = Path(source_root or root).resolve()
     if run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=source_root).stdout.strip():
         raise PipelineError("Candidate source has uncommitted tracked changes")

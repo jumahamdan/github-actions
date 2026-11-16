@@ -25,6 +25,15 @@ inputs:
   job-results:
     description: Results supplied by the caller required-check gate
     default: '{}'
+  check-digests:
+    description: check-digests
+    default: '{}'
+  current-receipt-path:
+    description: current-receipt-path
+    default: ''
+  current-receipt-sha:
+    description: current-receipt-sha
+    default: ''
 outputs:
   plan:
     description: Product applicability and branch phase JSON
@@ -44,21 +53,33 @@ outputs:
   status:
     description: Module verdict
     value: ${{ steps.execute.outputs.status }}
+  receipt-sha256:
+    description: receipt-sha256
+    value: ${{ steps.execute.outputs.receipt-sha256 }}
+  retained-path:
+    description: retained-path
+    value: ${{ steps.execute.outputs.retained-path }}
+  state:
+    description: state
+    value: ${{ steps.execute.outputs.state }}
 runs:
   using: composite
   steps:
-    - name: Execute library module
-      id: execute
-      shell: bash
-      env:
-        SHARED_RECEIPT_PATH: ${{ inputs.receipt-path }}
-        SHARED_CREDENTIALS_CONFIG: ${{ inputs.credentials-config }}
-        SHARED_MODULE: ${{ inputs.module }}
-        SHARED_CONFIG: ${{ inputs.config }}
-        SHARED_ROOT: ${{ inputs.root }}
-        SHARED_OPERATION: ${{ inputs.operation }}
-        SHARED_AUDIENCE: ${{ inputs.audience }}
-        SHARED_JOB_RESULTS: ${{ inputs.job-results }}
-        SHARED_ACTION_PATH: ${{ github.action_path }}
-        SHARED_ACTION_REF: ${{ github.action_ref }}
-      run: python3 "$SHARED_ACTION_PATH/../../scripts/run-module.py"
+  - name: Execute library module
+    id: execute
+    shell: bash
+    env:
+      SHARED_RECEIPT_PATH: ${{ inputs.receipt-path }}
+      SHARED_CREDENTIALS_CONFIG: ${{ inputs.credentials-config }}
+      SHARED_MODULE: ${{ inputs.module }}
+      SHARED_CONFIG: ${{ inputs.config }}
+      SHARED_ROOT: ${{ inputs.root }}
+      SHARED_OPERATION: ${{ inputs.operation }}
+      SHARED_AUDIENCE: ${{ inputs.audience }}
+      SHARED_JOB_RESULTS: ${{ inputs.job-results }}
+      SHARED_ACTION_PATH: ${{ github.action_path }}
+      SHARED_ACTION_REF: ${{ github.action_ref }}
+      SHARED_CHECK_DIGESTS: ${{ inputs.check-digests }}
+      SHARED_CURRENT_RECEIPT_PATH: ${{ inputs.current-receipt-path }}
+      SHARED_CURRENT_RECEIPT_SHA: ${{ inputs.current-receipt-sha }}
+    run: python3 "$SHARED_ACTION_PATH/../../scripts/run-module.py"
