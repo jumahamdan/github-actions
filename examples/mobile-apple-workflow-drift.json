@@ -1,0 +1,6 @@
+{
+  "operation": "apple-workflow-drift",
+  "product_id": "product-1",
+  "desired": "examples/mobile-apple-workflows-desired.json",
+  "actual": "examples/mobile-apple-workflows-observed.json"
+}

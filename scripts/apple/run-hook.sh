@@ -5,8 +5,11 @@ set -euo pipefail
 : "${CI_XCODE_CLOUD:?Xcode Cloud required}"
 : "${SHARED_LIBRARY_REPOSITORY:?Exact HTTPS GitHub repository required}"
 : "${SHARED_LIBRARY_REVISION:?Immutable forty-character commit required}"
-: "${SHARED_MOBILE_CONFIG:?Product JSON path required}"
-: "${SHARED_MOBILE_OUTPUT:?Product receipt path required}"
+: "${SHARED_APPLE_CONFIG:=${SHARED_MOBILE_CONFIG:-}}"
+: "${SHARED_APPLE_OUTPUT:=${SHARED_MOBILE_OUTPUT:-}}"
+: "${SHARED_APPLE_CONFIG:?Product JSON path required}"
+: "${SHARED_APPLE_OUTPUT:?Product receipt path required}"
+export SHARED_APPLE_CONFIG SHARED_APPLE_OUTPUT
 [[ "$CI_XCODE_CLOUD" == "TRUE" || "$CI_XCODE_CLOUD" == "true" ]]
 [[ "$SHARED_LIBRARY_REPOSITORY" =~ ^https://github.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(\.git)?$ ]]
 [[ "$SHARED_LIBRARY_REVISION" =~ ^[0-9a-f]{40}$ ]]
@@ -22,5 +25,4 @@ git -C "$shared_checkout" -c protocol.file.allow=never fetch --depth=1 origin "$
 git -C "$shared_checkout" checkout --detach -q FETCH_HEAD
 [[ "$(git -C "$shared_checkout" rev-parse HEAD)" == "$SHARED_LIBRARY_REVISION" ]]
 # -P prevents source checkout shadowing the shared_ci module. Python 3.11+ is required.
-PYTHONPATH="$shared_checkout" python3 -P -m shared_ci.mobile \
-  --root "$CI_PRIMARY_REPOSITORY_PATH" --config "$SHARED_MOBILE_CONFIG" --output "$SHARED_MOBILE_OUTPUT"
+PYTHONPATH="$shared_checkout" python3 -P "$shared_checkout/scripts/apple/run-hook.py"

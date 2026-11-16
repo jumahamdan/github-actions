@@ -42,8 +42,11 @@ class MobileTests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         self.env = patch.dict(os.environ, GH, clear=True)
         self.env.start()
+        self.mac = patch("shared_ci.mobile.platform.system", return_value="Darwin")
+        self.mac.start()
 
     def tearDown(self):
+        self.mac.stop()
         self.env.stop()
         self.tmp.cleanup()
 
@@ -54,6 +57,7 @@ class MobileTests(unittest.TestCase):
         return path
 
     def cloud(self, archive=None):
+        os.environ.pop("GITHUB_ACTIONS", None)
         os.environ.update(CI_XCODE_CLOUD='TRUE', CI_COMMIT=SHA, CI_BUILD_ID='cloud-build',
                           CI_BUILD_NUMBER='42', CI_PRIMARY_REPOSITORY_PATH=str(self.root),
                           CI_GIT_REF='refs/heads/staging', CI_START_CONDITION='push',

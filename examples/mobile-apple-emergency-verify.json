@@ -1,0 +1,78 @@
+{
+  "operation": "apple-verify",
+  "archive": ".ci-artifacts/Example-42.xcarchive",
+  "signing": "unsigned",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "version": "1.2.0",
+  "build": "42",
+  "targets": [
+    {
+      "path": "Products/Applications/Example.app",
+      "bundle_id": "com.example.mobile",
+      "executable": "Example",
+      "plist": {},
+      "entitlements": {
+        "application-identifier": "EXAMPLETEAM.com.example.mobile",
+        "get-task-allow": false
+      },
+      "dsym": "dSYMs/Example.app.dSYM"
+    },
+    {
+      "path": "Products/Applications/Example.app/PlugIns/ExampleWidget.appex",
+      "bundle_id": "com.example.mobile.widget",
+      "executable": "ExampleWidget",
+      "plist": {
+        "NSExtension": {
+          "NSExtensionPointIdentifier": "com.apple.widgetkit-extension"
+        }
+      },
+      "entitlements": {
+        "application-identifier": "EXAMPLETEAM.com.example.mobile.widget",
+        "get-task-allow": false
+      },
+      "dsym": "dSYMs/ExampleWidget.appex.dSYM"
+    },
+    {
+      "path": "Products/Applications/Example.app/Watch/ExampleWatch.app",
+      "bundle_id": "com.example.mobile.watch",
+      "executable": "ExampleWatch",
+      "plist": {
+        "WKApplication": true,
+        "WKCompanionAppBundleIdentifier": "com.example.mobile",
+        "WKRunsIndependentlyOfCompanionApp": true
+      },
+      "entitlements": {
+        "application-identifier": "EXAMPLETEAM.com.example.mobile.watch",
+        "get-task-allow": false
+      },
+      "dsym": "dSYMs/ExampleWatch.app.dSYM"
+    },
+    {
+      "path": "Products/Applications/Example.app/Watch/ExampleWatch.app/PlugIns/ExampleComplication.appex",
+      "bundle_id": "com.example.mobile.watch.complication",
+      "executable": "ExampleComplication",
+      "plist": {
+        "NSExtension": {
+          "NSExtensionPointIdentifier": "com.apple.widgetkit-extension"
+        }
+      },
+      "entitlements": {
+        "application-identifier": "EXAMPLETEAM.com.example.mobile.watch.complication",
+        "get-task-allow": false
+      },
+      "dsym": "dSYMs/ExampleComplication.appex.dSYM"
+    }
+  ],
+  "execution": {
+    "mode": "emergency-mac",
+    "operator": "release-operator",
+    "reason": "Authorized emergency build while the primary Apple lane is unavailable",
+    "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ref": "refs/heads/staging",
+    "build_id": "manual-example-42",
+    "archive_receipt": ".ci-results/emergency-archive.json",
+    "archive_receipt_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

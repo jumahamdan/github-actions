@@ -7,6 +7,7 @@ import fcntl
 import json
 import os
 import plistlib
+import platform
 import re
 import shutil
 import tempfile
@@ -56,6 +57,8 @@ def _file(root, relative):
 
 
 def _cloud_context(root, *, archive=False):
+    if platform.system() != "Darwin" or os.environ.get("GITHUB_ACTIONS", "").lower() == "true":
+        raise PipelineError("Apple Cloud operations require the Apple-hosted Mac context")
     if os.environ.get("CI_XCODE_CLOUD", "").lower() != "true":
         raise PipelineError("Apple operation requires Xcode Cloud")
     commit = _text(os.environ.get("CI_COMMIT"), "Xcode Cloud commit", r"[0-9a-f]{40}")
@@ -67,6 +70,101 @@ def _cloud_context(root, *, archive=False):
                     os.environ.get("CI_XCODEBUILD_EXIT_CODE") != "0"):
         raise PipelineError("A successful Xcode Cloud archive is required")
     return context
+
+
+def validate_emergency_context(execution, source_root, *, build):
+    """Validate an explicitly invoked operator Mac; never impersonate Xcode Cloud."""
+    strict_keys(execution, {'mode', 'operator', 'reason', 'source_sha', 'ref', 'build_id',
+                            'archive_receipt', 'archive_receipt_sha256'},
+                {'mode', 'operator', 'reason', 'source_sha', 'ref', 'build_id'})
+    if execution['mode'] != 'emergency-mac' or platform.system() != 'Darwin':
+        raise PipelineError('Emergency Apple operation requires an actual Mac')
+    if os.environ.get('GITHUB_ACTIONS', '').lower() == 'true' or os.environ.get('CI_XCODE_CLOUD', '').lower() == 'true':
+        raise PipelineError('Emergency Mac context cannot run as GitHub Actions or Xcode Cloud')
+    operator = _text(execution['operator'], 'manual operator', r'[A-Za-z0-9_.@+-]{1,100}')
+    if os.environ.get('SHARED_APPLE_MANUAL_EVENT') != 'emergency-release' or os.environ.get('SHARED_APPLE_OPERATOR') != operator:
+        raise PipelineError('Emergency Apple operation needs explicit matching manual event/operator')
+    reason = execution['reason']
+    if not isinstance(reason, str) or not reason.strip() or len(reason) > 500 or any(ord(c) < 32 for c in reason):
+        raise PipelineError('Emergency release needs a bounded one-line reason')
+    source = _text(execution['source_sha'], 'expected source commit', r'[0-9a-f]{40}')
+    ref = _text(execution['ref'], 'manual source ref', r'refs/heads/[A-Za-z0-9_./-]+')
+    build_id = _text(execution['build_id'], 'manual build ID', r'[A-Za-z0-9_.-]{1,100}')
+    _text(build, 'manual build number', r'[1-9][0-9]*')
+    if run(['git', 'rev-parse', 'HEAD'], cwd=source_root).stdout.strip() != source:
+        raise PipelineError('Emergency Mac source differs from the selected commit')
+    if run(['git', 'symbolic-ref', 'HEAD'], cwd=source_root).stdout.strip() != ref:
+        raise PipelineError('Emergency Mac branch differs from the selected ref')
+    if run(['git', 'status', '--porcelain', '--untracked-files=normal'], cwd=source_root).stdout.strip():
+        raise PipelineError('Emergency Mac source must be clean; outputs must be ignored')
+    tree = _text(run(['git', 'rev-parse', 'HEAD^{tree}'], cwd=source_root).stdout.strip(), 'source tree', r'[0-9a-f]{40}')
+    return {'source_revision': source, 'source_sha': source, 'source_tree': tree, 'build_id': build_id,
+            'build_number': build, 'execution_context': {'mode': 'emergency-mac', 'operator': operator, 'reason': reason, 'ref': ref}}
+
+
+def _apple_context(config, root, *, archive=False):
+    execution = config.get('execution')
+    if execution is None:
+        return {**_cloud_context(root, archive=archive), 'execution_context': {'mode': 'xcode-cloud', 'ref': os.environ.get('CI_GIT_REF', '')}}
+    return validate_emergency_context(execution, root, build=config.get('build'))
+
+
+def _archive_hash(archive):
+    # Evidence is retained beside the payload without changing its immutable identity.
+    return _tree_hash(archive, exclude=('.shared-ci-evidence',))
+
+
+def validate_emergency_archive(execution, source_root, archive, *, build):
+    context = validate_emergency_context(execution, source_root, build=build)
+    proof_path = confined_path(source_root, execution.get('archive_receipt', ''))
+    expected = _text(execution.get('archive_receipt_sha256'), 'archive proof checksum', r'[0-9a-f]{64}')
+    if not proof_path.is_file() or sha256_file(proof_path) != expected:
+        raise PipelineError('Emergency archive build proof is missing or changed')
+    proof = load_json(proof_path)
+    required = {'schema': 1, 'status': 'passed', 'operation': 'apple-emergency-archive',
+                'source_sha': context['source_sha'], 'source_tree': context['source_tree'], 'build_id': context['build_id'],
+                'build_number': build, 'execution_context': context['execution_context']}
+    if any(proof.get(key) != value for key, value in required.items()):
+        raise PipelineError('Emergency archive proof belongs to a different source/build/operator')
+    if confined_path(source_root, proof.get('archive', '')) != Path(archive).resolve() or proof.get('archive_sha256') != _archive_hash(Path(archive)):
+        raise PipelineError('Emergency archive does not match the successful build proof')
+    return {**context, 'archive_sha256': proof['archive_sha256']}
+
+
+def apple_emergency_archive(config, root):
+    allowed = {'operation', 'execution', 'kind', 'xcode', 'locks', 'project', 'scheme', 'flutter', 'pods',
+               'archive', 'configuration', 'signing', 'version', 'build', 'allowed_refs'}
+    strict_keys(config, allowed, {'execution', 'kind', 'xcode', 'locks', 'project', 'scheme', 'archive',
+                                 'configuration', 'signing', 'version', 'build', 'allowed_refs'})
+    context = validate_emergency_context(config['execution'], root, build=config['build'])
+    refs = config['allowed_refs']
+    if not isinstance(refs, list) or context['execution_context']['ref'] not in refs:
+        raise PipelineError('Manual archive ref is not authorized')
+    archive = confined_path(root, config['archive'], must_exist=False)
+    if archive.suffix != '.xcarchive' or archive.exists() or archive.is_symlink():
+        raise PipelineError('Manual archive must use a new xcarchive output path')
+    if config['signing'] not in ('unsigned', 'signed'): raise PipelineError('Invalid manual archive signing mode')
+    _text(config['configuration'], 'build configuration', r'[A-Za-z0-9_. -]+')
+    _text(config['version'], 'marketing version', r'[0-9]+(?:\.[0-9]+){1,2}')
+    bootstrap = {key: value for key, value in config.items() if key in {'execution', 'kind', 'xcode', 'locks', 'project', 'scheme', 'flutter', 'pods', 'build'}}
+    bootstrap['operation'] = 'apple-bootstrap'
+    apple_bootstrap(bootstrap, root)
+    project = confined_path(root, config['project']); flag = '-workspace' if project.suffix == '.xcworkspace' else '-project'
+    with tempfile.TemporaryDirectory(prefix='shared-apple-derived-') as derived:
+        command = ['xcodebuild', 'archive', flag, str(project), '-scheme', config['scheme'], '-configuration', config['configuration'],
+                   '-archivePath', str(archive), '-derivedDataPath', derived, '-destination', 'generic/platform=iOS',
+                   '-onlyUsePackageVersionsFromResolvedFile', '-disableAutomaticPackageResolution',
+                   'CURRENT_PROJECT_VERSION=' + config['build'], 'MARKETING_VERSION=' + config['version'],
+                   'CODE_SIGNING_ALLOWED=' + ('YES' if config['signing'] == 'signed' else 'NO')]
+        run(command, cwd=root, env_names=('DEVELOPER_DIR',), timeout=21600)
+    if not archive.is_dir(): raise PipelineError('Xcode did not produce the manual archive')
+    after = validate_emergency_context(config['execution'], root, build=config['build'])
+    if after != context: raise PipelineError('Source changed during manual archive')
+    _locks(root, config['locks'])
+    return {**context, 'kind': 'apple-emergency-archive', 'archive': config['archive'], 'archive_sha256': _archive_hash(archive),
+            'signing_requested': config['signing'], 'distribution_ready': False, 'toolchain': config['xcode'],
+            'command_sha256': fingerprint([arg if arg != derived else '<temporary-derived-data>' for arg in command]),
+            'dependency_locks': config['locks'], 'built_at': dt.datetime.now(dt.timezone.utc).isoformat()}
 
 
 def _locks(root, values):
@@ -83,9 +181,9 @@ def _locks(root, values):
 
 
 def apple_bootstrap(config, root):
-    strict_keys(config, {"operation", "kind", "xcode", "locks", "project", "scheme", "flutter", "pods"},
+    strict_keys(config, {"operation", "kind", "xcode", "locks", "project", "scheme", "flutter", "pods", "execution", "build"},
                 {"kind", "xcode", "locks", "project", "scheme"})
-    context = _cloud_context(root)
+    context = _apple_context(config, root)
     if config["kind"] not in ("native", "flutter"):
         raise PipelineError("Apple kind must be native or flutter")
     strict_keys(config["xcode"], {"version", "build"}, {"version", "build"})
@@ -133,13 +231,16 @@ def apple_bootstrap(config, root):
     return {**context, "dependency_locks": locks, "toolchain": config["xcode"], "kind": config["kind"]}
 
 
-def _tree_hash(directory):
+def _tree_hash(directory, *, exclude=()):
     entries = {}
     for path in sorted(directory.rglob("*")):
+        if path.relative_to(directory).parts[0] in exclude: continue
         if path.is_symlink():
             # Apple frameworks may have internal symlinks; hash their target, forbid escape.
             if not path.resolve().is_relative_to(directory.resolve()):
                 raise PipelineError("Artifact symlink escapes candidate directory")
+            if path.resolve().relative_to(directory.resolve()).parts and path.resolve().relative_to(directory.resolve()).parts[0] in exclude:
+                raise PipelineError("Payload symlink cannot target excluded evidence")
             entries[path.relative_to(directory).as_posix()] = {"symlink": os.readlink(path)}
         elif path.is_file():
             entries[path.relative_to(directory).as_posix()] = sha256_file(path)
@@ -159,9 +260,9 @@ def _plist(path):
 
 
 def apple_verify(config, root):
-    strict_keys(config, {"operation", "archive", "signing", "targets", "version", "build", "allowed_refs"},
+    strict_keys(config, {"operation", "archive", "signing", "targets", "version", "build", "allowed_refs", "execution"},
                 {"archive", "signing", "targets", "version", "build"})
-    context = _cloud_context(root, archive=True)
+    context = _apple_context(config, root, archive=True)
     if config["build"] != context["build_number"]:
         raise PipelineError("Manifest build differs from Xcode Cloud build")
     if config["signing"] not in ("unsigned", "signed"):
@@ -170,14 +271,18 @@ def apple_verify(config, root):
         refs = config.get("allowed_refs", [])
         if (not isinstance(refs, list) or not refs or
                 any(not isinstance(ref, str) or not re.fullmatch(r"refs/heads/[A-Za-z0-9_./-]+", ref) for ref in refs) or
-                os.environ.get("CI_START_CONDITION") not in ("push", "manual", "manual_rebuild") or
-                os.environ.get("CI_GIT_REF") not in refs):
+                (context["execution_context"]["mode"] == "xcode-cloud" and os.environ.get("CI_START_CONDITION") not in ("push", "manual", "manual_rebuild")) or
+                context["execution_context"]["ref"] not in refs):
             raise PipelineError("Signed candidates require an authorized Xcode Cloud branch")
     # Archive paths are outside the source checkout on Xcode Cloud; trust only the Cloud-owned path.
-    archive_env = Path(os.environ.get("CI_ARCHIVE_PATH", "")).resolve()
-    archive = archive_env if config["archive"] == "$CI_ARCHIVE_PATH" else confined_path(root, config["archive"])
-    if archive != archive_env or not archive.is_dir() or archive.suffix != ".xcarchive":
-        raise PipelineError("Candidate must be the current Xcode Cloud archive")
+    if context['execution_context']['mode'] == 'xcode-cloud':
+        archive_env = Path(os.environ.get("CI_ARCHIVE_PATH", "")).resolve()
+        archive = archive_env if config["archive"] == "$CI_ARCHIVE_PATH" else confined_path(root, config["archive"])
+        if archive != archive_env: raise PipelineError("Candidate must be the current Xcode Cloud archive")
+    else:
+        archive = confined_path(root, config['archive'])
+        context = validate_emergency_archive(config['execution'], root, archive, build=config['build'])
+    if not archive.is_dir() or archive.suffix != '.xcarchive': raise PipelineError('Apple candidate must be an xcarchive directory')
     targets = config["targets"]
     if not isinstance(targets, list) or not targets:
         raise PipelineError("At least one target is required")
@@ -185,6 +290,8 @@ def apple_verify(config, root):
     for target in targets:
         strict_keys(target, {"path", "bundle_id", "executable", "plist", "entitlements", "dsym"},
                     {"path", "bundle_id", "executable", "plist", "entitlements", "dsym"})
+        if any(Path(target[key]).parts[0] == ".shared-ci-evidence" for key in ("path", "dsym")):
+            raise PipelineError("Apple payload cannot use the reserved evidence directory")
         path = confined_path(archive, target["path"])
         if path.suffix not in (".app", ".appex") or target["path"] in expected_paths or target["bundle_id"] in ids:
             raise PipelineError("Duplicate or invalid embedded target")
@@ -239,8 +346,8 @@ def apple_verify(config, root):
         raise PipelineError("Archive must contain exactly one host application")
     return {**context, "source_sha": context["source_revision"], "kind": "apple",
             "application": {"id": host_targets[0]["bundle_id"], "version": config["version"], "build": config["build"]},
-            "artifacts": artifacts, "artifact_root": "$CI_ARCHIVE_PATH", "debug_symbols": symbols,
-            "archive_sha256": _tree_hash(archive), "targets": records,
+            "artifacts": artifacts, "artifact_root": "$CI_ARCHIVE_PATH" if context["execution_context"]["mode"] == "xcode-cloud" else config["archive"], "debug_symbols": symbols,
+            "archive_sha256": _archive_hash(archive), "targets": records,
             "manifest_sha256": fingerprint(config), "signing": config["signing"],
             "distribution_ready": config["signing"] == "signed", "version": config["version"]}
 
@@ -526,7 +633,8 @@ def device_test(config, root):
 def execute(config, root):
     if not isinstance(config, dict):
         raise PipelineError("Mobile configuration must be an object")
-    operations = {"apple-bootstrap": apple_bootstrap, "apple-verify": apple_verify,
+    from .apple_workflows import execute as workflow_drift
+    operations = {"apple-workflow-drift": workflow_drift, "apple-bootstrap": apple_bootstrap, "apple-verify": apple_verify, "apple-emergency-archive": apple_emergency_archive,
                   "next-build": next_build, "android-derive": android_derive, "device-test": device_test}
     operation = config.get("operation")
     if operation not in operations:
@@ -545,9 +653,13 @@ def main():
     config_path = confined_path(root, args.config)
     if output == config_path:
         raise PipelineError("Receipt output cannot overwrite its configuration")
+    if run(["git", "ls-files", "--error-unmatch", "--", output.relative_to(root).as_posix()], cwd=root, check=False).returncode == 0:
+        raise PipelineError("Mobile receipt cannot overwrite tracked source")
     output.unlink(missing_ok=True)  # A failed rerun cannot retain a passing receipt.
     from .assurance import stamp
-    atomic_json(output, stamp(execute(load_json(config_path), root), "mobile", config_path, root))
+    result = stamp(execute(load_json(config_path), root), "mobile", config_path, root)
+    atomic_json(output, result)
+    if result.get("status") != "passed": raise PipelineError("Mobile operation found drift or missing required proof")
 
 
 if __name__ == "__main__":
