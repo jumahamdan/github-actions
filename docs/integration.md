@@ -13,6 +13,8 @@ The branch route is `feature → develop → staging → main`. `v2-plan.yml` en
 
 Use PR events for ordinary CI and accepted pushes/manual events for delivery. Do not trigger identical CI on both a feature push and its PR. Avoid parallel provider auto-deploy triggers bypassing required checks. Never treat a dependency cache as successful test evidence. Full source-tree verification is deliberately conservative; inputs must match before reusing test evidence across merge commits.
 
+Start adoption with whole relevant source/configuration directories in `quality.inputs`, including dependency locks and shared inputs; narrow them only after verifying every dependency of the selected checks. Build delivery candidates from accepted `staging` pushes or explicit manual runs on the approved branch. PR-produced candidates are useful for uncredentialed verification and should not be allowed as store/deployment producers.
+
 ## Caller contract
 
 Pin every reusable `uses:` to a full immutable commit. GitHub.com `$/actions/...` loads helpers from that exact workflow revision, including nested calls; the caller does not provide a second library pin. This syntax is not supported on GitHub Enterprise Server. Local actionlint compatibility translates it only in temporary validation copies after checking each referenced action and input. GitHub receives the original syntax.

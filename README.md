@@ -2,9 +2,9 @@
 
 Reusable checks, release evidence and delivery adapters for independent products. Each repository chooses its language, platforms and providers; shared code supplies consistent execution, credential boundaries and failure handling.
 
-The v2 implementation is under review. Existing v1 action and reusable-workflow files retain their original behavior. Adopt v2 explicitly using a reviewed full commit SHA; do not move an existing consumer to `main` or silently change its release process.
+The v2 library is ready for explicit adoption, one product at a time. Existing v1 action and reusable-workflow files retain their original behavior. Adopt v2 using a reviewed full commit SHA; do not move an existing consumer to `main` or silently change its release process.
 
-The preserved v1 entrypoints are deprecated and unsupported for new adoption. Known defects include old-owner moving references and checks that tolerate failure. They remain unchanged so existing callers are not silently altered; v2 is the supported replacement under review.
+The preserved v1 entrypoints are deprecated and unsupported for new adoption. Known defects include old-owner moving references and checks that tolerate failure. They remain unchanged so existing callers are not silently altered; v2 is the supported replacement.
 
 | Area | Documentation |
 | --- | --- |
