@@ -187,7 +187,7 @@ def create(config, root, *, source_root=None, expected_checks=None):
 
 
 def verify(candidate, root, *, expected_library_sha=None, expected_toolchain=None, require_tree=True,
-           historical_security=False, security_refresh=None):
+           historical_security=False, security_refresh=None, source_root=None):
     if candidate.get("schema") != 1 or candidate.get("status") != "passed":
         raise PipelineError("Invalid candidate schema/status")
     for group in ("inputs", "artifacts"):
@@ -203,9 +203,11 @@ def verify(candidate, root, *, expected_library_sha=None, expected_toolchain=Non
         raise PipelineError("Library revision invalidates candidate evidence")
     if expected_toolchain is not None and candidate["toolchain"] != expected_toolchain:
         raise PipelineError("Toolchain invalidates candidate evidence")
-    if require_tree and run(["git", "rev-parse", "HEAD^{tree}"], cwd=root).stdout.strip() != candidate.get("source_tree"):
+    verify_source_tree = require_tree or source_root is not None
+    source_root = Path(source_root or root).resolve()
+    if verify_source_tree and run(["git", "rev-parse", "HEAD^{tree}"], cwd=source_root).stdout.strip() != candidate.get("source_tree"):
         raise PipelineError("Full merged source tree differs from the candidate")
-    if run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root).stdout.strip():
+    if run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=source_root).stdout.strip():
         raise PipelineError("Working source differs from its recorded tree")
     return {"schema": 1, "status": "passed", "identity": identity, "verified_at": now()}
 

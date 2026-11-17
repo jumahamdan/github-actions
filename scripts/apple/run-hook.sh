@@ -1,7 +1,24 @@
 #!/bin/bash
 # Vendor this small loader into ci_scripts; review its SHA when adopting a library revision.
 set -euo pipefail
-python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else "Shared Apple hooks require Python 3.11 or newer; install the pinned Python toolchain in ci_post_clone first.")'
+: "${SHARED_PYTHON:?Absolute path to the preprovisioned Python interpreter required}"
+: "${SHARED_PYTHON_VERSION:=3.12.3}"
+[[ "$SHARED_PYTHON" == /* && -x "$SHARED_PYTHON" ]] || {
+  printf '%s\n' 'SHARED_PYTHON must name an executable at an absolute path.' >&2
+  exit 1
+}
+[[ "$SHARED_PYTHON_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+  printf '%s\n' 'SHARED_PYTHON_VERSION must be an exact major.minor.patch version.' >&2
+  exit 1
+}
+# Check before creating a checkout or making a network request. -I ignores ambient
+# PYTHONPATH/user packages; -B avoids writing bytecode into the verified library.
+"$SHARED_PYTHON" -I -B -c 'import sys
+expected = tuple(int(part) for part in sys.argv[1].split("."))
+if sys.version_info < (3, 11):
+    sys.exit("Shared Apple hooks require Python 3.11 or newer; provision the pinned interpreter before this hook.")
+if sys.version_info[:3] != expected:
+    sys.exit("Shared Apple hook Python version differs from SHARED_PYTHON_VERSION.")' "$SHARED_PYTHON_VERSION"
 : "${CI_PRIMARY_REPOSITORY_PATH:?Xcode Cloud repository required}"
 : "${CI_XCODE_CLOUD:?Xcode Cloud required}"
 : "${SHARED_LIBRARY_REPOSITORY:?Exact HTTPS GitHub repository required}"
@@ -25,5 +42,5 @@ git -C "$shared_checkout" remote add origin "$SHARED_LIBRARY_REPOSITORY"
 git -C "$shared_checkout" -c protocol.file.allow=never fetch --depth=1 origin "$SHARED_LIBRARY_REVISION"
 git -C "$shared_checkout" checkout --detach -q FETCH_HEAD
 [[ "$(git -C "$shared_checkout" rev-parse HEAD)" == "$SHARED_LIBRARY_REVISION" ]]
-# -P prevents source checkout shadowing the shared_ci module. Python 3.11+ is required.
-PYTHONPATH="$shared_checkout" python3 -P "$shared_checkout/scripts/apple/run-hook.py"
+# The dispatcher inserts only its own verified checkout into the isolated path.
+"$SHARED_PYTHON" -I -B "$shared_checkout/scripts/apple/run-hook.py"

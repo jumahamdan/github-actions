@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import importlib
+import json
 import os
 import platform
+import re
 import sys
 from pathlib import Path
 
@@ -12,13 +14,38 @@ LIBRARY = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(LIBRARY))
 
 from shared_ci.assurance import stamp
-from shared_ci.common import PipelineError, atomic_json, cli_error, confined_path, load_json, run
+from shared_ci.common import PipelineError, atomic_json, cli_error, confined_path, load_json, run, sha256_file
 
 
-def execute_hook():
+def library_revision():
+    expected = os.environ.get('SHARED_LIBRARY_REVISION', '')
+    if not re.fullmatch(r'[0-9a-f]{40}', expected):
+        raise PipelineError('Apple hook requires an immutable library revision')
+    actual = run(['git', 'rev-parse', 'HEAD'], cwd=LIBRARY).stdout.strip()
+    if actual != expected:
+        raise PipelineError('Executing Apple library differs from the selected revision')
+    if run(['git', 'status', '--porcelain', '--untracked-files=normal'], cwd=LIBRARY).stdout.strip():
+        raise PipelineError('Executing Apple library contains uncommitted changes')
+    return actual
+
+
+def trusted_check_digests():
+    try:
+        expected = json.loads(os.environ.get('SHARED_APPLE_CHECK_DIGESTS', '{}'))
+    except json.JSONDecodeError as exc:
+        raise PipelineError('Apple check digests must be a JSON object') from exc
+    if (not isinstance(expected, dict) or not expected
+            or any(not isinstance(path, str) or not path or not isinstance(digest, str)
+                   or not re.fullmatch(r'[0-9a-f]{64}', digest) for path, digest in expected.items())):
+        raise PipelineError('Apple candidate creation requires trusted check digests from prior hook outputs')
+    return expected
+
+
+def execute_hook(*, emit_summary=False):
     if platform.system() != 'Darwin' or os.environ.get('CI_XCODE_CLOUD', '').lower() != 'true':
         raise PipelineError('Apple hosted hook requires actual Xcode Cloud on a Mac')
     if os.environ.get('GITHUB_ACTIONS', '').lower() == 'true': raise PipelineError('Apple hook cannot run on a GitHub runner')
+    revision = library_revision()
     source = Path(os.environ.get('CI_PRIMARY_REPOSITORY_PATH', '')).resolve()
     if run(['git', 'rev-parse', 'HEAD'], cwd=source).stdout.strip() != os.environ.get('CI_COMMIT'):
         raise PipelineError('Apple source does not match the current Cloud commit')
@@ -56,14 +83,25 @@ def execute_hook():
     else:
         operation = os.environ.get('SHARED_APPLE_OPERATION', 'create')
         if operation == 'create':
-            result = module.create(config, root, source_root=source)
-        elif operation == 'verify': result = module.verify(config, root, require_tree=selection == 'source')
+            if config.get('library_sha') not in ('workflow', revision):
+                raise PipelineError('Candidate library revision differs from the executing Apple helper')
+            config = {**config, 'library_sha': revision}
+            result = module.create(config, root, source_root=source, expected_checks=trusted_check_digests())
+        elif operation == 'verify':
+            result = module.verify(config, root, expected_library_sha=revision, source_root=source)
         else: raise PipelineError('Unsupported Apple candidate operation')
+    # Product commands cannot silently modify the helper revision while running.
+    if library_revision() != revision:
+        raise PipelineError('Executing Apple library changed during the hook')
     # Always bind a check to the real checked-out source; an xcarchive is not a Git repository.
     result = stamp(result, name, config_path, source)
     atomic_json(output, result)
     if result.get('status') != 'passed': raise PipelineError('Apple operation did not produce passing evidence')
+    if emit_summary:
+        print(json.dumps({'status': 'passed', 'receipt_path': output.relative_to(root).as_posix(),
+                          'receipt_sha256': sha256_file(output), 'root': selection,
+                          'library_sha': revision, 'source_sha': os.environ['CI_COMMIT']}))
     return result
 
 
-if __name__ == '__main__': cli_error(execute_hook)
+if __name__ == '__main__': cli_error(lambda: execute_hook(emit_summary=True))

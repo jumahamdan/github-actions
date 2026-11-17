@@ -395,14 +395,15 @@ class MobileTests(unittest.TestCase):
         bindir = self.root / 'bin'
         bindir.mkdir()
         git = self.write('bin/git', b"#!/usr/bin/python3\nimport os,sys,json\nfrom pathlib import Path\nwith Path(os.environ['TRACE']).open('a') as f: f.write(json.dumps(sys.argv[1:])+'\\n')\nif 'rev-parse' in sys.argv: print(os.environ['OBSERVED_REVISION'])\n")
-        python = self.write('bin/python3', b"#!/usr/bin/python3\nimport os\nfrom pathlib import Path\nPath(os.environ['PROOF']).write_text(os.environ['PYTHONPATH'])\n")
+        python = self.write('bin/python3', b"#!/usr/bin/python3\nimport os,sys\nfrom pathlib import Path\nif '-c' in sys.argv:\n    sys.exit(0)\nassert sys.argv[1:3] == ['-I', '-B']\nPath(os.environ['PROOF']).write_text(str(Path(sys.argv[3]).parents[2]))\n")
         git.chmod(0o755); python.chmod(0o755)
         env = {'PATH': str(bindir) + ':/usr/bin:/bin', 'TMPDIR': str(self.root),
                'CI_PRIMARY_REPOSITORY_PATH': str(self.root), 'CI_XCODE_CLOUD': 'TRUE',
                'SHARED_LIBRARY_REPOSITORY': 'https://github.com/example/shared-workflows.git',
                'SHARED_LIBRARY_REVISION': SHA, 'OBSERVED_REVISION': SHA,
                'SHARED_MOBILE_CONFIG': 'ci/mobile.json', 'SHARED_MOBILE_OUTPUT': 'evidence/mobile.json',
-               'TRACE': str(self.root / 'trace'), 'PROOF': str(self.root / 'proof')}
+               'TRACE': str(self.root / 'trace'), 'PROOF': str(self.root / 'proof'),
+               'SHARED_PYTHON': str(python), 'SHARED_PYTHON_VERSION': '3.12.3'}
         result = subprocess.run(['bash', str(loader)], env=env, capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
         checkout = Path((self.root / 'proof').read_text())
@@ -418,6 +419,35 @@ class MobileTests(unittest.TestCase):
         env['SHARED_LIBRARY_REVISION'] = 'main'
         result = subprocess.run(['bash', str(loader)], env=env, capture_output=True, text=True, timeout=10)
         self.assertNotEqual(result.returncode, 0)
+
+    def test_loader_refuses_old_wrong_or_unpinned_python_before_git(self):
+        loader = Path(__file__).resolve().parents[1] / 'scripts/apple/run-hook.sh'
+        interpreter = self.write('python-fixture', b'''#!/usr/bin/python3
+import os,sys
+assert sys.argv[1:4] == ['-I','-B','-c']
+code=sys.argv[4]
+sys.version_info=tuple(int(part) for part in os.environ['OBSERVED_PYTHON'].split('.'))
+sys.argv=['-c',sys.argv[5]]
+exec(code)
+''')
+        interpreter.chmod(0o755)
+        env = {'PATH': '/usr/bin:/bin', 'TMPDIR': str(self.root), 'SHARED_PYTHON': str(interpreter),
+               'SHARED_PYTHON_VERSION': '3.12.3', 'OBSERVED_PYTHON': '3.9.6'}
+        # No Cloud/Git inputs are supplied: a version failure must happen first.
+        for observed, expected in [('3.9.6', '3.11 or newer'), ('3.12.2', 'differs from')]:
+            with self.subTest(observed=observed):
+                result = subprocess.run(['bash', str(loader)], env={**env, 'OBSERVED_PYTHON': observed},
+                                        capture_output=True, text=True, timeout=10)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected, result.stderr)
+                self.assertEqual(list(self.root.glob('shared-mobile.*')), [])
+        for changed in ({'SHARED_PYTHON': 'python3'}, {'SHARED_PYTHON_VERSION': '3.12'},
+                        {'SHARED_PYTHON': str(self.root / 'absent')}):
+            with self.subTest(changed=changed):
+                result = subprocess.run(['bash', str(loader)], env={**env, **changed},
+                                        capture_output=True, text=True, timeout=10)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn('CI_PRIMARY_REPOSITORY_PATH', result.stderr)
 
     def test_failed_cli_removes_previous_passing_receipt(self):
         self.write('config.json', b'{"operation":"unknown"}')
