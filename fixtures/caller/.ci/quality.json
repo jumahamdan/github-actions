@@ -1,7 +1,7 @@
 {
   "version": 1,
   "profile": "shell",
-  "toolchain": [{"command": ["bash", "--version"], "version": "5.2.21"}],
+  "toolchain": [{"command": ["bash", "--version"], "version": "5.2.21"}, {"command": ["python3", "--version"], "version": "3.12.3"}],
   "inputs": ["scripts/check.py", ".ci/quality.json"],
   "required_checks": ["synthetic-test"],
   "checks": [{"name": "synthetic-test", "kind": "test", "command": ["python3", "scripts/check.py"], "test_report": {"path": "build/tests.xml", "format": "junit"}}],
