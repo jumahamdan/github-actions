@@ -32,7 +32,7 @@ name: Shared v2 Google device tests
         type: string
         default: ''
       artifact-name:
-        description: Unique receipt artifact name
+        description: Unique artifact base name; actual receipt and candidate names include run/attempt
         required: true
         type: string
       python-tools:
@@ -122,9 +122,29 @@ name: Shared v2 Google device tests
         type: string
         required: false
         default: google-sdk
+      artifact-allowed-branches:
+        description: JSON array of trusted producer branch names; required whenever importing
+        type: string
+        required: false
+        default: '[]'
+      receipt-retention-days:
+        description: Retain operation receipts and retry state for this many days
+        type: number
+        required: false
+        default: 90
+      artifact-run-head-sha:
+        description: Explicit producer REST run head SHA; defaults to candidate source SHA for push
+        type: string
+        required: false
+        default: ''
+      check-receipts:
+        description: JSON mapping retained check paths to authenticated receipt selectors for candidate composition
+        type: string
+        required: false
+        default: '{}'
     outputs:
       status:
-        description: Module verdict
+        description: passed, advisory, or pending; only passed satisfies release gates
         value: ${{ jobs.run.outputs.status }}
       candidate-identity:
         description: candidate-identity
@@ -136,8 +156,23 @@ name: Shared v2 Google device tests
         description: receipt-sha256
         value: ${{ jobs.run.outputs.receipt-sha256 }}
       state:
-        description: state
+        description: Provider processing/review/availability state
         value: ${{ jobs.run.outputs.state }}
+      candidate-manifest:
+        description: Verified retained candidate manifest path
+        value: ${{ jobs.run.outputs.candidate-manifest }}
+      receipt-artifact-name:
+        description: Exact uploaded receipt/state artifact name for authenticated reuse or retry
+        value: ${{ jobs.run.outputs.receipt-artifact-name }}
+      candidate-artifact-name:
+        description: Exact uploaded candidate artifact name for downstream import
+        value: ${{ jobs.run.outputs.candidate-artifact-name }}
+      run-id:
+        description: Producer run ID
+        value: ${{ jobs.run.outputs.run-id }}
+      run-attempt:
+        description: Producer run attempt
+        value: ${{ jobs.run.outputs.run-attempt }}
     secrets:
       ARTIFACT_READ_TOKEN:
         description: Optional existing token when GitHub token cannot read producer artifacts
@@ -152,15 +187,26 @@ jobs:
     timeout-minutes: 120
     outputs:
       status: ${{ steps.execute.outputs.status }}
-      candidate-identity: ${{ steps.package.outputs.candidate-identity }}
-      source-sha: ${{ steps.package.outputs.source-sha }}
+      candidate-identity: ${{ steps.package.outputs.candidate-identity || steps.import-candidate.outputs.candidate-identity
+        || steps.execute.outputs.candidate-identity }}
+      source-sha: ${{ steps.package.outputs.source-sha || steps.import-candidate.outputs.source-sha || steps.execute.outputs.source-sha
+        }}
       receipt-sha256: ${{ steps.execute.outputs.receipt-sha256 }}
       state: ${{ steps.execute.outputs.state }}
+      candidate-manifest: ${{ steps.package.outputs.manifest || steps.import-candidate.outputs.manifest || steps.execute.outputs.manifest
+        }}
+      receipt-artifact-name: ${{ steps.retain-evidence.outcome == 'success' && format('{0}-run-{1}-attempt-{2}',
+        inputs.artifact-name, github.run_id, github.run_attempt) || '' }}
+      candidate-artifact-name: ${{ steps.retain-candidate.outcome == 'success' && format('{0}-candidate-run-{1}-attempt-{2}',
+        inputs.artifact-name, github.run_id, github.run_attempt) || '' }}
+      run-id: ${{ github.run_id }}
+      run-attempt: ${{ github.run_attempt }}
     steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       with:
         persist-credentials: false
         fetch-depth: 0
+        ref: ${{ github.sha }}
     - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
       with:
         python-version: ${{ inputs.python-version }}
@@ -168,6 +214,11 @@ jobs:
       with:
         distribution: temurin
         java-version: 21.0.9+10
+    - name: Set up exact Node for requested CLI tools
+      if: ${{ inputs.npm-tools != '' }}
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+      with:
+        node-version: ${{ inputs.node-version }}
     - uses: $/actions/v2-setup
       with:
         binary-manifest: ${{ inputs.binary-manifest }}
@@ -175,14 +226,6 @@ jobs:
         ai-tools: 'false'
         python-tools: ${{ inputs.python-tools }}
         tool-bundles: ${{ inputs.tool-bundles }}
-    - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
-      id: google-auth
-      with:
-        workload_identity_provider: ${{ inputs.google-workload-identity-provider }}
-        service_account: ${{ inputs.google-service-account }}
-        create_credentials_file: true
-        token_format: access_token
-        access_token_scopes: https://www.googleapis.com/auth/cloud-platform
     - id: import-candidate
       if: ${{ inputs.artifact-run-id != '' }}
       uses: $/actions/v2-artifacts
@@ -196,8 +239,18 @@ jobs:
         workflow: ${{ inputs.artifact-workflow }}
         artifact-name: ${{ inputs.artifact-input-name }}
         producer-job: ${{ inputs.artifact-producer-job }}
+        allowed-branches: ${{ inputs.artifact-allowed-branches }}
+        run-head-sha: ${{ inputs.artifact-run-head-sha }}
       env:
         GH_ARTIFACT_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+    - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+      id: google-auth
+      with:
+        workload_identity_provider: ${{ inputs.google-workload-identity-provider }}
+        service_account: ${{ inputs.google-service-account }}
+        create_credentials_file: true
+        token_format: access_token
+        access_token_scopes: https://www.googleapis.com/auth/cloud-platform
     - id: execute
       uses: $/actions/v2-run
       with:
@@ -207,17 +260,21 @@ jobs:
         credentials-config: ${{ inputs.credentials-config }}
         operation: device-test
         receipt-path: ${{ inputs.receipt-path }}
+        selected-manifest: ${{ steps.import-candidate.outputs.manifest }}
+        selected-identity: ${{ steps.import-candidate.outputs.candidate-identity }}
+        selected-source-sha: ${{ steps.import-candidate.outputs.source-sha }}
       env:
         GOOGLE_DEVICE_ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token }}
     - name: Preserve sanitized evidence
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
       with:
-        name: ${{ inputs.artifact-name }}
+        name: ${{ format('{0}-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt) }}
         path: ${{ steps.execute.outputs.bundle }}
         if-no-files-found: error
-        retention-days: 7
+        retention-days: ${{ inputs.receipt-retention-days }}
         include-hidden-files: false
       if: ${{ always() && steps.execute.outputs.bundle != '' }}
+      id: retain-evidence
     - id: candidate
       if: ${{ inputs.candidate-config != '' && steps.execute.outputs.status == 'passed' }}
       uses: $/actions/v2-run
@@ -230,6 +287,9 @@ jobs:
         check-digests: ${{ inputs.check-digests }}
         current-receipt-path: ${{ steps.execute.outputs.retained-path }}
         current-receipt-sha: ${{ steps.execute.outputs.receipt-sha256 }}
+        check-receipts: ${{ inputs.check-receipts }}
+      env:
+        GH_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
     - id: package
       if: ${{ inputs.candidate-config != '' && steps.execute.outputs.status == 'passed' }}
       uses: $/actions/v2-artifacts
@@ -241,11 +301,13 @@ jobs:
       if: ${{ inputs.candidate-config != '' && steps.execute.outputs.status == 'passed' }}
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
       with:
-        name: ${{ inputs.artifact-name }}-candidate
+        name: ${{ format('{0}-candidate-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt)
+          }}
         path: ${{ steps.package.outputs.directory }}
         if-no-files-found: error
         include-hidden-files: true
         retention-days: ${{ inputs.candidate-retention-days }}
+      id: retain-candidate
     environment: ${{ inputs.environment }}
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
     concurrency:

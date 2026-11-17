@@ -223,6 +223,9 @@ def authenticated_artifact(config, token, request):
     if not isinstance(config["run_attempt"], int) or isinstance(config["run_attempt"], bool) or config["run_attempt"] < 1:
         raise PipelineError("Exact positive GitHub run attempt is required")
     workflow = config["expected_workflow"]
+    run_head = config.get("run_head_sha", config["expected_source_sha"])
+    if not SHA.fullmatch(str(run_head)):
+        raise PipelineError("Exact producer run head SHA is required")
     if not re.fullmatch(r"\.github/workflows/[A-Za-z0-9_.-]+\.ya?ml", str(workflow)):
         raise PipelineError("Exact trusted producer workflow path is required")
     events = config["allowed_events"]
@@ -241,7 +244,7 @@ def authenticated_artifact(config, token, request):
                        and str(config["run_attempt"]) == os.environ.get("GITHUB_RUN_ATTEMPT")
                        and repo == os.environ.get("GITHUB_REPOSITORY"))
     completed = run_info.get("status") == "completed" and run_info.get("conclusion") == "success"
-    if ((not completed and not current_running) or run_info.get("head_sha") != config["expected_source_sha"]
+    if ((not completed and not current_running) or run_info.get("head_sha") != run_head
             or run_info.get("path", "").split("@")[0] != workflow
             or run_info.get("head_repository", {}).get("full_name") != repo
             or run_info.get("run_attempt") != config["run_attempt"] or run_info.get("event") not in events
@@ -288,7 +291,7 @@ def authenticated_artifact(config, token, request):
     item = matches[0]
     if (not isinstance(item.get("id"), int) or item["id"] <= 0
             or item.get("workflow_run", {}).get("id") != int(config["run_id"])
-            or item.get("workflow_run", {}).get("head_sha") != config["expected_source_sha"]
+            or item.get("workflow_run", {}).get("head_sha") != run_head
             or not started <= timestamp(item.get("created_at")) <= updated
             or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(item.get("digest", "")))):
         raise PipelineError("Artifact identity/digest/attempt provenance is absent or stale")
@@ -402,7 +405,7 @@ def import_files(stage, root, records):
 def fetch(config, root, *, request=_api, downloader=download):
     required = {"schema", "operation", "repository", "run_id", "run_attempt", "artifact_name", "expected_workflow",
                 "expected_source_sha", "expected_identity", "token_env", "allowed_events", "allowed_branches"}
-    strict_keys(config, required | {"max_bytes", "max_files", "producer_job"}, required)
+    strict_keys(config, required | {"max_bytes", "max_files", "producer_job", "run_head_sha"}, required)
     if config["schema"] != 1 or config["operation"] != "fetch" or not HEX.fullmatch(str(config["expected_identity"])) or not SHA.fullmatch(str(config["expected_source_sha"])):
         raise PipelineError("Invalid artifact fetch selection")
     if not isinstance(config["artifact_name"], str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", config["artifact_name"]):
@@ -432,6 +435,7 @@ def fetch(config, root, *, request=_api, downloader=download):
     return {"schema": 1, "status": "passed", "operation": "fetch", "candidate_identity": candidate["identity"],
             "source_sha": candidate["source_sha"], "manifest": index["manifest"], "files": len(index["files"]),
             "provenance": {"repository": config["repository"], "run_id": str(config["run_id"]), "run_attempt": config["run_attempt"],
+                           "run_head_sha": config.get("run_head_sha", config["expected_source_sha"]),
                            "workflow": config["expected_workflow"], "artifact_id": item["id"], "artifact_digest": item["digest"]}}
 
 

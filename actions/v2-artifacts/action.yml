@@ -31,18 +31,27 @@ inputs:
   producer-job:
     description: Completed producer job name for same-run transfer
     default: ''
+  allowed-branches:
+    description: Required JSON array of producer branch names for fetch, e.g. ["staging"]
+    default: '[]'
+  run-head-sha:
+    description: Producer REST run head; PR head is distinct from tested merge source
+    default: ''
+  allowed-events:
+    description: Explicit producer events; release producers must be push or workflow_dispatch
+    default: '["push","workflow_dispatch"]'
 outputs:
   directory:
-    description: directory
+    description: Allowlisted packaged candidate directory
     value: ${{ steps.transport.outputs.directory }}
   manifest:
-    description: manifest
+    description: Verified manifest path relative to caller root
     value: ${{ steps.transport.outputs.manifest }}
   candidate-identity:
-    description: candidate-identity
+    description: Verified immutable candidate identity
     value: ${{ steps.transport.outputs.candidate-identity }}
   source-sha:
-    description: source-sha
+    description: Verified original candidate source revision
     value: ${{ steps.transport.outputs.source-sha }}
 runs:
   using: composite
@@ -61,4 +70,7 @@ runs:
       TRANSPORT_SOURCE: ${{ inputs.source-sha }}
       TRANSPORT_IDENTITY: ${{ inputs.identity }}
       TRANSPORT_PRODUCER_JOB: ${{ inputs.producer-job }}
+      TRANSPORT_ALLOWED_BRANCHES: ${{ inputs.allowed-branches }}
+      TRANSPORT_RUN_HEAD_SHA: ${{ inputs.run-head-sha }}
+      TRANSPORT_ALLOWED_EVENTS: ${{ inputs.allowed-events }}
     run: python3 "$LIBRARY_ACTION_PATH/../../scripts/transport-artifacts.py"

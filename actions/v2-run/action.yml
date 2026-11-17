@@ -34,6 +34,36 @@ inputs:
   current-receipt-sha:
     description: current-receipt-sha
     default: ''
+  selected-manifest:
+    description: Manifest path returned by authenticated candidate transport
+    default: ''
+  selected-identity:
+    description: Candidate identity returned by authenticated transport
+    default: ''
+  selected-source-sha:
+    description: Original candidate source SHA returned by authenticated transport
+    default: ''
+  state-restore:
+    description: Exact previous store attempt state selector JSON
+    default: ''
+  prior-deployment:
+    description: Authenticated prior deployment receipt selector JSON
+    default: ''
+  security-refresh:
+    description: Current candidate-bound security receipt selectors JSON
+    default: ''
+  current-release:
+    description: Expected current container release ID or explicit absent
+    default: ''
+  apple-bridge-selection:
+    description: Approved Apple Cloud build and immutable S3 version selection JSON
+    default: ''
+  check-receipts:
+    description: Retained check destinations mapped to authenticated receipt selectors JSON
+    default: '{}'
+  container-selection:
+    description: Approved container publication/tag or rollback target selection JSON
+    default: ''
 outputs:
   plan:
     description: Product applicability and branch phase JSON
@@ -51,7 +81,7 @@ outputs:
     description: Allowlisted artifact directory
     value: ${{ steps.execute.outputs.bundle }}
   status:
-    description: Module verdict
+    description: passed, advisory, or pending; only passed satisfies a release gate
     value: ${{ steps.execute.outputs.status }}
   receipt-sha256:
     description: receipt-sha256
@@ -62,6 +92,9 @@ outputs:
   state:
     description: state
     value: ${{ steps.execute.outputs.state }}
+  manifest:
+    description: Retained or imported candidate manifest path
+    value: ${{ steps.execute.outputs.manifest }}
 runs:
   using: composite
   steps:
@@ -82,4 +115,14 @@ runs:
       SHARED_CHECK_DIGESTS: ${{ inputs.check-digests }}
       SHARED_CURRENT_RECEIPT_PATH: ${{ inputs.current-receipt-path }}
       SHARED_CURRENT_RECEIPT_SHA: ${{ inputs.current-receipt-sha }}
+      SHARED_CANDIDATE_MANIFEST: ${{ inputs.selected-manifest }}
+      SHARED_CANDIDATE_IDENTITY: ${{ inputs.selected-identity }}
+      SHARED_CANDIDATE_SOURCE_SHA: ${{ inputs.selected-source-sha }}
+      SHARED_STATE_RESTORE: ${{ inputs.state-restore }}
+      SHARED_PRIOR_DEPLOYMENT: ${{ inputs.prior-deployment }}
+      SHARED_SECURITY_REFRESH: ${{ inputs.security-refresh }}
+      SHARED_CURRENT_RELEASE: ${{ inputs.current-release }}
+      SHARED_APPLE_BRIDGE_SELECTION: ${{ inputs.apple-bridge-selection }}
+      SHARED_CHECK_RECEIPTS: ${{ inputs.check-receipts }}
+      SHARED_CONTAINER_SELECTION: ${{ inputs.container-selection }}
     run: python3 "$SHARED_ACTION_PATH/../../scripts/run-module.py"

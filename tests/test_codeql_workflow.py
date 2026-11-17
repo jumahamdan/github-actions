@@ -130,7 +130,7 @@ class CodeQLWorkflowTests(unittest.TestCase):
 
     def test_upload_is_separate_opt_in_and_does_not_define_gate_success(self):
         analyze = WORKFLOW['jobs']['analyze']; upload = WORKFLOW['jobs']['upload']
-        self.assertEqual(analyze['permissions'], {'contents': 'read'})
+        self.assertEqual(analyze['permissions'], {'contents': 'read', 'actions': 'read'})
         self.assertEqual(upload['permissions']['security-events'], 'write')
         self.assertIn('inputs.upload-to-github', upload['if'])
         self.assertIn('head.repo.full_name == github.repository', upload['if'])

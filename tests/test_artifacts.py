@@ -13,7 +13,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from shared_ci import artifacts
-from shared_ci.common import PipelineError, atomic_json, fingerprint, sha256_file
+from shared_ci.common import PipelineError, atomic_json, fingerprint, load_json, sha256_file
 from shared_ci.evidence import IDENTITY_FIELDS
 from test_stores import fixture
 
@@ -262,11 +262,29 @@ class ArtifactTests(unittest.TestCase):
     def test_same_running_pr_authenticates_api_head_independent_of_merge_sha(self):
         self.same_run()
         self.metadata["event"] = "pull_request"
+        # The retained candidate and its real Git checkout use merge SHA A;
+        # REST run and artifact metadata identify PR head B.
+        head = "f" * 40
+        self.metadata["head_sha"] = head
+        self.item["workflow_run"]["head_sha"] = head
+        self.fetch_config["run_head_sha"] = head
         self.fetch_config["allowed_events"] = ["pull_request"]
-        self.current_env["GITHUB_SHA"] = "f" * 40
         with patch.dict(os.environ, self.current_env):
             result = artifacts.fetch(self.fetch_config, self.target, request=self.same_run_request, downloader=self.download)
         self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["source_sha"], self.sha)
+        self.assertEqual(result["provenance"]["run_head_sha"], head)
+        self.assertEqual(load_json(self.target / "candidate.json")["source_sha"], self.sha)
+
+    def test_pr_merge_candidate_cannot_substitute_run_head_for_bundle_source(self):
+        self.same_run()
+        head = "f" * 40
+        self.metadata.update(event="pull_request", head_sha=head)
+        self.item["workflow_run"]["head_sha"] = head
+        self.fetch_config.update(run_head_sha=head, expected_source_sha=head, allowed_events=["pull_request"])
+        with patch.dict(os.environ,self.current_env),self.assertRaisesRegex(PipelineError,"Bundle index differs"):
+            artifacts.fetch(self.fetch_config,self.target,request=self.same_run_request,downloader=self.download)
+        self.assertFalse((self.target / "candidate.json").exists())
 
     def test_transport_checks_historical_security_without_refreshing_candidate(self):
         policy = {"threshold": "high", "max_age_hours": 24, "exceptions": []}

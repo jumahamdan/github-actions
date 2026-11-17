@@ -50,17 +50,101 @@ name: Shared v2 CodeQL
         description: Unique aggregate security receipt artifact name
         required: true
         type: string
-      tool-bundles:
-        description: Reviewed built-in tool bundles
+      artifact-run-id:
+        description: Producer run ID; empty disables import
         type: string
+        required: false
+        default: ''
+      artifact-run-attempt:
+        description: Producer run attempt
+        type: string
+        required: false
+        default: '1'
+      artifact-source-sha:
+        description: Expected original candidate commit
+        type: string
+        required: false
+        default: ''
+      artifact-run-head-sha:
+        description: Explicit producer REST run head SHA; defaults to candidate source SHA for push
+        type: string
+        required: false
+        default: ''
+      artifact-identity:
+        description: Expected selected candidate identity
+        type: string
+        required: false
+        default: ''
+      artifact-workflow:
+        description: Trusted producer workflow path
+        type: string
+        required: false
+        default: ''
+      artifact-input-name:
+        description: Unique candidate artifact to import
+        type: string
+        required: false
+        default: ''
+      artifact-producer-job:
+        description: Completed producer job name for same-run transport
+        type: string
+        required: false
+        default: ''
+      artifact-allowed-branches:
+        description: JSON array of trusted producer branch names; required whenever importing
+        type: string
+        required: false
+        default: '[]'
+      artifact-allowed-events:
+        description: Explicit producer event array; pull_request is for uncredentialed verification only
+        type: string
+        required: false
+        default: '["push","workflow_dispatch"]'
+      receipt-retention-days:
+        description: Retain operation receipts and retry state for this many days
+        type: number
+        required: false
+        default: 90
+      receipt-path:
+        type: string
+        description: Retained module receipt path relative to caller root
         required: false
         default: ''
     outputs:
       status:
-        description: Local security policy verdict
+        description: status
         value: ${{ jobs.analyze.outputs.status }}
+      receipt-sha256:
+        description: receipt-sha256
+        value: ${{ jobs.analyze.outputs.receipt-sha256 }}
+      state:
+        description: state
+        value: ${{ jobs.analyze.outputs.state }}
+      candidate-identity:
+        description: candidate-identity
+        value: ${{ jobs.analyze.outputs.candidate-identity }}
+      source-sha:
+        description: source-sha
+        value: ${{ jobs.analyze.outputs.source-sha }}
+      candidate-manifest:
+        description: candidate-manifest
+        value: ${{ jobs.analyze.outputs.candidate-manifest }}
+      run-id:
+        description: run-id
+        value: ${{ jobs.analyze.outputs.run-id }}
+      run-attempt:
+        description: run-attempt
+        value: ${{ jobs.analyze.outputs.run-attempt }}
+      receipt-artifact-name:
+        description: receipt-artifact-name
+        value: ${{ jobs.analyze.outputs.receipt-artifact-name }}
+    secrets:
+      ARTIFACT_READ_TOKEN:
+        description: Optional existing Actions read token for candidate import
+        required: false
 permissions:
   contents: read
+  actions: read
 jobs:
   analyze:
     if: ${{ github.event_name != 'pull_request_target' }}
@@ -68,19 +152,48 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
+      actions: read
     outputs:
       status: ${{ steps.gate.outputs.status }}
+      receipt-sha256: ${{ steps.gate.outputs.receipt-sha256 }}
+      state: ${{ steps.gate.outputs.state }}
+      candidate-identity: ${{ steps.import-candidate.outputs.candidate-identity }}
+      source-sha: ${{ steps.import-candidate.outputs.source-sha }}
+      candidate-manifest: ${{ steps.import-candidate.outputs.manifest }}
+      run-id: ${{ github.run_id }}
+      run-attempt: ${{ github.run_attempt }}
+      receipt-artifact-name: ${{ steps.retain-evidence.outcome == 'success' && format('{0}-run-{1}-attempt-{2}',
+        inputs.artifact-name, github.run_id, github.run_attempt) || '' }}
     steps:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       with:
         persist-credentials: false
         fetch-depth: 0
+        ref: ${{ github.sha }}
     - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
       with:
         python-version: 3.12.3
     - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
       with:
         node-version: 22.23.4
+    - id: import-candidate
+      if: ${{ inputs.artifact-run-id != '' }}
+      uses: $/actions/v2-artifacts
+      with:
+        operation: fetch
+        root: ${{ inputs.root }}
+        run-id: ${{ inputs.artifact-run-id }}
+        run-attempt: ${{ inputs.artifact-run-attempt }}
+        source-sha: ${{ inputs.artifact-source-sha }}
+        identity: ${{ inputs.artifact-identity }}
+        workflow: ${{ inputs.artifact-workflow }}
+        artifact-name: ${{ inputs.artifact-input-name }}
+        producer-job: ${{ inputs.artifact-producer-job }}
+        allowed-branches: ${{ inputs.artifact-allowed-branches }}
+        run-head-sha: ${{ inputs.artifact-run-head-sha }}
+        allowed-events: ${{ inputs.artifact-allowed-events }}
+      env:
+        GH_ARTIFACT_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
     - name: Validate scope and download checksum-pinned language tools
       id: prepare
       env:
@@ -223,20 +336,26 @@ jobs:
         module: security
         root: ${{ inputs.root }}
         config: ${{ inputs.config }}
+        selected-manifest: ${{ steps.import-candidate.outputs.manifest }}
+        selected-identity: ${{ steps.import-candidate.outputs.candidate-identity }}
+        selected-source-sha: ${{ steps.import-candidate.outputs.source-sha }}
+        receipt-path: ${{ inputs.receipt-path }}
     - name: Preserve aggregate receipt
       if: ${{ always() && steps.gate.outputs.bundle != '' }}
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
       with:
-        name: ${{ inputs.artifact-name }}
+        name: ${{ format('{0}-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt) }}
         path: ${{ steps.gate.outputs.bundle }}
         if-no-files-found: error
-        retention-days: 7
+        retention-days: ${{ inputs.receipt-retention-days }}
+      id: retain-evidence
     - name: Preserve explicitly requested SARIF for upload job
       if: ${{ always() && steps.analyze.outcome == 'success' && inputs.upload-to-github && (github.event_name !=
         'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
       with:
-        name: ${{ inputs.artifact-name }}-codeql-sarif
+        name: ${{ format('{0}-codeql-sarif-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt)
+          }}
         path: ${{ steps.prepare.outputs.results }}
         if-no-files-found: error
         retention-days: 1
@@ -255,9 +374,11 @@ jobs:
     - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
       with:
         persist-credentials: false
+        ref: ${{ github.sha }}
     - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
       with:
-        name: ${{ inputs.artifact-name }}-codeql-sarif
+        name: ${{ format('{0}-codeql-sarif-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt)
+          }}
         path: ${{ runner.temp }}/shared-codeql-sarif
     - uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066
       with:
