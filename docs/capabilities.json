@@ -29,6 +29,7 @@
             "test_failed_cli_removes_previous_passing_receipt",
             "test_flutter_bootstrap_uses_enforced_locks_and_no_archive_compile",
             "test_installed_jar_requires_one_explicit_nonlinked_checksum_bound_file",
+            "test_loader_refuses_old_wrong_or_unpinned_python_before_git",
             "test_loader_uses_exact_commit_cleans_checkout_and_rejects_changed_revision",
             "test_native_bootstrap_checks_tool_and_locks_before_and_after",
             "test_real_device_command_contracts_and_private_token_cleanup",
@@ -65,6 +66,7 @@
             "test_package_file_and_byte_limits",
             "test_package_fresh_outside_workspace_only",
             "test_package_rejects_changed_inputs",
+            "test_pr_merge_candidate_cannot_substitute_run_head_for_bundle_source",
             "test_roundtrip_verifies_origin_and_preserves_tracked_source",
             "test_same_running_pr_authenticates_api_head_independent_of_merge_sha",
             "test_same_running_workflow_accepts_completed_producer",
@@ -101,6 +103,22 @@
             "test_partial_pagination_wrong_product_duplicate_ids_unknown_fields_fail",
             "test_server_metadata_and_resource_list_order_ignored",
             "test_trigger_toolchain_enabled_and_required_action_changes_report_drift"
+          ]
+        },
+        {
+          "file": "tests/test_apple_hook.py",
+          "cases": [
+            "test_archive_candidate_binds_verified_source_library_and_trusted_check_output",
+            "test_archive_monitoring_uses_checkout_config_and_current_archive_root",
+            "test_archive_verify_uses_source_checkout_and_rejects_changed_source",
+            "test_bridge_export_is_native_archive_only",
+            "test_candidate_refuses_caller_library_revision",
+            "test_candidate_refuses_missing_malformed_or_forged_check_digests",
+            "test_changed_or_unpinned_library_fails_before_module_execution",
+            "test_failed_result_has_receipt_and_fails",
+            "test_library_modified_during_operation_cannot_emit_success",
+            "test_summary_contains_only_trusted_receipt_selection",
+            "test_wrong_host_context_root_module_and_payload_output_refused"
           ]
         }
       ],
@@ -224,6 +242,7 @@
             "test_failed_cli_removes_previous_passing_receipt",
             "test_flutter_bootstrap_uses_enforced_locks_and_no_archive_compile",
             "test_installed_jar_requires_one_explicit_nonlinked_checksum_bound_file",
+            "test_loader_refuses_old_wrong_or_unpinned_python_before_git",
             "test_loader_uses_exact_commit_cleans_checkout_and_rejects_changed_revision",
             "test_native_bootstrap_checks_tool_and_locks_before_and_after",
             "test_real_device_command_contracts_and_private_token_cleanup",
@@ -312,6 +331,7 @@
             "test_failed_cli_removes_previous_passing_receipt",
             "test_flutter_bootstrap_uses_enforced_locks_and_no_archive_compile",
             "test_installed_jar_requires_one_explicit_nonlinked_checksum_bound_file",
+            "test_loader_refuses_old_wrong_or_unpinned_python_before_git",
             "test_loader_uses_exact_commit_cleans_checkout_and_rejects_changed_revision",
             "test_native_bootstrap_checks_tool_and_locks_before_and_after",
             "test_real_device_command_contracts_and_private_token_cleanup",
@@ -2013,6 +2033,7 @@
             "test_package_file_and_byte_limits",
             "test_package_fresh_outside_workspace_only",
             "test_package_rejects_changed_inputs",
+            "test_pr_merge_candidate_cannot_substitute_run_head_for_bundle_source",
             "test_roundtrip_verifies_origin_and_preserves_tracked_source",
             "test_same_running_pr_authenticates_api_head_independent_of_merge_sha",
             "test_same_running_workflow_accepts_completed_producer",
@@ -2091,6 +2112,8 @@
             "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
             "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
             "test_secret_value_never_leaves_normalizer",
+            "test_semgrep_configs_match_all_checksummed_local_rule_files",
+            "test_semgrep_registry_auto_mismatched_missing_and_mutated_rules_fail_before_process",
             "test_stale_actual_database_is_refused",
             "test_stale_security_receipt_cannot_be_reused",
             "test_unknown_severity_blocks_and_exceptions_expire"
@@ -2119,6 +2142,8 @@
             "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
             "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
             "test_secret_value_never_leaves_normalizer",
+            "test_semgrep_configs_match_all_checksummed_local_rule_files",
+            "test_semgrep_registry_auto_mismatched_missing_and_mutated_rules_fail_before_process",
             "test_stale_actual_database_is_refused",
             "test_stale_security_receipt_cannot_be_reused",
             "test_unknown_severity_blocks_and_exceptions_expire"
@@ -2148,6 +2173,8 @@
             "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
             "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
             "test_secret_value_never_leaves_normalizer",
+            "test_semgrep_configs_match_all_checksummed_local_rule_files",
+            "test_semgrep_registry_auto_mismatched_missing_and_mutated_rules_fail_before_process",
             "test_stale_actual_database_is_refused",
             "test_stale_security_receipt_cannot_be_reused",
             "test_unknown_severity_blocks_and_exceptions_expire"
@@ -2188,6 +2215,8 @@
             "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
             "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
             "test_secret_value_never_leaves_normalizer",
+            "test_semgrep_configs_match_all_checksummed_local_rule_files",
+            "test_semgrep_registry_auto_mismatched_missing_and_mutated_rules_fail_before_process",
             "test_stale_actual_database_is_refused",
             "test_stale_security_receipt_cannot_be_reused",
             "test_unknown_severity_blocks_and_exceptions_expire"
@@ -2290,6 +2319,8 @@
             "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
             "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
             "test_secret_value_never_leaves_normalizer",
+            "test_semgrep_configs_match_all_checksummed_local_rule_files",
+            "test_semgrep_registry_auto_mismatched_missing_and_mutated_rules_fail_before_process",
             "test_stale_actual_database_is_refused",
             "test_stale_security_receipt_cannot_be_reused",
             "test_unknown_severity_blocks_and_exceptions_expire"
