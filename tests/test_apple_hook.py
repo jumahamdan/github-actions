@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from shared_ci.assurance import stamp
 from shared_ci.common import PipelineError, atomic_json, sha256_file
-from shared_ci import evidence
+from shared_ci import evidence, mobile
 
 spec = importlib.util.spec_from_file_location('apple_hook', Path(__file__).resolve().parents[1] / 'scripts/apple/run-hook.py')
 hook = importlib.util.module_from_spec(spec)
@@ -61,9 +61,9 @@ class AppleHookTests(unittest.TestCase):
         self.git(self.source, 'commit', '--allow-empty', '-qm', 'configure')
         os.environ['CI_COMMIT'] = self.git(self.source, 'rev-parse', 'HEAD')
 
-    def candidate_fixture(self):
+    def candidate_fixture(self, build='1'):
         (self.source / 'check-config.json').write_text('{"schema":1}')
-        config = {'schema': 1, 'product': 'synthetic-ios', 'version': '1.0', 'build': '1',
+        config = {'schema': 1, 'product': 'synthetic-ios', 'version': '1.0', 'build': build,
                   'library_sha': 'workflow', 'inputs': ['check-config.json'], 'artifacts': ['app.bin'],
                   'toolchain': {'compiler': 'synthetic'},
                   'checks': [{'path': '.shared-ci-evidence/check.json', 'kind': 'mobile', 'config': 'check-config.json'}]}
@@ -76,6 +76,53 @@ class AppleHookTests(unittest.TestCase):
         os.environ.update(SHARED_APPLE_MODULE='evidence', SHARED_APPLE_ROOT='archive',
                           SHARED_APPLE_CHECK_DIGESTS=json.dumps({'.shared-ci-evidence/check.json': sha256_file(path)}))
         return path
+
+    def test_mobile_workflow_build_uses_current_cloud_number_without_changing_template(self):
+        self.configure({'operation': 'apple-verify', 'build': 'workflow'})
+        os.environ.update(SHARED_APPLE_MODULE='mobile', CI_BUILD_NUMBER='147')
+        original = (self.source / 'config.json').read_bytes()
+        seen = []
+        def execute(config, root):
+            seen.append(config['build'])
+            return {'status': 'passed', 'application': {'build': config['build']}}
+        with patch.object(hook.importlib, 'import_module', return_value=types.SimpleNamespace(execute=execute)):
+            result = hook.execute_hook()
+        self.assertEqual(seen, ['147'])
+        self.assertEqual(result['application']['build'], '147')
+        self.assertEqual((self.source / 'config.json').read_bytes(), original)
+        self.assertEqual(result['assurance']['config_sha256'], sha256_file(self.source / 'config.json'))
+
+    def test_candidate_workflow_build_resolves_current_number_and_preserves_config_hash(self):
+        self.candidate_fixture(build='workflow')
+        os.environ['CI_BUILD_NUMBER'] = '148'
+        original = (self.source / 'config.json').read_bytes()
+        with patch.object(hook.importlib, 'import_module', return_value=evidence):
+            candidate = hook.execute_hook()
+        self.assertEqual(candidate['build'], '148')
+        self.assertEqual((self.source / 'config.json').read_bytes(), original)
+        self.assertEqual(candidate['assurance']['config_sha256'], sha256_file(self.source / 'config.json'))
+
+    def test_workflow_build_requires_positive_integer_before_module_execution(self):
+        for module_name in ('mobile', 'evidence'):
+            self.configure({'operation': 'apple-verify', 'build': 'workflow', 'library_sha': 'workflow'})
+            os.environ.update(SHARED_APPLE_MODULE=module_name)
+            module = types.SimpleNamespace(execute=lambda *args: self.fail('invalid build reached mobile'),
+                                           create=lambda *args, **kwargs: self.fail('invalid build reached evidence'))
+            for value in ('', '0', '-1', '1.2', ' 1', '01', 'one'):
+                with self.subTest(module=module_name, build=value), patch.dict(os.environ, {'CI_BUILD_NUMBER': value}):
+                    with patch.object(hook.importlib, 'import_module', return_value=module):
+                        with self.assertRaisesRegex(PipelineError, 'positive integer'):
+                            hook.execute_hook()
+
+    def test_explicit_mobile_build_mismatch_is_not_overridden(self):
+        self.configure({'operation': 'apple-verify', 'build': '42', 'version': '1.0',
+                        'archive': '$CI_ARCHIVE_PATH', 'signing': 'unsigned', 'targets': []})
+        os.environ.update(SHARED_APPLE_MODULE='mobile', CI_BUILD_NUMBER='149', CI_BUILD_ID='synthetic-run')
+        original = (self.source / 'config.json').read_bytes()
+        with patch.object(hook.importlib, 'import_module', return_value=mobile):
+            with self.assertRaisesRegex(PipelineError, 'Manifest build differs'):
+                hook.execute_hook()
+        self.assertEqual((self.source / 'config.json').read_bytes(), original)
 
     def test_archive_monitoring_uses_checkout_config_and_current_archive_root(self):
         os.environ.update(SHARED_APPLE_MODULE='monitoring', SHARED_APPLE_ROOT='archive')

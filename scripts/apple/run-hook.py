@@ -41,6 +41,16 @@ def trusted_check_digests():
     return expected
 
 
+def current_cloud_build(config):
+    """Resolve only an explicitly selected Cloud build marker, never static pins."""
+    if config.get('build') != 'workflow':
+        return config
+    build = os.environ.get('CI_BUILD_NUMBER', '')
+    if not re.fullmatch(r'[1-9][0-9]*', build):
+        raise PipelineError('Workflow build selection requires a positive integer CI_BUILD_NUMBER')
+    return {**config, 'build': build}
+
+
 def execute_hook(*, emit_summary=False):
     if platform.system() != 'Darwin' or os.environ.get('CI_XCODE_CLOUD', '').lower() != 'true':
         raise PipelineError('Apple hosted hook requires actual Xcode Cloud on a Mac')
@@ -71,6 +81,8 @@ def execute_hook(*, emit_summary=False):
     module = importlib.import_module('shared_ci.' + name)
     if name == 'mobile':
         if selection != 'source': raise PipelineError('Mobile inspection needs the source checkout root')
+        if config.get('operation') == 'apple-verify':
+            config = current_cloud_build(config)
         result = module.execute(config, root)
     elif name == 'monitoring': result = module.execute(config, root)
     elif name == 'apple_bridge':
@@ -85,7 +97,7 @@ def execute_hook(*, emit_summary=False):
         if operation == 'create':
             if config.get('library_sha') not in ('workflow', revision):
                 raise PipelineError('Candidate library revision differs from the executing Apple helper')
-            config = {**config, 'library_sha': revision}
+            config = {**current_cloud_build(config), 'library_sha': revision}
             result = module.create(config, root, source_root=source, expected_checks=trusted_check_digests())
         elif operation == 'verify':
             result = module.verify(config, root, expected_library_sha=revision, source_root=source)

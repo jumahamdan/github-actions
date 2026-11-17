@@ -4,7 +4,7 @@
   "signing": "signed",
   "allowed_refs": ["refs/heads/staging"],
   "version": "1.2.0",
-  "build": "42",
+  "build": "workflow",
   "targets": [
     {
       "path": "Products/Applications/Example.app",
