@@ -87,6 +87,27 @@ class ReceiptOriginTests(unittest.TestCase):
         with self.assertRaises(PipelineError):
             self.fetch(producer_job=None)
 
+    def test_earlier_attempt_receipt_keeps_selected_attempt_provenance(self):
+        previous = {**self.metadata, "id": 32, "run_attempt": 1, "status": "completed", "conclusion": "failure",
+                    "updated_at": "2026-01-01T00:07:00Z"}
+        self.metadata.update(id=32, run_started_at="2026-01-01T01:00:00Z", updated_at="2026-01-01T01:01:00Z")
+        self.job.update(run_attempt=1, head_sha=self.head)
+        seen = []
+        def request(path, token, binary=False):
+            seen.append(path)
+            if path == "/repos/owner/example/actions/runs/32/attempts/1":
+                return previous
+            return self.request(path, token, binary)
+        result = fetch_receipt("owner/example", "32", "checks", self.head, ".github/workflows/ci.yml", "synthetic",
+                               request=request, producer_job="quality / run", run_attempt=1,
+                               allowed_branches=["develop"], allowed_events=["pull_request"])
+        self.assertIn("/repos/owner/example/actions/runs/32/attempts/1", seen)
+        self.assertEqual(result["provenance"]["run_attempt"], 1)
+        self.assertEqual(result["provenance"]["head_branch"], previous["head_branch"])
+        self.assertEqual(result["provenance"]["event"], previous["event"])
+        self.assertEqual(result["provenance"]["source_sha"], previous["head_sha"])
+        self.assertTrue(result.validate_integrity())
+
 
 if __name__ == "__main__":
     unittest.main()

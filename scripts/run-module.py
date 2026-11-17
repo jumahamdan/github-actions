@@ -80,12 +80,26 @@ def dispatch(name, module, config, root, path, output, operation, active):
         result = module.evaluate(config, json.loads(os.environ.get("SHARED_JOB_RESULTS", "{}")))
     elif name == "sonar":
         from shared_ci.evidence import fetch_receipt
+        from shared_ci.common import trusted_context
+        trusted_context(config["allowed_refs"], allow_pull_requests=config.get("mode") == "pull_request")
         repository = os.environ.get("GITHUB_REPOSITORY", "")
         run_id = os.environ.get("QUALITY_RUN_ID", "")
         source = os.environ.get("QUALITY_SOURCE_SHA", "")
+        attempt = os.environ.get("QUALITY_RUN_ATTEMPT", "")
+        if not re.fullmatch(r"[1-9][0-9]*", attempt):
+            raise PipelineError("Sonar requires an exact positive quality run attempt")
+        try:
+            branches = json.loads(os.environ.get("QUALITY_ALLOWED_BRANCHES", ""))
+            events = json.loads(os.environ.get("QUALITY_ALLOWED_EVENTS", ""))
+        except json.JSONDecodeError as exc:
+            raise PipelineError("Sonar requires explicit JSON quality branch and event allowlists") from exc
+        if not isinstance(branches, list) or not branches or not isinstance(events, list) or not events:
+            raise PipelineError("Sonar requires nonempty quality branch and event allowlists")
         verified = fetch_receipt(repository, run_id, os.environ.get("QUALITY_ARTIFACT", ""), os.environ.get("QUALITY_RUN_HEAD_SHA", source),
                                  os.environ.get("QUALITY_WORKFLOW", ""), os.environ.get("GH_TOKEN", ""),
-                                 coverage_paths=[entry["path"] for entry in config["coverage"]])
+                                 coverage_paths=[entry["path"] for entry in config["coverage"]],
+                                 producer_job=os.environ.get("QUALITY_PRODUCER_JOB") or None,
+                                 run_attempt=int(attempt), allowed_branches=branches, allowed_events=events)
         receipt_path = confined_path(root, config["quality_receipt"], False)
         for relative, data in verified["coverage_files"].items():
             target = confined_path(root, relative, False)

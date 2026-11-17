@@ -253,6 +253,7 @@ def fetch_receipt(repository, run_id, artifact_name, expected_sha, expected_work
         raise PipelineError("GitHub evidence token is missing")
     prefix = f"/repos/{repository}/actions/runs/{run_id}"
     metadata = request(prefix, token)
+    provenance_metadata = metadata
     if any(value is not None for value in (producer_job, run_attempt, allowed_branches, allowed_events)):
         # A lazy import avoids artifacts -> evidence -> artifacts at module loading.
         from .artifacts import authenticated_artifact
@@ -263,8 +264,14 @@ def fetch_receipt(repository, run_id, artifact_name, expected_sha, expected_work
         if producer_job is not None:
             config["producer_job"] = producer_job
         def cached_request(path, credential, binary=False):
-            return metadata if path == prefix and not binary else request(path, credential, binary)
+            nonlocal provenance_metadata
+            response = metadata if path == prefix and not binary else request(path, credential, binary)
+            if path == prefix + f"/attempts/{run_attempt}" and not binary:
+                provenance_metadata = response
+            return response
         item = authenticated_artifact(config, token, cached_request)
+        if provenance_metadata.get("run_attempt") != run_attempt:
+            raise PipelineError("Authenticated receipt attempt provenance is absent or differs from selection")
     else:
         # Existing callers remain completed-run-only. New wrappers supply exact
         # attempt/branch policy, also allowing a completed producer in this run.
@@ -323,9 +330,9 @@ def fetch_receipt(repository, run_id, artifact_name, expected_sha, expected_work
     return AuthenticatedReceipt({"receipt": receipt, "coverage_files": coverage_files,
                                  "provenance": {"repository": repository, "run_id": str(run_id),
                                                 "source_sha": expected_sha, "workflow": expected_workflow,
-                                                "artifact_digest": item["digest"], "event": metadata.get("event"),
-                                                "head_branch": metadata.get("head_branch"),
-                                                "run_attempt": metadata.get("run_attempt")}}, _proof=_FETCH_PROOF)
+                                                "artifact_digest": item["digest"], "event": provenance_metadata.get("event"),
+                                                "head_branch": provenance_metadata.get("head_branch"),
+                                                "run_attempt": provenance_metadata.get("run_attempt")}}, _proof=_FETCH_PROOF)
 
 
 def main():
