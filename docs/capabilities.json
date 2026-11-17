@@ -426,6 +426,19 @@
             "test_same_tree_new_merge_sha_can_reuse",
             "test_symlink_implementation_and_missing_library_refused"
           ]
+        },
+        {
+          "file": "tests/test_sonar_wrapper.py",
+          "cases": [
+            "test_altered_coverage_bytes_fail_authenticated_hash_before_write",
+            "test_coverage_destination_cannot_overwrite_tested_source",
+            "test_fork_pr_is_refused_before_artifact_token_or_scanner_use",
+            "test_pr_coverage_requires_explicit_producer_event_permission",
+            "test_same_repo_pr_separates_rest_head_from_tested_merge_commit",
+            "test_same_running_push_fetches_completed_quality_job_and_scans_without_retesting",
+            "test_workflow_maps_exact_quality_contract_and_keeps_pr_secret_guard",
+            "test_wrong_branch_producer_attempt_or_event_refuses_before_scanner"
+          ]
         }
       ],
       "verification": "contract fixtures; live product proof at adoption"
