@@ -946,6 +946,10 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
 | `quality-run-id` | required | Verified source quality run |
+| `quality-run-attempt` | required | Exact producer quality attempt, including an earlier attempt retained during a retry |
+| `quality-producer-job` | '' | Exact completed quality job name; required for same-run coverage import |
+| `quality-allowed-branches` | required | Explicit JSON array of allowed producer head branch names, without refs/heads or wildcards |
+| `quality-allowed-events` | '["push","workflow_dispatch"]' | Explicit JSON event allowlist; add pull_request only for approved same-repository PR coverage |
 | `quality-source-sha` | required | Expected quality source SHA |
 | `quality-artifact` | required | Quality receipt+coverage artifact |
 | `quality-workflow` | required | Trusted quality workflow path |
