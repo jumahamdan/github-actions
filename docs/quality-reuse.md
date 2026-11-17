@@ -16,13 +16,18 @@ Quality reuse does not replace current security intelligence, live AI evaluation
 
 ## Configuration and credentials
 
-Start with [the example](../examples/reuse-quality.json). Replace the repository, trusted workflow path, artifact name, and quality configuration path. The trusted workflow path is the **product caller** recorded in the Actions run API, not the shared reusable workflow path.
+Start with [the example](../examples/reuse-quality.json). Replace the repository, trusted workflow path and quality configuration path. Pass the original workflow outputs through the explicit runtime selectors; artifact names include their producing run and attempt. The trusted workflow path is the **product caller** recorded in the Actions run API, not the shared reusable workflow path.
 
-`run_id`, `run_head_sha`, and `source_sha` accept either literal strings or `{ "env": "VARIABLE_NAME" }`. Nothing searches for a loosely matching “latest successful” run. A product can record these identifiers with its candidate or resolve them through its own reviewed selection step.
+`run_id`, `run_head_sha`, `source_sha`, `artifact` and optional `producer_job` accept literal strings or `{ "env": "VARIABLE_NAME" }`. Required `run_attempt` accepts a positive integer/decimal string or an environment selector. Required `allowed_branches` and `allowed_events` accept explicit nonempty arrays or an environment selector containing a JSON array. Missing, malformed, wildcard or duplicate policy entries fail; nothing searches for a loosely matching “latest successful” run. A product can record these selections with its candidate or obtain them from a successful producer job in the current workflow.
 
 | Field / environment | Meaning |
 | --- | --- |
-| `source.run_id` / example `QUALITY_RUN_ID` | Original completed successful Actions run ID. |
+| `source.run_id` / example `QUALITY_RUN_ID` | Original producing Actions run ID. |
+| `source.run_attempt` / `QUALITY_RUN_ATTEMPT` | Exact producing attempt, normally its `run-attempt` workflow output. |
+| `source.artifact` / `QUALITY_ARTIFACT` | Exact `receipt-artifact-name` output, including run/attempt suffix. |
+| `source.producer_job` / `QUALITY_PRODUCER_JOB` | Exact displayed successful job name, such as `quality / run`; required for a producer in the current active run. |
+| `source.allowed_branches` / `QUALITY_ALLOWED_BRANCHES` | Approved producer head names, such as `["develop"]` or the explicitly selected PR head branch; no wildcard or `refs/heads/` prefix. |
+| `source.allowed_events` / `QUALITY_ALLOWED_EVENTS` | Explicit subset of `push`, `pull_request`, `workflow_dispatch`; no `pull_request_target`. |
 | `source.run_head_sha` / example `QUALITY_RUN_HEAD_SHA` | Exact `head_sha` returned by the Actions workflow-run API. |
 | `source.source_sha` / example `QUALITY_TESTED_SHA` | Actual tested checkout SHA from the original quality receipt's provenance and assurance. |
 | `token_env` / default `GH_TOKEN` | Existing GitHub token with Actions read permission for the same product repository. Map the job's `github.token`; no new provider key is needed. |
@@ -32,6 +37,8 @@ Start with [the example](../examples/reuse-quality.json). Replace the repository
 Keep the two SHA fields separate. GitHub documents `GITHUB_SHA` for `pull_request` as the synthetic merge commit. This module compares `run_head_sha` with the API and `source_sha` with the receipt; it never guesses that they are interchangeable. [GitHub event documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#pull_request), [workflow-run API](https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run).
 
 The invoking job needs `contents: read` for checkout and `actions: read` for retrieval. No provider secrets, write permission, or OIDC permission is required. Use the library's pinned `actions/v2-run` action with `module: reuse`, the reuse configuration path, and an optional `receipt-path`. The root wrapper preserves the module's verified **quality** assurance; the candidate check entry is `{ "path": "reused-quality.json", "kind": "quality", "config": "ci/quality.json" }`, pointing to the original quality configuration, not the reuse configuration. Upload the wrapper's allowlisted bundle as usual.
+
+The reusable `v2-reuse.yml` workflow binds these selectors through `quality-run-id`, `quality-run-attempt`, `quality-artifact`, `quality-run-head-sha`, `quality-tested-sha`, `quality-allowed-branches`, `quality-allowed-events` and optional `quality-producer-job`. Its example configuration reads the matching `QUALITY_*` environment variables. For a same-run dependency, use the quality job's `run-id`, `run-attempt` and `receipt-artifact-name` outputs; choose the exact caller workflow path and displayed quality job name. Keep the run head separate from the tested merge SHA for PRs. The reuse job executes no tests, so a passing reuse receipt does not duplicate the original quality run.
 
 The equivalent local command is:
 
@@ -43,7 +50,9 @@ This command requires the existing read token in the selected environment variab
 
 ## What must match
 
-The module downloads the artifact through `evidence.fetch_receipt`. That function checks the successful completed run, expected repository, workflow and run head, artifact expiry and uniqueness, and GitHub's artifact SHA-256 digest. Its bounded archive parser accepts the receipt and declared coverage files only. GitHub exposes artifact digests and expiration in its [artifact API](https://docs.github.com/en/rest/actions/artifacts).
+The module always downloads through the strict mode of `evidence.fetch_receipt`, supplying the selected attempt, branch/event policy and optional producer job. It authenticates the expected repository, workflow and run head, selected attempt/job outcome and time window, artifact expiry/uniqueness, and GitHub's artifact SHA-256 digest. Its bounded archive parser accepts the receipt and declared coverage files only. GitHub exposes artifact digests and expiration in its [artifact API](https://docs.github.com/en/rest/actions/artifacts).
+
+A foreign run requires its selected attempt to have completed successfully. Within the current active run, one exact successful producer job can supply the receipt while downstream jobs are still running. A failed-jobs rerun can reuse that same producer from an earlier completed attempt, even if another job caused the earlier attempt to fail. The imported receipt records the original selected attempt, branch and event, not the latest rerun metadata. Failed, absent, duplicate or running producers, wrong branches/events, and artifacts outside the selected execution window are refused. See [artifact transport](artifacts.md).
 
 The authenticated receipt must then satisfy all of these requirements:
 
@@ -62,6 +71,6 @@ Quality currently records configured environment **names**, not their values. Re
 
 ## Retained evidence
 
-The result preserves the original check results, input hashes, provenance, and creation time. `reused_from` records the original API artifact digest, run head, tested SHA/tree, workflow, original assurance/library record, freshness policy, and verification time. The top-level assurance refers to the current source and the same quality configuration, making it consumable by candidate verification.
+The result preserves the original check results, input hashes, provenance, and creation time. `reused_from` records the original API artifact digest, run and attempt, producer branch/event, run head, tested SHA/tree, workflow, original assurance/library record, freshness policy, and verification time. The top-level assurance refers to the current source and the same quality configuration, making it consumable by candidate verification.
 
 Coverage bytes stay in the original artifact. The reused receipt has an empty top-level `coverage` map and retains the original coverage metadata under `reused_from.coverage`; it does not claim to package reports it never regenerated. Sonar should fetch the original run's authenticated coverage through its separate adapter. Retain the original artifact long enough for the intended promotion window, within the freshness ceiling.

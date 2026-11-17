@@ -12,6 +12,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+import yaml
+
 from shared_ci.assurance import library_identity, stamp
 from shared_ci.common import PipelineError, sha256_file
 from shared_ci.evidence import create, verify
@@ -53,7 +55,7 @@ class ReuseTests(unittest.TestCase):
         self.source = self.git("rev-parse", "HEAD")
         self.run_head = "b" * 40
         self.env = patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/product", "GITHUB_RUN_ID": "17", "GITHUB_SHA": self.source,
-                                          "GH_TOKEN": "synthetic-read-only-token"})
+                                          "GITHUB_ACTIONS": "false", "GITHUB_RUN_ATTEMPT": "1", "GH_TOKEN": "synthetic-read-only-token"})
         self.env.start()
         self.addCleanup(self.env.stop)
         self.receipt = run_quality(self.quality, self.root, config_hash=sha256_file(self.quality_path))
@@ -61,10 +63,16 @@ class ReuseTests(unittest.TestCase):
         stamp(self.receipt, "quality", self.quality_path, self.root)
         self.config = {"schema": 1, "quality_config": "quality.json", "max_age_seconds": 86400,
                        "source": {"repository": "owner/product", "workflow": ".github/workflows/ci.yml", "run_id": "17",
-                                  "run_head_sha": self.run_head, "source_sha": self.source, "artifact": "quality-checks"}}
+                                  "run_head_sha": self.run_head, "source_sha": self.source, "artifact": "quality-checks",
+                                  "run_attempt": 1, "allowed_branches": ["feature/test"], "allowed_events": ["pull_request"]}}
         self.metadata = {"status": "completed", "conclusion": "success", "head_sha": self.run_head,
-                         "path": ".github/workflows/ci.yml", "head_repository": {"full_name": "owner/product"}, "event": "pull_request"}
-        self.artifact = {"id": 9, "name": "quality-checks", "expired": False}
+                         "path": ".github/workflows/ci.yml", "head_repository": {"full_name": "owner/product"}, "event": "pull_request",
+                         "id": 17, "run_attempt": 1, "head_branch": "feature/test",
+                         "run_started_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T01:00:00Z"}
+        self.artifact = {"id": 9, "name": "quality-checks", "expired": False, "created_at": "2026-01-01T00:30:00Z",
+                         "workflow_run": {"id": 17, "head_sha": self.run_head}}
+        self.jobs = [{"id": 45, "name": "quality / run", "run_id": 17, "status": "completed", "conclusion": "success",
+                      "started_at": "2026-01-01T00:10:00Z", "completed_at": "2026-01-01T00:40:00Z"}]
         self.requests = []
         self.repack()
 
@@ -87,6 +95,10 @@ class ReuseTests(unittest.TestCase):
             return self.blob
         if "/artifacts?" in path:
             return {"artifacts": [self.artifact]}
+        if "/jobs?" in path:
+            return {"jobs": self.jobs}
+        if path.endswith("/attempts/1") and hasattr(self, 'previous'):
+            return self.previous
         return self.metadata
 
     def reuse(self, config=None):
@@ -224,7 +236,7 @@ class ReuseTests(unittest.TestCase):
         original = copy.deepcopy(self.metadata)
         for key, value in (("conclusion", "failure"), ("status", "in_progress"), ("head_sha", "f" * 40),
                            ("path", ".github/workflows/other.yml"), ("head_repository", {"full_name": "fork/product"}),
-                           ("event", "pull_request_target")):
+                           ("event", "pull_request_target"), ("head_branch", "feature/unapproved"), ("run_attempt", 2)):
             with self.subTest(key=key):
                 self.metadata = {**original, key: value}
                 with self.assertRaises(PipelineError):
@@ -250,6 +262,111 @@ class ReuseTests(unittest.TestCase):
         with patch.dict(os.environ, {"GH_TOKEN": ""}):
             with self.assertRaises(PipelineError):
                 self.reuse()
+
+    def test_runtime_artifact_attempt_and_policy_selectors_use_real_authenticated_archive(self):
+        config = copy.deepcopy(self.config)
+        values = {'run_id': '17', 'run_head_sha': self.run_head, 'source_sha': self.source,
+                  'artifact': 'quality-run-17-attempt-1', 'run_attempt': '1', 'producer_job': 'quality / run',
+                  'allowed_branches': '["feature/test"]', 'allowed_events': '["pull_request"]'}
+        environment = {}
+        for field, value in values.items():
+            name = 'QUALITY_' + field.upper()
+            config['source'][field] = {'env': name}
+            environment[name] = value
+        self.artifact['name'] = values['artifact']
+        with patch.dict(os.environ, environment):
+            result = self.reuse(config)
+        origin = result['reused_from']
+        self.assertEqual(origin['run_attempt'], 1)
+        self.assertEqual(origin['head_branch'], 'feature/test')
+        self.assertEqual(origin['event'], 'pull_request')
+        self.assertEqual(origin['artifact'], values['artifact'])
+        self.assertEqual(origin['artifact_digest'], self.artifact['digest'])
+        self.assertEqual(origin['run_head_sha'], self.run_head)
+        self.assertEqual(origin['source_sha'], self.source)
+        self.assertIn('/repos/owner/product/actions/runs/17/attempts/1/jobs?per_page=100&page=1', self.requests)
+        self.assertEqual((self.root / 'executions.txt').read_text(), 'run\n')
+
+    def test_same_run_successful_quality_job_reuses_once_for_push_and_pull_request(self):
+        self.config['source']['producer_job'] = 'quality / run'
+        for event, branch, head in [('pull_request', 'feature/test', self.run_head), ('push', 'develop', self.source)]:
+            self.config['source'].update(allowed_events=[event], allowed_branches=[branch], run_head_sha=head)
+            self.metadata.update(event=event, head_branch=branch, head_sha=head, status='in_progress', conclusion=None,
+                                 updated_at='2026-01-01T00:01:00Z')
+            self.artifact['workflow_run']['head_sha'] = head
+            with self.subTest(event=event), patch.dict(os.environ, {'GITHUB_ACTIONS': 'true'}):
+                result = self.reuse()
+            self.assertEqual(result['reused_from']['event'], event)
+            self.assertEqual(result['reused_from']['run_head_sha'], head)
+            self.assertEqual(result['reused_from']['source_sha'], self.source)
+            self.assertEqual((self.root / 'executions.txt').read_text(), 'run\n')
+
+    def test_downstream_retry_uses_original_quality_attempt_and_origin(self):
+        self.config['source']['producer_job'] = 'quality / run'
+        self.previous = {**self.metadata, 'conclusion': 'failure'}
+        self.metadata.update(run_attempt=2, status='in_progress', conclusion=None,
+                             run_started_at='2026-01-02T00:00:00Z', updated_at='2026-01-02T00:01:00Z')
+        with patch.dict(os.environ, {'GITHUB_ACTIONS': 'true', 'GITHUB_RUN_ATTEMPT': '2'}):
+            result = self.reuse()
+        self.assertEqual(result['reused_from']['run_attempt'], 1)
+        self.assertEqual(result['reused_from']['head_branch'], self.previous['head_branch'])
+        self.assertIn('/repos/owner/product/actions/runs/17/attempts/1', self.requests)
+        self.assertEqual((self.root / 'executions.txt').read_text(), 'run\n')
+
+    def test_same_run_missing_failed_duplicate_or_wrong_window_producer_is_not_reused(self):
+        self.metadata.update(status='in_progress', conclusion=None, updated_at='2026-01-01T00:01:00Z')
+        original = copy.deepcopy(self.jobs)
+        with patch.dict(os.environ, {'GITHUB_ACTIONS': 'true'}):
+            with self.assertRaisesRegex(PipelineError, 'explicit completed producer'):
+                self.reuse()
+            self.config['source']['producer_job'] = 'quality / run'
+            for jobs in ([], original + original, [dict(original[0], conclusion='failure')],
+                         [dict(original[0], status='in_progress', conclusion=None)], [dict(original[0], name='wrong')]):
+                self.jobs = jobs
+                with self.subTest(jobs=jobs), self.assertRaisesRegex(PipelineError, 'producer job'):
+                    self.reuse()
+            self.jobs = original
+            self.artifact['created_at'] = '2026-01-01T00:09:59Z'
+            with self.assertRaisesRegex(PipelineError, 'stale'):
+                self.reuse()
+
+    def test_strict_attempt_branch_and_event_policies_cannot_fall_back_to_legacy_fetch(self):
+        for missing in ('run_attempt', 'allowed_branches', 'allowed_events'):
+            config = copy.deepcopy(self.config)
+            del config['source'][missing]
+            with self.subTest(missing=missing), self.assertRaises(PipelineError):
+                self.reuse(config)
+        variants = [('run_attempt', 0), ('run_attempt', True), ('run_attempt', '1.0'), ('run_attempt', -1),
+                    ('allowed_branches', []), ('allowed_branches', ['*']), ('allowed_branches', ['refs/heads/develop']),
+                    ('allowed_branches', ['develop', 'develop']), ('allowed_events', []),
+                    ('allowed_events', ['pull_request_target']), ('allowed_events', ['push', 'push']),
+                    ('producer_job', 'bad\nproducer')]
+        for field, value in variants:
+            config = copy.deepcopy(self.config)
+            config['source'][field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(PipelineError):
+                self.reuse(config)
+        for field in ('allowed_branches', 'allowed_events'):
+            config = copy.deepcopy(self.config)
+            config['source'][field] = {'env': 'QUALITY_SELECTION'}
+            for value in ('', '{}', 'null', '[]', '[true]', '[{}]', 'not-json'):
+                with self.subTest(field=field, value=value), patch.dict(os.environ, {'QUALITY_SELECTION': value}), self.assertRaises(PipelineError):
+                    self.reuse(config)
+        self.assertEqual(self.requests, [])
+
+    def test_workflow_exposes_exact_runtime_receipt_selection(self):
+        root = Path(__file__).resolve().parents[1]
+        workflow = yaml.safe_load((root / '.github/workflows/v2-reuse.yml').read_text())
+        inputs = workflow['on']['workflow_call']['inputs']
+        step = next(s for s in workflow['jobs']['run']['steps'] if s.get('id') == 'execute')
+        example = json.loads((root / 'examples/reuse-quality.json').read_text())
+        for field in ('run_attempt', 'artifact', 'producer_job', 'allowed_branches', 'allowed_events'):
+            name = 'quality-' + field.replace('_', '-')
+            environment = 'QUALITY_' + field.upper()
+            self.assertEqual(step['env'][environment], '${{ inputs.' + name + ' }}')
+            self.assertEqual(example['source'][field], {'env': environment})
+            if field != 'producer_job':
+                self.assertTrue(inputs[name]['required'])
 
     def test_nonreproducible_environment_and_build_credentials_require_fresh_run(self):
         for change in ({"environment_names": ["BUILD_MODE"]}, {"build_credentials": ["SENTRY_AUTH_TOKEN"]}):

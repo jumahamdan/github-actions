@@ -152,6 +152,27 @@ name: Shared v2 reuse verified quality
         type: string
         required: false
         default: ''
+      quality-run-attempt:
+        description: Exact producing quality attempt; use producer run-attempt output
+        type: string
+        required: true
+      quality-artifact:
+        description: Exact producing receipt-artifact-name output
+        type: string
+        required: true
+      quality-producer-job:
+        description: Exact completed quality job name; required for same-run reuse
+        type: string
+        required: false
+        default: ''
+      quality-allowed-branches:
+        description: Explicit JSON array of approved producer branch names
+        type: string
+        required: true
+      quality-allowed-events:
+        description: Explicit JSON array of approved push, pull_request or workflow_dispatch events
+        type: string
+        required: true
     outputs:
       status:
         description: passed, advisory, or pending; only passed satisfies release gates
@@ -268,6 +289,11 @@ jobs:
         QUALITY_RUN_ID: ${{ inputs.quality-run-id }}
         QUALITY_RUN_HEAD_SHA: ${{ inputs.quality-run-head-sha }}
         QUALITY_TESTED_SHA: ${{ inputs.quality-tested-sha }}
+        QUALITY_RUN_ATTEMPT: ${{ inputs.quality-run-attempt }}
+        QUALITY_ARTIFACT: ${{ inputs.quality-artifact }}
+        QUALITY_PRODUCER_JOB: ${{ inputs.quality-producer-job }}
+        QUALITY_ALLOWED_BRANCHES: ${{ inputs.quality-allowed-branches }}
+        QUALITY_ALLOWED_EVENTS: ${{ inputs.quality-allowed-events }}
     - name: Preserve sanitized evidence
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
       with:

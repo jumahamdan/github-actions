@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import json
 import os
 import re
 import sys
@@ -20,15 +21,64 @@ DIGEST = re.compile(r"[0-9a-f]{64}")
 LIBRARY = Path(__file__).resolve().parent.parent
 
 
-def _identity(value, name, pattern):
-    """Only run identities may refer to environment variables, never shell source."""
+def _selection(value):
+    """Resolve explicit runtime selections without interpolation or implicit discovery."""
     if isinstance(value, dict):
         strict_keys(value, {"env"}, {"env"})
         if not isinstance(value["env"], str) or not re.fullmatch(r"[A-Z_][A-Z0-9_]*", value["env"]):
             raise PipelineError("Invalid quality-source environment name")
         value = os.environ.get(value["env"], "")
+    return value
+
+
+def _identity(value, name, pattern):
+    value = _selection(value)
     if not isinstance(value, str) or not re.fullmatch(pattern, value):
         raise PipelineError(f"Explicit valid {name} is required")
+    return value
+
+
+def _attempt(value):
+    value = _selection(value)
+    if isinstance(value, str) and re.fullmatch(r"[1-9][0-9]*", value):
+        try:
+            value = int(value)
+        except ValueError:
+            raise PipelineError("Explicit positive quality run attempt is required") from None
+    if type(value) is not int or value < 1:
+        raise PipelineError("Explicit positive quality run attempt is required")
+    return value
+
+
+def _allowlist(value, name):
+    if isinstance(value, dict):
+        value = _selection(value)
+        if not isinstance(value, str) or len(value) > 65536:
+            raise PipelineError(f"Explicit quality {name} must be a JSON array")
+        try:
+            value = json.loads(value)
+        except ValueError:
+            raise PipelineError(f"Explicit quality {name} must be a JSON array") from None
+    if (not isinstance(value, list) or not value or any(not isinstance(item, str) or not item for item in value)
+            or len(value) != len(set(value))):
+        raise PipelineError(f"Explicit unique quality {name} are required")
+    if name == "allowed_events":
+        valid = all(item in ("push", "pull_request", "workflow_dispatch") for item in value)
+    else:
+        valid = all(re.fullmatch(r"[A-Za-z0-9_./-]+", item) and not item.startswith(("refs/", "/"))
+                    and not item.endswith("/") and ".." not in item for item in value)
+    if not valid:
+        raise PipelineError(f"Invalid quality {name} selection")
+    return value
+
+
+def _producer(value):
+    value = _selection(value)
+    if value is None or value == "":
+        return None
+    if (not isinstance(value, str) or not value.strip() or len(value) > 200
+            or any(ord(char) < 32 or ord(char) == 127 for char in value)):
+        raise PipelineError("Explicit quality producer job name is invalid")
     return value
 
 
@@ -85,8 +135,9 @@ def execute(config, root, *, request=None, library_root=None):
     if type(maximum) is not int or not 1 <= maximum <= 604800:
         raise PipelineError("Quality evidence age must be explicitly bounded to 1–604800 seconds")
     source = config["source"]
-    strict_keys(source, {"repository", "workflow", "run_id", "run_head_sha", "source_sha", "artifact"},
-                {"repository", "workflow", "run_id", "run_head_sha", "source_sha", "artifact"})
+    source_fields = {"repository", "workflow", "run_id", "run_attempt", "run_head_sha", "source_sha", "artifact",
+                     "allowed_branches", "allowed_events"}
+    strict_keys(source, source_fields | {"producer_job"}, source_fields)
     repository = source["repository"]
     if not isinstance(repository, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
         raise PipelineError("Explicit quality repository is required")
@@ -95,12 +146,14 @@ def execute(config, root, *, request=None, library_root=None):
     workflow = source["workflow"]
     if not isinstance(workflow, str) or not re.fullmatch(r"\.github/workflows/[A-Za-z0-9_.-]+\.ya?ml", workflow):
         raise PipelineError("Explicit trusted quality workflow is required")
-    artifact = source["artifact"]
-    if not isinstance(artifact, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", artifact):
-        raise PipelineError("Explicit quality artifact name is required")
+    artifact = _identity(source["artifact"], "quality artifact name", r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
     run_id = _identity(source["run_id"], "quality run ID", r"[1-9][0-9]*")
+    run_attempt = _attempt(source["run_attempt"])
     run_head = _identity(source["run_head_sha"], "Actions run head SHA", SHA)
     tested_sha = _identity(source["source_sha"], "tested source SHA", SHA)
+    branches = _allowlist(source["allowed_branches"], "allowed_branches")
+    events = _allowlist(source["allowed_events"], "allowed_events")
+    producer = _producer(source.get("producer_job"))
     token_name = config.get("token_env", "GH_TOKEN")
     if not isinstance(token_name, str) or not re.fullmatch(r"[A-Z_][A-Z0-9_]*", token_name):
         raise PipelineError("Invalid GitHub token environment name")
@@ -115,7 +168,8 @@ def execute(config, root, *, request=None, library_root=None):
         raise PipelineError("Quality reuse cannot prove unchanged credential or environment-dependent checks")
     options = {"request": request} if request is not None else {}
     verified = fetch_receipt(repository, run_id, artifact, run_head, workflow,
-                             os.environ.get(token_name, ""), **options)
+                             os.environ.get(token_name, ""), run_attempt=run_attempt, producer_job=producer,
+                             allowed_branches=branches, allowed_events=events, **options)
     receipt = verified["receipt"]
     if (not isinstance(receipt, dict) or type(receipt.get("schema_version")) is not int or receipt["schema_version"] != 1
             or receipt.get("kind") != "quality" or receipt.get("status") != "passed"
