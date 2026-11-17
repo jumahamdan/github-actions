@@ -67,6 +67,9 @@ inputs:
   store-selection:
     description: Approved moving Apple build/version selections or Play track digest JSON
     default: ''
+  candidate-build:
+    description: Trusted allocated build number; resolves candidate config build=workflow during creation
+    default: ''
 outputs:
   plan:
     description: Product applicability and branch phase JSON
@@ -129,4 +132,5 @@ runs:
       SHARED_CHECK_RECEIPTS: ${{ inputs.check-receipts }}
       SHARED_CONTAINER_SELECTION: ${{ inputs.container-selection }}
       SHARED_STORE_SELECTION: ${{ inputs.store-selection }}
+      SHARED_CANDIDATE_BUILD: ${{ inputs.candidate-build }}
     run: python3 "$SHARED_ACTION_PATH/../../scripts/run-module.py"

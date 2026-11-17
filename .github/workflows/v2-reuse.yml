@@ -147,6 +147,11 @@ name: Shared v2 reuse verified quality
         type: string
         required: false
         default: '["push","workflow_dispatch"]'
+      candidate-build:
+        description: Trusted allocated build number for candidate config build=workflow; creation only
+        type: string
+        required: false
+        default: ''
     outputs:
       status:
         description: passed, advisory, or pending; only passed satisfies release gates
@@ -286,6 +291,7 @@ jobs:
         current-receipt-path: ${{ steps.execute.outputs.retained-path }}
         current-receipt-sha: ${{ steps.execute.outputs.receipt-sha256 }}
         check-receipts: ${{ inputs.check-receipts }}
+        candidate-build: ${{ inputs.candidate-build }}
       env:
         GH_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
     - id: package

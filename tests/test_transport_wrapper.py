@@ -100,6 +100,8 @@ class RuntimeWorkflowContractTests(unittest.TestCase):
                         self.assertEqual(inputs['check-receipts'], '${{ inputs.check-receipts }}', name)
                         self.assertEqual(step['env']['GH_TOKEN'], '${{ secrets.ARTIFACT_READ_TOKEN || github.token }}', name)
                         self.assertEqual(workflow['permissions']['actions'], 'read', name)
+                        self.assertEqual(inputs['candidate-build'], '${{ inputs.candidate-build }}', name)
+                        self.assertEqual(workflow['on']['workflow_call']['inputs']['candidate-build']['default'], '', name)
         self.assertGreater(count, 10)
 
     def test_credentialed_imports_cannot_opt_into_pr_producers_and_authentication_follows_setup(self):
@@ -149,3 +151,10 @@ class RuntimeWorkflowContractTests(unittest.TestCase):
         self.assertEqual(action['runs']['steps'][0]['env']['SHARED_STORE_SELECTION'], '${{ inputs.store-selection }}')
         self.assertIn('GH_STATE_TOKEN', execute['env'])
         self.assertFalse(run['concurrency']['cancel-in-progress'])
+        evidence = yaml.safe_load((LIBRARY / '.github/workflows/v2-evidence.yml').read_text())
+        creation = next(step for step in evidence['jobs']['run']['steps'] if step.get('id') == 'execute')
+        self.assertEqual(creation['with']['candidate-build'], '${{ inputs.candidate-build }}')
+        monitoring = yaml.safe_load((LIBRARY / '.github/workflows/v2-monitoring.yml').read_text())
+        execute = next(step for step in monitoring['jobs']['run']['steps'] if step.get('id') == 'execute')
+        self.assertEqual(execute['with']['prior-deployment'], '${{ inputs.prior-deployment }}')
+        self.assertEqual(execute['env']['GH_EVIDENCE_TOKEN'], '${{ secrets.ARTIFACT_READ_TOKEN || github.token }}')

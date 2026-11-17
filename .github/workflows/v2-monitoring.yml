@@ -149,6 +149,16 @@ name: Shared v2 monitoring
         type: string
         required: false
         default: '{}'
+      candidate-build:
+        description: Trusted allocated build number for candidate config build=workflow; creation only
+        type: string
+        required: false
+        default: ''
+      prior-deployment:
+        description: Authenticated exact deployment receipt selector JSON for sentry-deploy
+        type: string
+        required: false
+        default: ''
     outputs:
       status:
         description: passed, advisory, or pending; only passed satisfies release gates
@@ -268,6 +278,7 @@ jobs:
         selected-identity: ${{ steps.import-candidate.outputs.candidate-identity }}
         selected-source-sha: ${{ steps.import-candidate.outputs.source-sha }}
         security-refresh: ${{ inputs.security-refresh }}
+        prior-deployment: ${{ inputs.prior-deployment }}
       env:
         SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         GH_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
@@ -295,6 +306,7 @@ jobs:
         current-receipt-path: ${{ steps.execute.outputs.retained-path }}
         current-receipt-sha: ${{ steps.execute.outputs.receipt-sha256 }}
         check-receipts: ${{ inputs.check-receipts }}
+        candidate-build: ${{ inputs.candidate-build }}
       env:
         GH_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
     - id: package
