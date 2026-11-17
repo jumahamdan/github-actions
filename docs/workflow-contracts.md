@@ -39,6 +39,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AI_TARGET_TOKEN`, `ARTIFACT_READ_TOKEN`.
 
@@ -77,6 +78,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -119,6 +121,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, `ARTIFACT_READ_TOKEN`.
 
@@ -190,6 +193,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -232,6 +236,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -306,6 +311,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -347,6 +353,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `container-selection` | '' | Approved retained publication/tag or rollback target selection JSON |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `SSH_PRIVATE_KEY`, `SSH_KNOWN_HOSTS`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, `ARTIFACT_READ_TOKEN`.
 
@@ -387,6 +394,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -425,6 +433,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -464,6 +473,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -506,6 +516,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -544,6 +555,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -589,6 +601,8 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `state-restore` | '' | Exact prior attempt state selector JSON; required for mutating retries |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `store-selection` | '' | Moving Apple build/version IDs or Play expected track digest JSON; fixed app/package/track remain in config |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ASC_BEARER_TOKEN`, `GOOGLE_OAUTH_ACCESS_TOKEN`, `ASC_PRIVATE_KEY_BASE64`, `ARTIFACT_READ_TOKEN`, `STATE_READ_TOKEN`.
 
@@ -627,6 +641,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, `ARTIFACT_READ_TOKEN`.
 
@@ -668,6 +683,8 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `prior-deployment` | '' | Authenticated exact deployment receipt selector JSON for sentry-deploy |
 
 **Named secrets:** `SENTRY_AUTH_TOKEN`, `ARTIFACT_READ_TOKEN`.
 
@@ -706,6 +723,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -746,6 +764,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`, `GH_TOKEN`.
 
@@ -786,6 +805,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `RELEASE_TOKEN`, `ARTIFACT_READ_TOKEN`.
 
@@ -825,6 +845,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -866,6 +887,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`, `GH_TOKEN`.
 
@@ -904,6 +926,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -948,6 +971,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `SONAR_TOKEN`, `ARTIFACT_READ_TOKEN`.
 
@@ -988,6 +1012,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `prior-deployment` | '' | Exact successful prior deployment receipt selector JSON for immutable provider promotion |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `CLOUDFLARE_API_TOKEN`, `VERCEL_TOKEN`, `NETLIFY_AUTH_TOKEN`, `ARTIFACT_READ_TOKEN`.
 
@@ -1027,6 +1052,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 

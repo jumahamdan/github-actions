@@ -114,10 +114,14 @@
             "test_bridge_export_is_native_archive_only",
             "test_candidate_refuses_caller_library_revision",
             "test_candidate_refuses_missing_malformed_or_forged_check_digests",
+            "test_candidate_workflow_build_resolves_current_number_and_preserves_config_hash",
             "test_changed_or_unpinned_library_fails_before_module_execution",
+            "test_explicit_mobile_build_mismatch_is_not_overridden",
             "test_failed_result_has_receipt_and_fails",
             "test_library_modified_during_operation_cannot_emit_success",
+            "test_mobile_workflow_build_uses_current_cloud_number_without_changing_template",
             "test_summary_contains_only_trusted_receipt_selection",
+            "test_workflow_build_requires_positive_integer_before_module_execution",
             "test_wrong_host_context_root_module_and_payload_output_refused"
           ]
         }
@@ -827,11 +831,14 @@
             "test_dart_compares_packaged_build_id",
             "test_dart_different_build_id_blocks_upload",
             "test_deploy_marker_needs_successful_matching_receipt",
+            "test_deploy_marker_rejects_raw_mutated_mismatched_and_pr_proofs_before_tools",
+            "test_deploy_marker_uses_authenticated_candidate_and_target_proof",
             "test_emergency_context_calls_native_archive_validator_not_receipt_only",
             "test_missing_native_binary_proof_fails",
             "test_native_requires_expected_ids_and_waits",
             "test_r8_uses_aab_embedded_mapping_and_uuid",
             "test_r8_wrong_mapping_fails",
+            "test_release_identity_markers_derive_verified_candidate_without_config_rewrite",
             "test_release_identity_mismatch_blocks",
             "test_source_map_debug_id_matches_injected_bundle",
             "test_source_map_missing_injected_id_fails",
@@ -865,11 +872,14 @@
             "test_dart_compares_packaged_build_id",
             "test_dart_different_build_id_blocks_upload",
             "test_deploy_marker_needs_successful_matching_receipt",
+            "test_deploy_marker_rejects_raw_mutated_mismatched_and_pr_proofs_before_tools",
+            "test_deploy_marker_uses_authenticated_candidate_and_target_proof",
             "test_emergency_context_calls_native_archive_validator_not_receipt_only",
             "test_missing_native_binary_proof_fails",
             "test_native_requires_expected_ids_and_waits",
             "test_r8_uses_aab_embedded_mapping_and_uuid",
             "test_r8_wrong_mapping_fails",
+            "test_release_identity_markers_derive_verified_candidate_without_config_rewrite",
             "test_release_identity_mismatch_blocks",
             "test_source_map_debug_id_matches_injected_bundle",
             "test_source_map_missing_injected_id_fails",
@@ -1980,7 +1990,8 @@
         "release",
         "evidence",
         "artifacts",
-        "stores"
+        "stores",
+        "runtime"
       ],
       "example": "examples/release-notes.json",
       "adoption": "Owner selects promotion; GitHub publication, tester distribution, review and public store availability are different states.",
@@ -2087,6 +2098,68 @@
             "test_untrusted_ref_and_unknown_config_fail",
             "test_upload_exact_bytes_and_no_cancellation_default",
             "test_wrong_check_source_fails_even_with_rehashed_identity"
+          ]
+        },
+        {
+          "file": "tests/test_runtime.py",
+          "cases": [
+            "test_apple_import_runtime_selection_pins_target_and_emits_manifest",
+            "test_apple_selection_keeps_app_groups_and_review_authority",
+            "test_authenticated_check_wrong_source_cannot_create_candidate",
+            "test_candidate_build_uses_explicit_allocation_only_for_workflow_marker",
+            "test_candidate_creation_materializes_authenticated_other_job_check",
+            "test_changed_retained_bytes_after_operation_do_not_publish_success",
+            "test_container_deploy_requires_retained_compose_and_support_files",
+            "test_container_manifest_derives_source_and_checks_component_publication",
+            "test_container_promotion_uses_exact_retained_publication",
+            "test_current_container_release_overrides_only_deploy_contract",
+            "test_deploy_receives_typed_authenticated_prior_receipt",
+            "test_different_or_dirty_source_blocks_provider",
+            "test_duplicate_runtime_json_field_is_refused",
+            "test_foreign_repository_receipt_is_rejected_before_fetch",
+            "test_imported_check_cannot_overwrite_tracked_source",
+            "test_imported_check_conflict_is_never_overwritten",
+            "test_mismatched_selected_library_blocks_provider",
+            "test_missing_invalid_or_static_candidate_build_selection_is_refused",
+            "test_monitoring_receives_authenticated_deployment_proof",
+            "test_mutating_deploy_requires_candidate_before_provider_call",
+            "test_partial_candidate_selection_blocks_provider",
+            "test_provider_token_cannot_be_used_for_github_receipt_fetch",
+            "test_readonly_deploy_receives_no_empty_candidate_overrides",
+            "test_readonly_operation_cannot_accept_irrelevant_refresh",
+            "test_receipt_path_cannot_destroy_retained_artifact",
+            "test_release_publication_binds_selected_manifest_and_executing_revision",
+            "test_runtime_candidate_overrides_uncommitted_moving_selection",
+            "test_security_refresh_is_authenticated_candidate_bound_and_scoped",
+            "test_security_scan_receives_selected_candidate_object",
+            "test_stateful_rerun_without_restore_refuses_provider",
+            "test_store_selection_changes_only_moving_provider_state",
+            "test_store_without_selected_candidate_is_refused",
+            "test_successful_mobile_allocator_exposes_validated_build_number",
+            "test_uncertain_commit_survives_fresh_runner_and_cannot_republish"
+          ]
+        },
+        {
+          "file": "tests/test_wrappers.py",
+          "cases": [
+            "test_candidate_rejects_false_executing_library_revision",
+            "test_failed_operation_retains_only_sanitized_failure_receipt",
+            "test_failure_after_receipt_creation_replaces_passing_evidence",
+            "test_materialized_credentials_and_environment_are_cleaned_after_failure",
+            "test_pending_operation_has_stamped_receipt_and_outputs_but_cannot_pass_release_gate",
+            "test_receipt_cannot_overwrite_tracked_source"
+          ]
+        },
+        {
+          "file": "tests/test_transport_wrapper.py",
+          "cases": [
+            "test_candidate_composition_authenticates_cross_job_checks_with_step_scoped_read_token",
+            "test_credentialed_imports_cannot_opt_into_pr_producers_and_authentication_follows_setup",
+            "test_fetch_passes_separate_run_head_and_candidate_source_then_exports_verified_selection",
+            "test_missing_invalid_or_ambiguous_branches_stop_before_transport",
+            "test_package_allocates_fresh_destination_outside_caller_and_uses_selected_manifest",
+            "test_provider_execution_uses_authenticated_import_outputs_and_retry_safe_artifact_names",
+            "test_untrusted_events_workspace_escape_and_nonpassing_receipts_cannot_export_outputs"
           ]
         }
       ],
@@ -2464,7 +2537,8 @@
       "modules": [
         "deploy",
         "credentials",
-        "plan"
+        "plan",
+        "runtime"
       ],
       "example": "examples/deploy-aws-static.json",
       "adoption": "Configure and verify the actual product account, targets and recovery procedure during adoption.",
@@ -2525,6 +2599,68 @@
             "test_feature_checks_only_changed_product",
             "test_invalid_route_and_privileged_pr_event_fail",
             "test_promotion_verifies_and_does_not_request_duplicate_checks"
+          ]
+        },
+        {
+          "file": "tests/test_runtime.py",
+          "cases": [
+            "test_apple_import_runtime_selection_pins_target_and_emits_manifest",
+            "test_apple_selection_keeps_app_groups_and_review_authority",
+            "test_authenticated_check_wrong_source_cannot_create_candidate",
+            "test_candidate_build_uses_explicit_allocation_only_for_workflow_marker",
+            "test_candidate_creation_materializes_authenticated_other_job_check",
+            "test_changed_retained_bytes_after_operation_do_not_publish_success",
+            "test_container_deploy_requires_retained_compose_and_support_files",
+            "test_container_manifest_derives_source_and_checks_component_publication",
+            "test_container_promotion_uses_exact_retained_publication",
+            "test_current_container_release_overrides_only_deploy_contract",
+            "test_deploy_receives_typed_authenticated_prior_receipt",
+            "test_different_or_dirty_source_blocks_provider",
+            "test_duplicate_runtime_json_field_is_refused",
+            "test_foreign_repository_receipt_is_rejected_before_fetch",
+            "test_imported_check_cannot_overwrite_tracked_source",
+            "test_imported_check_conflict_is_never_overwritten",
+            "test_mismatched_selected_library_blocks_provider",
+            "test_missing_invalid_or_static_candidate_build_selection_is_refused",
+            "test_monitoring_receives_authenticated_deployment_proof",
+            "test_mutating_deploy_requires_candidate_before_provider_call",
+            "test_partial_candidate_selection_blocks_provider",
+            "test_provider_token_cannot_be_used_for_github_receipt_fetch",
+            "test_readonly_deploy_receives_no_empty_candidate_overrides",
+            "test_readonly_operation_cannot_accept_irrelevant_refresh",
+            "test_receipt_path_cannot_destroy_retained_artifact",
+            "test_release_publication_binds_selected_manifest_and_executing_revision",
+            "test_runtime_candidate_overrides_uncommitted_moving_selection",
+            "test_security_refresh_is_authenticated_candidate_bound_and_scoped",
+            "test_security_scan_receives_selected_candidate_object",
+            "test_stateful_rerun_without_restore_refuses_provider",
+            "test_store_selection_changes_only_moving_provider_state",
+            "test_store_without_selected_candidate_is_refused",
+            "test_successful_mobile_allocator_exposes_validated_build_number",
+            "test_uncertain_commit_survives_fresh_runner_and_cannot_republish"
+          ]
+        },
+        {
+          "file": "tests/test_wrappers.py",
+          "cases": [
+            "test_candidate_rejects_false_executing_library_revision",
+            "test_failed_operation_retains_only_sanitized_failure_receipt",
+            "test_failure_after_receipt_creation_replaces_passing_evidence",
+            "test_materialized_credentials_and_environment_are_cleaned_after_failure",
+            "test_pending_operation_has_stamped_receipt_and_outputs_but_cannot_pass_release_gate",
+            "test_receipt_cannot_overwrite_tracked_source"
+          ]
+        },
+        {
+          "file": "tests/test_transport_wrapper.py",
+          "cases": [
+            "test_candidate_composition_authenticates_cross_job_checks_with_step_scoped_read_token",
+            "test_credentialed_imports_cannot_opt_into_pr_producers_and_authentication_follows_setup",
+            "test_fetch_passes_separate_run_head_and_candidate_source_then_exports_verified_selection",
+            "test_missing_invalid_or_ambiguous_branches_stop_before_transport",
+            "test_package_allocates_fresh_destination_outside_caller_and_uses_selected_manifest",
+            "test_provider_execution_uses_authenticated_import_outputs_and_retry_safe_artifact_names",
+            "test_untrusted_events_workspace_escape_and_nonpassing_receipts_cannot_export_outputs"
           ]
         }
       ],

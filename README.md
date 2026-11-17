@@ -10,7 +10,7 @@ The preserved v1 entrypoints are deprecated and unsupported for new adoption. Kn
 | --- | --- |
 | Lint, format, types, tests, builds | [Quality profiles](docs/quality.md) |
 | Branches, job selection and adoption | [Workflow integration](docs/integration.md) |
-| Build selection, promotion evidence and retries | [Runtime selections](docs/runtime-workflows.md) |
+| Build selection, promotion evidence and retries | [Workflow selections](docs/runtime-workflows.md), [runtime contract](docs/runtime.md) |
 | Keys, secrets, variables and identity | [Credential contracts](docs/credentials.md) |
 | Exact workflow inputs, secret names and outputs | [Caller reference](docs/workflow-contracts.md) |
 | Toolchain integrity | [Verified tool installation](docs/tool-installation.md) |
