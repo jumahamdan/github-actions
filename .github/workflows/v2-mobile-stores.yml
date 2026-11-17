@@ -169,6 +169,12 @@ name: Shared v2 mobile-stores
         type: string
         required: false
         default: '{}'
+      store-selection:
+        description: Moving Apple build/version IDs or Play expected track digest JSON; fixed app/package/track
+          remain in config
+        type: string
+        required: false
+        default: ''
     outputs:
       status:
         description: passed, advisory, or pending; only passed satisfies release gates
@@ -302,6 +308,7 @@ jobs:
         selected-source-sha: ${{ steps.import-candidate.outputs.source-sha }}
         security-refresh: ${{ inputs.security-refresh }}
         state-restore: ${{ inputs.state-restore }}
+        store-selection: ${{ inputs.store-selection }}
       env:
         ASC_BEARER_TOKEN: ${{ secrets.ASC_BEARER_TOKEN }}
         GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token || secrets.GOOGLE_OAUTH_ACCESS_TOKEN

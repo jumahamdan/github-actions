@@ -144,5 +144,8 @@ class RuntimeWorkflowContractTests(unittest.TestCase):
         run = stores['jobs']['run']
         execute = next(step for step in run['steps'] if step.get('id') == 'execute')
         self.assertEqual(execute['with']['state-restore'], '${{ inputs.state-restore }}')
+        self.assertEqual(execute['with']['store-selection'], '${{ inputs.store-selection }}')
+        action = yaml.safe_load((LIBRARY / 'actions/v2-run/action.yml').read_text())
+        self.assertEqual(action['runs']['steps'][0]['env']['SHARED_STORE_SELECTION'], '${{ inputs.store-selection }}')
         self.assertIn('GH_STATE_TOKEN', execute['env'])
         self.assertFalse(run['concurrency']['cancel-in-progress'])

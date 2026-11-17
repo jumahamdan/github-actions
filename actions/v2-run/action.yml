@@ -64,6 +64,9 @@ inputs:
   container-selection:
     description: Approved container publication/tag or rollback target selection JSON
     default: ''
+  store-selection:
+    description: Approved moving Apple build/version selections or Play track digest JSON
+    default: ''
 outputs:
   plan:
     description: Product applicability and branch phase JSON
@@ -125,4 +128,5 @@ runs:
       SHARED_APPLE_BRIDGE_SELECTION: ${{ inputs.apple-bridge-selection }}
       SHARED_CHECK_RECEIPTS: ${{ inputs.check-receipts }}
       SHARED_CONTAINER_SELECTION: ${{ inputs.container-selection }}
+      SHARED_STORE_SELECTION: ${{ inputs.store-selection }}
     run: python3 "$SHARED_ACTION_PATH/../../scripts/run-module.py"

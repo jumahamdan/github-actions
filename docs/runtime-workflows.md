@@ -40,6 +40,8 @@ For `check-receipts`, wrap selectors under their retained paths, for example `{"
 
 ## Store retries and outcomes
 
+`store-selection` supplies the selected operation's moving remote IDs without changing fixed product policy. Its `apple` object can select `build_id`, `app_store_version_id`, `expected_selected_build` or `submission_id`; its `play` object can select `expected_track_digest`. The selected operation accepts only its relevant fields. App/package identity, Play track, tester groups, review policy and allowed branches remain in the committed configuration. Provider inspection must still prove that the selected remote build/version matches the retained candidate.
+
 `v2-mobile-stores.yml` accepts `state-restore` containing the exact prior operation-state selection described in [state](state.md). It restores state after applying the selected candidate and before calling the store. `STATE_READ_TOKEN` optionally supplies separate Actions read access; otherwise the helper uses the configured evidence token or GitHub token. Missing state on a stateful rerun is a refusal, not evidence that the earlier request never reached the provider.
 
 The state envelope is retained even if a provider call fails, when state exists. A forced cancellation can prevent upload; reconcile the provider before another mutation if no durable state survived. Preserve artifacts through the full review/retry window using `receipt-retention-days`.
