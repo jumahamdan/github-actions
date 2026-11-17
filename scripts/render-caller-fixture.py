@@ -11,6 +11,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--revision',required=True)
     parser.add_argument('--output',required=True)
+    parser.add_argument('--retry-proof',action='store_true',help='Make a synthetic downstream job fail once to test a failed-jobs rerun')
     args=parser.parse_args()
     if not re.fullmatch(r'[0-9a-f]{40}',args.revision):raise SystemExit('An exact reviewed library commit is required')
     root=Path(__file__).resolve().parent.parent
@@ -18,6 +19,7 @@ def main():
     if output.exists():raise SystemExit('Fixture output must be a fresh directory')
     shutil.copytree(root/'fixtures/caller',output)
     prefix='jumahamdan/github-actions/.github/workflows/'
+    workflow_name='retry.yml' if args.retry_proof else 'contract.yml'
     workflow={'name':'Shared library cross-repository contract','on':{'push':{'branches':['main']},'pull_request':{'branches':['main']},'workflow_dispatch':None},
               'permissions':{'contents':'read','actions':'read'},'jobs':{
       'build':{'uses':prefix+'v2-checks.yml@'+args.revision,'with':{
@@ -25,14 +27,19 @@ def main():
         'candidate-manifest':'build/candidate.json','candidate-retention-days':7}},
       'verify':{'needs':['build'],'uses':prefix+'v2-evidence.yml@'+args.revision,'with':{
         'config':'build/candidate.json','operation':'verify','artifact-name':'synthetic-verification',
-        'artifact-run-id':'${{ github.run_id }}','artifact-run-attempt':'${{ github.run_attempt }}',
+        'artifact-run-id':'${{ needs.build.outputs.run-id }}','artifact-run-attempt':'${{ needs.build.outputs.run-attempt }}',
         'artifact-run-head-sha':'${{ github.event.pull_request.head.sha || github.sha }}',
         'artifact-source-sha':'${{ needs.build.outputs.source-sha }}','artifact-identity':'${{ needs.build.outputs.candidate-identity }}',
-        'artifact-workflow':'.github/workflows/contract.yml','artifact-input-name':'${{ needs.build.outputs.candidate-artifact-name }}',
+        'artifact-workflow':'.github/workflows/'+workflow_name,'artifact-input-name':'${{ needs.build.outputs.candidate-artifact-name }}',
         'artifact-producer-job':'build / run',
         'artifact-allowed-branches':"${{ format('[\"{0}\"]', github.head_ref || github.ref_name) }}",
         'artifact-allowed-events':'["push","workflow_dispatch","pull_request"]'}}}}
-    target=output/'.github/workflows/contract.yml';target.parent.mkdir(parents=True)
+    if args.retry_proof:
+        workflow['name']='Shared library earlier-attempt retry contract'
+        workflow['jobs']['retry-boundary']={'needs':['build'],'runs-on':'ubuntu-24.04','timeout-minutes':2,
+            'steps':[{'name':'Deliberately require one failed-jobs rerun','shell':'bash','run':'test "$GITHUB_RUN_ATTEMPT" -gt 1'}]}
+        workflow['jobs']['verify']['needs']=['build','retry-boundary']
+    target=output/'.github/workflows'/workflow_name;target.parent.mkdir(parents=True)
     target.write_text(yaml.safe_dump(workflow,sort_keys=False,width=110))
     (output/'README.md').write_text('# Shared workflow contract fixture\n\nSynthetic, credential-free cross-repository build and artifact-transfer test. No product code or provider deployments.\n')
     (output/'.gitignore').write_text('build/\n__pycache__/\n')
