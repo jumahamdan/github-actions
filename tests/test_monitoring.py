@@ -1,4 +1,5 @@
 import io
+import hashlib
 import json
 import os
 import plistlib
@@ -11,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from shared_ci import monitoring
+from shared_ci.evidence import fetch_receipt
 from shared_ci.common import PipelineError, sha256_file
 from test_stores import TRUST, fixture
 
@@ -71,9 +73,9 @@ class MonitoringTests(unittest.TestCase):
             output = "upload complete"
         return subprocess.CompletedProcess(args, 0, output, "")
 
-    def execute(self):
+    def execute(self, **kwargs):
         with patch("shared_ci.monitoring.run", side_effect=self.fake_run), patch("shared_ci.monitoring.sys.platform", "darwin"):
-            return monitoring.execute(self.config, self.root)
+            return monitoring.execute(self.config, self.root, **kwargs)
 
     def test_native_requires_expected_ids_and_waits(self):
         result = self.execute()
@@ -117,6 +119,15 @@ class MonitoringTests(unittest.TestCase):
         self.config["sentry"]["dist"] = "124"
         with self.assertRaisesRegex(PipelineError, "release/dist"):
             self.execute()
+
+    def test_release_identity_markers_derive_verified_candidate_without_config_rewrite(self):
+        self.config['operation'] = 'sentry-release'
+        self.config['sentry'].update(release='candidate', dist='workflow')
+        result = self.execute()
+        self.assertEqual(result['release'], 'org.example.app@1.0.0+123')
+        self.assertEqual(result['dist'], '123')
+        self.assertEqual(self.config['sentry']['release'], 'candidate')
+        self.assertEqual(self.calls[-1][0][-1], 'org.example.app@1.0.0+123')
 
     def test_source_map_debug_id_matches_injected_bundle(self):
         files = {"app.js": ("console.log(1);\n//# debugId=" + UUID).encode(),
@@ -280,6 +291,49 @@ class MonitoringTests(unittest.TestCase):
         self.config["sentry"].update(deployment_receipt="input.txt", deployment_receipt_sha256="f" * 64)
         with self.assertRaises(PipelineError):
             self.execute()
+
+    def deployment_proof(self, receipt_changes=None, origin_changes=None):
+        self.config['operation'] = 'sentry-deploy'
+        self.config['sentry'].update(deployment_provider='aws-static', deployment_target={'bucket': 'example-site', 'distribution_id': 'E12345'})
+        receipt = {'schema': 1, 'status': 'passed', 'kind': 'deployment', 'operation': 'deploy', 'provider': 'aws-static',
+                   'candidate_identity': self.candidate['identity'], 'source_sha': self.candidate['source_sha'], 'source_tree': self.candidate['source_tree'],
+                   'environment': 'staging', 'input_authentication': 'retained_candidate',
+                   'details': {'bucket': 'example-site', 'distribution_id': 'E12345'}, **(receipt_changes or {})}
+        blob = archive({'receipt.json': json.dumps(receipt).encode()})
+        metadata = {'status': 'completed', 'conclusion': 'success', 'head_sha': 'a' * 40, 'head_branch': 'staging',
+                    'path': '.github/workflows/deploy.yml', 'head_repository': {'full_name': 'example/app'}, 'run_attempt': 1,
+                    'event': 'push', **(origin_changes or {})}
+        item = {'id': 99, 'name': 'deployment', 'expired': False, 'digest': 'sha256:' + hashlib.sha256(blob).hexdigest()}
+        def request(path, token, binary=False):
+            if binary: return blob
+            return {'artifacts': [item]} if '/artifacts?' in path else metadata
+        return fetch_receipt('example/app', '123', 'deployment', 'a' * 40, '.github/workflows/deploy.yml', 'synthetic-token', request=request)
+
+    def test_deploy_marker_uses_authenticated_candidate_and_target_proof(self):
+        proof = self.deployment_proof()
+        with patch.dict(os.environ, {'GITHUB_REPOSITORY': 'example/app'}):
+            result = self.execute(deployment_receipt=proof)
+        self.assertEqual(self.calls[-1][0][1:3], ['deploys', 'new'])
+        self.assertEqual(result['deployment']['provenance']['run_id'], '123')
+        self.assertEqual(result['deployment']['target']['bucket'], 'example-site')
+
+    def test_deploy_marker_rejects_raw_mutated_mismatched_and_pr_proofs_before_tools(self):
+        with patch.dict(os.environ, {'GITHUB_REPOSITORY': 'example/app'}):
+            proof = self.deployment_proof()
+            with self.assertRaisesRegex(PipelineError, 'authenticated'):
+                self.execute(deployment_receipt=dict(proof))
+            proof['receipt']['environment'] = 'production'
+            with self.assertRaisesRegex(PipelineError, 'modified'):
+                self.execute(deployment_receipt=proof)
+            for changes in ({'provider': 'netlify'}, {'candidate_identity': 'f' * 64}, {'source_sha': 'f' * 40},
+                            {'environment': 'production'}, {'input_authentication': 'declared_digest'},
+                            {'details': {'bucket': 'other-site', 'distribution_id': 'E12345'}}):
+                with self.subTest(changes=changes), self.assertRaisesRegex(PipelineError, 'matching successful'):
+                    self.execute(deployment_receipt=self.deployment_proof(changes))
+            for changes in ({'event': 'pull_request'}, {'head_branch': 'unapproved'}):
+                with self.subTest(changes=changes), self.assertRaisesRegex(PipelineError, 'unapproved'):
+                    self.execute(deployment_receipt=self.deployment_proof(origin_changes=changes))
+        self.assertFalse(self.calls)
 
     def test_uploaded_file_mutation_fails_postcheck(self):
         def mutating(args, **kwargs):

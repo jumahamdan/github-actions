@@ -38,6 +38,13 @@ def dispatch(name, module, config, root, path, output, operation, active):
             if config["library_sha"] not in ("workflow",library_revision):
                 raise PipelineError("Candidate library revision differs from the executing helper")
             config={**config,"library_sha":library_revision}
+            selected_build = os.environ.get("SHARED_CANDIDATE_BUILD", "")
+            if config.get("build") == "workflow":
+                if not re.fullmatch(r"[1-9][0-9]{0,17}", selected_build):
+                    raise PipelineError("Candidate build marker requires an explicitly allocated positive integer")
+                config["build"] = selected_build
+            elif selected_build:
+                raise PipelineError("Runtime build number cannot override a static candidate build")
             expected=json_input("SHARED_CHECK_DIGESTS", {})
             for retained, digest in active.check_digests.items():
                 if retained in expected and expected[retained] != digest:
@@ -167,6 +174,11 @@ def main():
                     stream.write(f"candidate-identity={result['identity']}\nsource-sha={result['source_sha']}\n")
                 elif name == "apple_bridge":
                     stream.write(f"manifest={result['manifest']}\ncandidate-identity={result['candidate_identity']}\nsource-sha={result['source_sha']}\n")
+                if name == "mobile" and config.get("operation") == "next-build":
+                    build_number = result.get("build_number")
+                    if type(build_number) is not int or build_number < 1:
+                        raise PipelineError("Build allocation did not return a positive integer")
+                    stream.write(f"build-number={build_number}\n")
                 if name == "plan":
                     stream.write("plan="+json.dumps(result,separators=(",",":"))+"\n")
         print(json.dumps({"module": name, "status": result["status"]}))

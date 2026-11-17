@@ -14,7 +14,7 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from .common import PipelineError, atomic_json, cli_error, confined_path, load_json, run, sha256_file, strict_keys, trusted_context
+from .common import PipelineError, atomic_json, cli_error, confined_path, fingerprint, load_json, run, sha256_file, strict_keys, trusted_context
 from .stores import HEX, bounded, env_secret, identifier, load_candidate
 
 
@@ -133,15 +133,55 @@ def source_maps(config, root, candidate):
     return paths
 
 
-def sentry(config, root, candidate, inspected, temporary):
+def deployment_evidence(config, candidate, proof):
+    from .evidence import AuthenticatedReceipt
+    if not isinstance(proof, AuthenticatedReceipt):
+        raise PipelineError("Sentry deploy marker requires authenticated deployment evidence")
+    proof.validate_integrity()
     settings = config["sentry"]
-    strict_keys(settings, {"org", "project", "token_env", "url", "release", "environment", "dist", "finalize", "deployment_receipt", "deployment_receipt_sha256"},
+    receipt, origin = proof["receipt"], proof["provenance"]
+    refs = settings.get("deployment_allowed_refs", config["allowed_refs"])
+    if (not isinstance(refs, list) or not refs or any(not isinstance(ref, str) or not re.fullmatch(r"refs/heads/[A-Za-z0-9_./-]+", ref) for ref in refs)
+            or origin.get("repository") != os.environ.get("GITHUB_REPOSITORY")
+            or origin.get("event") not in {"push", "workflow_dispatch"}
+            or "refs/heads/" + str(origin.get("head_branch", "")) not in refs):
+        raise PipelineError("Sentry deployment evidence came from an unapproved repository/event/branch")
+    provider = settings.get("deployment_provider")
+    target_keys = {"aws-cdk": {"stack_id"}, "aws-static": {"bucket", "distribution_id"}, "firebase": {"project"},
+                   "cloudflare": {"account_id", "worker"}, "vercel": {"organization_id", "project_id", "target"}, "netlify": {"site_id"}}
+    if not isinstance(provider, str) or provider not in target_keys:
+        raise PipelineError("Sentry deploy marker requires the approved deployment provider")
+    target = settings.get("deployment_target")
+    strict_keys(target, target_keys[provider], target_keys[provider])
+    if any(not isinstance(value, str) or not value or any(ord(char) < 32 for char in value) for value in target.values()):
+        raise PipelineError("Sentry deployment target identifiers must be nonempty strings")
+    details = receipt.get("details", {})
+    if (receipt.get("schema") != 1 or receipt.get("status") != "passed" or receipt.get("kind") != "deployment"
+            or receipt.get("operation") not in {"deploy", "promote"} or receipt.get("provider") != provider
+            or receipt.get("candidate_identity") != candidate["identity"] or receipt.get("source_sha") != candidate["source_sha"]
+            or receipt.get("source_tree") != candidate["source_tree"] or receipt.get("environment") != settings["environment"]
+            or receipt.get("input_authentication") != "retained_candidate"
+            or not isinstance(details, dict) or any(details.get(key) != value for key, value in target.items())):
+        raise PipelineError("Sentry deploy marker requires matching successful candidate/provider/target/environment evidence")
+    return {"provenance": dict(origin), "receipt_sha256": fingerprint(receipt), "provider": provider, "target": dict(target)}
+
+
+def sentry(config, root, candidate, inspected, temporary, *, deployment_receipt=None):
+    settings = dict(config["sentry"])
+    strict_keys(settings, {"org", "project", "token_env", "url", "release", "environment", "dist", "finalize", "deployment_provider", "deployment_target", "deployment_allowed_refs"},
                 {"org", "project", "token_env", "release", "environment", "dist"})
     for key in ("org", "project", "environment"):
         identifier(settings[key], key)
     expected_release = inspected["application"]["id"] + "@" + candidate["version"] + "+" + candidate["build"]
+    if settings["release"] in ("candidate", "workflow"):
+        settings["release"] = expected_release
+    if settings["dist"] in ("candidate", "workflow"):
+        settings["dist"] = candidate["build"]
     if settings["release"] != expected_release or settings["dist"] != candidate["build"]:
         raise PipelineError("Sentry release/dist must identify the selected app version and build")
+    deployment = deployment_evidence(config, candidate, deployment_receipt) if config["operation"] == "sentry-deploy" else None
+    if deployment_receipt is not None and deployment is None:
+        raise PipelineError("Deployment evidence is only valid for a Sentry deploy marker")
     url = settings.get("url", "https://sentry.io/")
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
@@ -184,19 +224,18 @@ def sentry(config, root, candidate, inspected, temporary):
         if settings.get("finalize"):
             run(prefix + ["releases", "finalize", settings["release"]], cwd=temporary, extra_env=extra, timeout=timeout)
     elif operation == "sentry-deploy":
-        proof = confined_path(root, settings.get("deployment_receipt", ""))
-        deployed = load_json(proof)
-        if (sha256_file(proof) != settings.get("deployment_receipt_sha256") or deployed.get("status") != "passed"
-                or deployed.get("candidate_identity") != candidate["identity"] or deployed.get("environment") != settings["environment"]):
-            raise PipelineError("Sentry deploy marker requires matching successful deployment evidence")
         run(prefix + ["deploys", "new", "--release", settings["release"], "-e", settings["environment"]], cwd=temporary, extra_env=extra, timeout=timeout)
     if operation in ("sentry-native", "sentry-dart"):
         args = ["debug-files", "upload", "--wait", "--require-all"]
         for debug_id in sorted(set(ids)):
             args += ["--id", debug_id]
         run(prefix + args + [str(p) for p in paths], cwd=temporary, extra_env=extra, timeout=timeout)
-    return {"provider": "sentry", "release": settings["release"], "environment": settings["environment"], "dist": settings["dist"],
-            "uploaded_artifacts": [str(p.relative_to(root)) for p in paths], "debug_ids": sorted(set(ids))}
+    result = {"provider": "sentry", "release": settings["release"], "environment": settings["environment"], "dist": settings["dist"],
+              "uploaded_artifacts": [str(p.relative_to(root)) for p in paths], "debug_ids": sorted(set(ids))}
+    if deployment is not None:
+        deployment_receipt.validate_integrity()
+        result["deployment"] = deployment
+    return result
 
 
 def firebase_app(settings, inspected, root, candidate):
@@ -330,7 +369,7 @@ def execution_context(config, root):
         raise PipelineError("Native monitoring requires the successful authorized Xcode Cloud archive on its Apple host")
 
 
-def execute(config, root):
+def execute(config, root, *, deployment_receipt=None):
     required = {"schema", "operation", "candidate", "inspection", "expected_identity", "expected_source_sha", "allowed_refs"}
     strict_keys(config, required | {"tool", "sentry", "firebase", "symbols", "artifact", "dart_libraries", "source_maps", "timeout", "execution_context", "emergency", "source_root_env"}, required)
     operations = {"sentry-native", "sentry-dart", "sentry-r8", "sentry-sourcemaps", "sentry-release", "sentry-deploy",
@@ -352,10 +391,12 @@ def execute(config, root):
     if config["operation"] == "crashlytics-apple" and sys.platform != "darwin":
         raise PipelineError("Firebase Apple upload-symbols requires the Apple host")
     provider = "sentry" if config["operation"].startswith("sentry-") else "firebase"
+    if deployment_receipt is not None and config["operation"] != "sentry-deploy":
+        raise PipelineError("Deployment evidence is only valid for a Sentry deploy marker")
     if provider not in config or ("firebase" if provider == "sentry" else "sentry") in config:
         raise PipelineError("Exactly one matching monitoring provider is required")
     with tempfile.TemporaryDirectory(prefix="shared-monitoring-") as temporary:
-        result = (sentry if provider == "sentry" else crashlytics)(config, root, candidate, inspected, temporary)
+        result = sentry(config, root, candidate, inspected, temporary, deployment_receipt=deployment_receipt) if provider == "sentry" else crashlytics(config, root, candidate, inspected, temporary)
     # No uploader may alter candidate binaries, maps, symbols or check receipts.
     load_candidate(config, root, {inspected["kind"]})
     records = {path: candidate["artifacts"][path] for path in result.get("uploaded_artifacts", [])}

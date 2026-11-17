@@ -259,10 +259,10 @@ class RuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(PipelineError, 'Current release'):
             self.execute()
 
-    def candidate_config(self, destination='quality.json'):
+    def candidate_config(self, destination='quality.json', build='1'):
         self.without_candidate()
         self.env.update(SHARED_MODULE='evidence', SHARED_OPERATION='create')
-        self.write_config({'schema': 1, 'product': 'fixture', 'version': '1', 'build': '1', 'library_sha': 'workflow',
+        self.write_config({'schema': 1, 'product': 'fixture', 'version': '1', 'build': build, 'library_sha': 'workflow',
                            'inputs': ['input.txt'], 'artifacts': ['app.aab'], 'toolchain': {'fixture': '1'},
                            'checks': [{'path': destination, 'kind': 'quality', 'config': 'input.txt'}]})
         self.selector['run_head_sha'] = self.git('rev-parse', 'HEAD')
@@ -278,6 +278,46 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(result['library_sha'], 'c' * 40)
         self.assertEqual(result['source_sha'], self.selector['run_head_sha'])
         self.assertEqual(load_json(self.root / 'quality.json')['authenticated_origin']['run_id'], '41')
+
+    def test_candidate_build_uses_explicit_allocation_only_for_workflow_marker(self):
+        receipt = self.candidate_config(build='workflow')
+        self.env['SHARED_CANDIDATE_BUILD'] = '73'
+        with self.fetched(receipt):
+            result = self.execute()
+        self.assertEqual(result['build'], '73')
+        self.assertEqual(load_json(self.config_path)['build'], 'workflow')
+
+    def test_missing_invalid_or_static_candidate_build_selection_is_refused(self):
+        receipt = self.candidate_config(build='workflow')
+        for value in ('', '0', '-1', '1.2', '1\nunsafe', 'false'):
+            self.env['SHARED_CANDIDATE_BUILD'] = value
+            with self.subTest(value=value), self.fetched(receipt), self.assertRaisesRegex(PipelineError, 'positive integer'):
+                self.execute()
+        self.config['build'] = '1'
+        self.write_config(self.config)
+        self.env['SHARED_CHECK_RECEIPTS'] = '{}'
+        self.env['SHARED_CANDIDATE_BUILD'] = '73'
+        with self.assertRaisesRegex(PipelineError, 'static candidate'):
+            self.execute()
+
+    def test_monitoring_receives_authenticated_deployment_proof(self):
+        self.env.update(SHARED_MODULE='monitoring', SHARED_PRIOR_DEPLOYMENT=json.dumps(self.selector))
+        self.write_config({'operation': 'sentry-deploy'})
+        with self.fetched({'schema': 1, 'status': 'passed', 'kind': 'deployment'}), patch('shared_ci.monitoring.execute', return_value={'status': 'passed'}) as execute:
+            self.execute()
+        self.assertIsInstance(execute.call_args.kwargs['deployment_receipt'], evidence.AuthenticatedReceipt)
+        execute.call_args.kwargs['deployment_receipt'].validate_integrity()
+
+    def test_successful_mobile_allocator_exposes_validated_build_number(self):
+        self.without_candidate()
+        self.env['SHARED_MODULE'] = 'mobile'
+        self.write_config({'operation': 'next-build'})
+        with patch('shared_ci.mobile.execute', return_value={'status': 'passed', 'build_number': 73}):
+            self.execute()
+        self.assertEqual(self.read_outputs()['build-number'], '73')
+        with patch('shared_ci.mobile.execute', return_value={'status': 'passed', 'build_number': True}), self.assertRaisesRegex(PipelineError, 'positive integer'):
+            self.execute()
+        self.assertEqual(self.read_outputs()['status'], 'failed')
 
     def test_imported_check_conflict_is_never_overwritten(self):
         receipt = self.candidate_config()

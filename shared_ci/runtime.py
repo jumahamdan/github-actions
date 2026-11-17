@@ -145,6 +145,8 @@ class Invocation:
         self.operation = operation
         container = json_input("SHARED_CONTAINER_SELECTION")
         store = json_input("SHARED_STORE_SELECTION")
+        if os.environ.get("SHARED_CANDIDATE_BUILD") and (name != "evidence" or operation != "create"):
+            raise PipelineError("Runtime build number is only valid during candidate creation")
         check_receipts = json_input("SHARED_CHECK_RECEIPTS", {})
         if check_receipts:
             if name != "evidence" or os.environ.get("SHARED_OPERATION") != "create":
@@ -188,7 +190,10 @@ class Invocation:
                     raise PipelineError("Prior deployment selection requires a candidate promotion")
                 self.kwargs["promotion_receipt"] = authenticated_receipt(prior)
         elif prior is not None:
-            raise PipelineError("Prior deployment evidence is only supported by deployment promotion")
+            if name == "monitoring" and operation == "sentry-deploy" and self.selection:
+                self.kwargs["deployment_receipt"] = authenticated_receipt(prior)
+            else:
+                raise PipelineError("Prior deployment evidence requires deployment promotion or a Sentry deploy marker")
         if name == "security" and self.candidate is not None:
             self.kwargs["candidate"] = self.candidate
         if name == "release" and operation == "publish":
