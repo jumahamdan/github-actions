@@ -415,6 +415,7 @@
             "test_cli_does_not_overwrite_source_or_leave_stale_success",
             "test_config_schema_paths_and_bounds",
             "test_dirty_unselected_tracked_file_still_refused",
+            "test_downstream_retry_uses_original_quality_attempt_and_origin",
             "test_explicit_env_ids_supported_but_missing_ids_never_guessed",
             "test_extra_immutable_files_require_recorded_input_or_lock_coverage",
             "test_library_code_workflow_helper_or_tool_lock_change_invalidates",
@@ -423,8 +424,13 @@
             "test_nonreproducible_environment_and_build_credentials_require_fresh_run",
             "test_original_freshness_cannot_be_extended",
             "test_real_quality_run_reused_on_new_commit_without_executing_checks",
+            "test_runtime_artifact_attempt_and_policy_selectors_use_real_authenticated_archive",
+            "test_same_run_missing_failed_duplicate_or_wrong_window_producer_is_not_reused",
+            "test_same_run_successful_quality_job_reuses_once_for_push_and_pull_request",
             "test_same_tree_new_merge_sha_can_reuse",
-            "test_symlink_implementation_and_missing_library_refused"
+            "test_strict_attempt_branch_and_event_policies_cannot_fall_back_to_legacy_fetch",
+            "test_symlink_implementation_and_missing_library_refused",
+            "test_workflow_exposes_exact_runtime_receipt_selection"
           ]
         },
         {

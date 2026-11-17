@@ -888,6 +888,11 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
 | `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `quality-run-attempt` | required | Exact producing quality attempt; use producer run-attempt output |
+| `quality-artifact` | required | Exact producing receipt-artifact-name output |
+| `quality-producer-job` | '' | Exact completed quality job name; required for same-run reuse |
+| `quality-allowed-branches` | required | Explicit JSON array of approved producer branch names |
+| `quality-allowed-events` | required | Explicit JSON array of approved push, pull_request or workflow_dispatch events |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`, `GH_TOKEN`.
 
