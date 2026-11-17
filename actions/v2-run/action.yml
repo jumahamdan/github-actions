@@ -101,6 +101,10 @@ outputs:
   manifest:
     description: Retained or imported candidate manifest path
     value: ${{ steps.execute.outputs.manifest }}
+  build-number:
+    description: Successfully allocated mobile build number; caller retains the durable ledger and product-wide
+      lock
+    value: ${{ steps.execute.outputs.build-number }}
 runs:
   using: composite
   steps:

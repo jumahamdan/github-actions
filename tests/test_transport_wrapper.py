@@ -149,6 +149,7 @@ class RuntimeWorkflowContractTests(unittest.TestCase):
         self.assertEqual(execute['with']['store-selection'], '${{ inputs.store-selection }}')
         action = yaml.safe_load((LIBRARY / 'actions/v2-run/action.yml').read_text())
         self.assertEqual(action['runs']['steps'][0]['env']['SHARED_STORE_SELECTION'], '${{ inputs.store-selection }}')
+        self.assertEqual(action['outputs']['build-number']['value'], '${{ steps.execute.outputs.build-number }}')
         self.assertIn('GH_STATE_TOKEN', execute['env'])
         self.assertFalse(run['concurrency']['cancel-in-progress'])
         evidence = yaml.safe_load((LIBRARY / '.github/workflows/v2-evidence.yml').read_text())
