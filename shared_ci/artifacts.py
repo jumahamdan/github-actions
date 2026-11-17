@@ -238,13 +238,35 @@ def authenticated_artifact(config, token, request):
             or len(branches) != len(set(branches))):
         raise PipelineError("Explicit producer branch names are required")
     base = f"/repos/{repo}/actions/runs/{config['run_id']}"
-    run_info = request(base, token)
-    current_running = (run_info.get("status") == "in_progress" and os.environ.get("GITHUB_ACTIONS") == "true"
-                       and str(config["run_id"]) == os.environ.get("GITHUB_RUN_ID")
-                       and str(config["run_attempt"]) == os.environ.get("GITHUB_RUN_ATTEMPT")
-                       and repo == os.environ.get("GITHUB_REPOSITORY"))
+    latest = request(base, token)
+    latest_attempt = latest.get("run_attempt")
+    selected_attempt = config["run_attempt"]
+    if type(latest_attempt) is not int or latest_attempt < selected_attempt:
+        raise PipelineError("Producer run does not contain the selected attempt")
+    # /runs/{id} describes the latest attempt, so a downstream-only retry must
+    # retrieve the earlier producer's immutable attempt metadata explicitly.
+    run_info = latest
+    if selected_attempt != latest_attempt:
+        run_info = request(base + f"/attempts/{selected_attempt}", token)
+        if run_info.get("id") != int(config["run_id"]):
+            raise PipelineError("Producer run attempt belongs to a different run")
+    current_run = (os.environ.get("GITHUB_ACTIONS") == "true"
+                   and str(config["run_id"]) == os.environ.get("GITHUB_RUN_ID")
+                   and repo == os.environ.get("GITHUB_REPOSITORY"))
+    current_text = os.environ.get("GITHUB_RUN_ATTEMPT", "")
+    current_attempt = int(current_text) if current_text.isdigit() else 0
+    if current_run and (current_attempt < 1 or selected_attempt > current_attempt):
+        raise PipelineError("Producer run selection is not a current or earlier attempt")
+    current_running = (current_run and latest.get("status") == "in_progress"
+                       and latest_attempt == current_attempt)
+    current_producer = (current_running and selected_attempt == current_attempt
+                        and run_info.get("status") == "in_progress" and run_info.get("conclusion") is None)
+    prior_producer = (current_running and selected_attempt < current_attempt
+                      and run_info.get("status") == "completed"
+                      and run_info.get("conclusion") in ("success", "failure", "cancelled", "timed_out"))
+    job_required = current_producer or prior_producer
     completed = run_info.get("status") == "completed" and run_info.get("conclusion") == "success"
-    if ((not completed and not current_running) or run_info.get("head_sha") != run_head
+    if ((not completed and not job_required) or run_info.get("head_sha") != run_head
             or run_info.get("path", "").split("@")[0] != workflow
             or run_info.get("head_repository", {}).get("full_name") != repo
             or run_info.get("run_attempt") != config["run_attempt"] or run_info.get("event") not in events
@@ -252,10 +274,10 @@ def authenticated_artifact(config, token, request):
         raise PipelineError("Producer run is not successful trusted evidence for the selected source/attempt/workflow")
     started = timestamp(run_info.get("run_started_at"))
     updated = timestamp(run_info.get("updated_at"))
-    if current_running:
+    if job_required or config.get("producer_job") is not None:
         producer_name = config.get("producer_job")
         if not isinstance(producer_name, str) or not producer_name.strip() or len(producer_name) > 200:
-            raise PipelineError("Same-run artifact import requires an explicit completed producer job")
+            raise PipelineError("Artifact import requires an explicit completed producer job")
         producers = []
         for page in range(1, 21):
             response = request(base + f"/attempts/{config['run_attempt']}/jobs?per_page=100&page={page}", token)
@@ -269,12 +291,16 @@ def authenticated_artifact(config, token, request):
             raise PipelineError("Producer job inventory exceeds pagination limit")
         if (len(producers) != 1 or producers[0].get("status") != "completed" or producers[0].get("conclusion") != "success"
                 or producers[0].get("run_id") != int(config["run_id"]) or not isinstance(producers[0].get("id"), int)
-                or producers[0]["id"] <= 0):
-            raise PipelineError("Exactly one completed successful producer job is required for same-run import")
+                or producers[0]["id"] <= 0
+                or producers[0].get("head_sha", run_head) != run_head
+                or producers[0].get("head_branch", run_info.get("head_branch")) != run_info.get("head_branch")):
+            raise PipelineError("Exactly one completed successful producer job is required for artifact import")
         job = producers[0]
         started = max(started, timestamp(job.get("started_at")))
-        # run.updated_at can precede a still-running job; the completed producer supplies a bounded upper time.
-        updated = timestamp(job.get("completed_at"))
+        # The current in-progress attempt's updated_at may precede its successful
+        # producer. A completed earlier attempt also supplies an upper bound.
+        job_completed = timestamp(job.get("completed_at"))
+        updated = min(updated, job_completed) if run_info.get("status") == "completed" else job_completed
     matches = []
     for page in range(1, 21):
         response = request(base + f"/artifacts?per_page=100&page={page}", token)

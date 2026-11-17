@@ -259,6 +259,99 @@ class ArtifactTests(unittest.TestCase):
             result = artifacts.fetch(self.fetch_config, self.target, request=self.same_run_request, downloader=self.download)
         self.assertEqual(result["status"], "passed")
 
+    def earlier_attempt(self):
+        self.same_run()
+        self.fetch_config["run_attempt"] = 1
+        self.previous = dict(self.metadata, id=42, run_attempt=1, status="completed", conclusion="failure",
+                             updated_at="2026-01-01T01:00:00Z")
+        self.metadata.update(run_started_at="2026-01-02T00:00:00Z", updated_at="2026-01-02T00:00:01Z")
+        self.jobs[0].update(head_sha=self.sha, head_branch="staging")
+
+    def earlier_request(self, path, token):
+        self.api_calls.append((path, token))
+        if path == "/repos/example/synthetic/actions/runs/42/attempts/1":
+            return self.previous
+        if "/jobs?" in path:
+            self.assertIn("/attempts/1/jobs?", path)
+            return {"jobs": self.jobs}
+        return self.request(path, token)
+
+    def fetch_earlier(self):
+        return artifacts.fetch(self.fetch_config, self.target, request=self.earlier_request, downloader=self.download)
+
+    def test_failed_jobs_rerun_imports_successful_build_from_earlier_failed_attempt(self):
+        self.earlier_attempt()
+        with patch.dict(os.environ, self.current_env):
+            result = self.fetch_earlier()
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["provenance"]["run_attempt"], 1)
+        self.assertEqual(load_json(self.target / "candidate.json")["identity"], self.candidate["identity"])
+        self.assertEqual((self.target / "app.aab").read_bytes(), (self.root / "app.aab").read_bytes())
+        paths = [path for path, _ in self.api_calls]
+        self.assertIn("/repos/example/synthetic/actions/runs/42/attempts/1", paths)
+        self.assertTrue(any("/attempts/1/jobs?" in path for path in paths))
+        self.assertFalse(any("/attempts/2/jobs?" in path for path in paths))
+
+    def test_cross_run_can_select_successful_earlier_attempt_while_latest_reruns(self):
+        self.earlier_attempt()
+        self.previous["conclusion"] = "success"
+        with patch.dict(os.environ, {**self.current_env, "GITHUB_RUN_ID": "999"}):
+            result = self.fetch_earlier()
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["provenance"]["run_attempt"], 1)
+
+    def test_earlier_attempt_rejects_incomplete_failed_missing_or_ambiguous_producer(self):
+        self.earlier_attempt()
+        original = copy.deepcopy(self.jobs)
+        variants = [[], original + original, [dict(original[0], status="in_progress", conclusion=None)],
+                    [dict(original[0], conclusion="failure")], [dict(original[0], conclusion="cancelled")],
+                    [dict(original[0], run_id=999)], [dict(original[0], head_sha="f" * 40)],
+                    [dict(original[0], head_branch="main")]]
+        with patch.dict(os.environ, self.current_env):
+            for jobs in variants:
+                self.jobs = jobs
+                with self.subTest(jobs=jobs), self.assertRaisesRegex(PipelineError, "producer job"):
+                    self.fetch_earlier()
+        self.assertFalse((self.target / "candidate.json").exists())
+
+    def test_earlier_attempt_requires_exact_source_branch_event_workflow_run_and_attempt(self):
+        self.earlier_attempt()
+        original = copy.deepcopy(self.previous)
+        variants = [{"id": 99}, {"head_sha": "f" * 40}, {"head_repository": {"full_name": "fork/other"}},
+                    {"head_branch": "feature/unapproved"}, {"event": "pull_request_target"},
+                    {"path": ".github/workflows/other.yml"}, {"run_attempt": 2},
+                    {"status": "in_progress", "conclusion": None}, {"conclusion": "unknown"}]
+        with patch.dict(os.environ, self.current_env):
+            for change in variants:
+                self.previous = {**original, **change}
+                with self.subTest(change=change), self.assertRaisesRegex(PipelineError, "Producer run"):
+                    self.fetch_earlier()
+        self.assertFalse((self.target / "candidate.json").exists())
+
+    def test_earlier_attempt_requires_producer_and_original_job_artifact_window(self):
+        self.earlier_attempt()
+        with patch.dict(os.environ, self.current_env):
+            self.fetch_config.pop("producer_job")
+            with self.assertRaisesRegex(PipelineError, "explicit completed producer"):
+                self.fetch_earlier()
+            self.fetch_config["producer_job"] = "Build Android"
+            for created in ("2026-01-01T00:00:59Z", "2026-01-01T00:40:01Z", "2026-01-02T00:00:00Z"):
+                self.item["created_at"] = created
+                with self.subTest(created=created), self.assertRaisesRegex(PipelineError, "stale"):
+                    self.fetch_earlier()
+        self.assertFalse((self.target / "candidate.json").exists())
+
+    def test_foreign_earlier_failed_attempt_cannot_borrow_current_run_exception(self):
+        self.earlier_attempt()
+        with patch.dict(os.environ, {**self.current_env, "GITHUB_RUN_ID": "999"}), self.assertRaisesRegex(PipelineError, "Producer run"):
+            self.fetch_earlier()
+        self.assertFalse((self.target / "candidate.json").exists())
+
+    def test_current_run_cannot_select_a_future_attempt(self):
+        self.same_run()
+        with patch.dict(os.environ, {**self.current_env, "GITHUB_RUN_ATTEMPT": "1"}), self.assertRaisesRegex(PipelineError, "current or earlier"):
+            artifacts.fetch(self.fetch_config, self.target, request=self.same_run_request, downloader=self.download)
+
     def test_same_running_pr_authenticates_api_head_independent_of_merge_sha(self):
         self.same_run()
         self.metadata["event"] = "pull_request"
