@@ -452,7 +452,7 @@ exec(code)
     def test_failed_cli_removes_previous_passing_receipt(self):
         self.write('config.json', b'{"operation":"unknown"}')
         self.write('receipt.json', b'{"schema":1,"status":"passed"}')
-        result = subprocess.run([sys.executable, '-m', 'shared_ci.mobile', '--root', str(self.root),
+        result = subprocess.run([sys.executable, '-B', '-m', 'shared_ci.mobile', '--root', str(self.root),
                                  '--config', 'config.json', '--output', 'receipt.json'],
                                 cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=10)
         self.assertNotEqual(result.returncode, 0)
