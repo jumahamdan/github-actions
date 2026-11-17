@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "operation": "restore",
+  "repository": "example/product",
+  "run_id": "10001",
+  "run_attempt": "previous",
+  "artifact_name": "stores-run-{run_id}-attempt-{run_attempt}",
+  "expected_workflow": ".github/workflows/release.yml",
+  "producer_job": "stores / run",
+  "allowed_branches": ["staging"],
+  "allowed_events": ["push", "workflow_dispatch"],
+  "allowed_conclusions": ["success", "failure", "cancelled", "timed_out"],
+  "token_env": "GH_STATE_TOKEN"
+}

@@ -147,9 +147,14 @@ class RuntimeTests(unittest.TestCase):
         self.env['SHARED_STORE_SELECTION'] = json.dumps({'play': {'expected_track_digest': fingerprint({'track': 'internal', 'releases': []})}})
         self.config['play']['expected_track_digest'] = 'workflow'
         self.write_config(self.config)
+        selection = {'schema': 1, 'operation': 'restore', 'repository': 'example/app', 'run_id': '42', 'run_attempt': 'previous',
+                     'artifact_name': 'stores-run-{run_id}-attempt-{run_attempt}', 'expected_workflow': '.github/workflows/store.yml', 'producer_job': 'Store / Execute',
+                     'allowed_branches': ['staging'], 'allowed_events': ['workflow_dispatch'], 'allowed_conclusions': ['failure'], 'token_env': 'GH_STATE_TOKEN'}
+        self.env['SHARED_STATE_RESTORE'] = json.dumps(selection)
         self.provider.commit_errors = [PipelineError('lost provider response with synthetic-secret')]
-        with self.assertRaises(PipelineError):
+        with patch('shared_ci.state.authenticated_state_artifact') as fetch, self.assertRaises(PipelineError):
             self.execute()
+        fetch.assert_not_called()
         saved = Path(self.read_outputs()['bundle'])
         self.assertEqual(load_json(saved / 'operation-state.json')['state']['phase'], 'commit_started')
         self.assertNotIn('synthetic-secret', (saved / 'receipt.json').read_text())
@@ -159,15 +164,11 @@ class RuntimeTests(unittest.TestCase):
                 zipped.write(path, path.name)
         (self.root / 'state.json').unlink()
         self.env['GITHUB_RUN_ATTEMPT'] = '2'
-        selection = {'schema': 1, 'operation': 'restore', 'repository': 'example/app', 'run_id': '42', 'run_attempt': 1,
-                     'artifact_name': 'operation-state-42-1', 'expected_workflow': '.github/workflows/store.yml', 'producer_job': 'Store / Execute',
-                     'allowed_branches': ['staging'], 'allowed_events': ['workflow_dispatch'], 'allowed_conclusions': ['failure'], 'token_env': 'GH_STATE_TOKEN'}
-        self.env['SHARED_STATE_RESTORE'] = json.dumps(selection)
         metadata = {'id': 42, 'run_attempt': 1, 'status': 'completed', 'conclusion': 'failure', 'head_sha': 'a' * 40, 'head_branch': 'staging',
                     'path': '.github/workflows/store.yml', 'head_repository': {'full_name': 'example/app'}, 'event': 'workflow_dispatch',
                     'run_started_at': '2026-01-01T00:00:00Z', 'updated_at': '2026-01-01T01:00:00Z'}
         job = dict(metadata, id=123, run_id=42, name='Store / Execute', started_at='2026-01-01T00:01:00Z', completed_at='2026-01-01T00:59:00Z')
-        item = {'id': 99, 'name': selection['artifact_name'], 'expired': False, 'created_at': '2026-01-01T00:30:00Z',
+        item = {'id': 99, 'name': 'stores-run-42-attempt-1', 'expired': False, 'created_at': '2026-01-01T00:30:00Z',
                 'workflow_run': {'id': 42, 'head_sha': 'a' * 40}, 'size_in_bytes': archive.stat().st_size, 'digest': 'sha256:' + sha256_file(archive)}
         def request(path, token):
             if '/jobs?' in path: return {'jobs': [job]}
@@ -176,6 +177,7 @@ class RuntimeTests(unittest.TestCase):
         restore = state.restore
         def restore_saved(selected, root, *, store_config):
             self.assertEqual(selected['run_head_sha'], 'a' * 40)
+            self.assertEqual(selected['run_attempt'], 'previous')
             return restore(selected, root, store_config=store_config, request=request,
                            downloader=lambda path, token, destination, limit: shutil.copyfile(archive, destination))
         self.provider.calls.clear()
@@ -183,6 +185,18 @@ class RuntimeTests(unittest.TestCase):
             self.execute()
         self.assertFalse(self.provider.calls)
         self.assertEqual(load_json(Path(self.read_outputs()['bundle']) / 'operation-state.json')['state']['phase'], 'commit_started')
+
+    def test_previous_first_attempt_does_not_fabricate_saved_store_state(self):
+        self.env['SHARED_STATE_RESTORE'] = json.dumps({
+            'schema': 1, 'operation': 'restore', 'repository': 'example/app', 'run_id': '42', 'run_attempt': 'previous',
+            'artifact_name': 'stores-run-{run_id}-attempt-{run_attempt}', 'expected_workflow': '.github/workflows/store.yml',
+            'producer_job': 'Store / Execute', 'allowed_branches': ['staging'], 'allowed_events': ['workflow_dispatch'],
+            'allowed_conclusions': ['failure'], 'token_env': 'GH_STATE_TOKEN'})
+        with patch('shared_ci.state.authenticated_state_artifact') as fetch, patch('shared_ci.stores.execute', return_value={'status': 'pending'}):
+            self.execute()
+        fetch.assert_not_called()
+        self.assertFalse((self.root / 'state.json').exists())
+        self.assertFalse((Path(self.read_outputs()['bundle']) / 'operation-state.json').exists())
 
     def test_readonly_deploy_receives_no_empty_candidate_overrides(self):
         self.without_candidate()

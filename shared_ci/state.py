@@ -205,15 +205,51 @@ def read_envelope(archive_path, temporary, config):
     return value
 
 
+def resolve_previous(selection):
+    """Resolve only the previous attempt of this exact current GitHub run."""
+    if selection.get("run_attempt") != "previous":
+        return dict(selection)
+    current_run = os.environ.get("GITHUB_RUN_ID", "")
+    current_attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "")
+    current_head = os.environ.get("GITHUB_SHA", "")
+    if (os.environ.get("GITHUB_ACTIONS") != "true" or not current_run.isdigit()
+            or str(selection["run_id"]) != current_run
+            or selection["repository"] != os.environ.get("GITHUB_REPOSITORY")
+            or not current_attempt.isdigit() or int(current_attempt) < 1
+            or not SHA.fullmatch(current_head)):
+        raise PipelineError("Previous state selection requires the current trusted GitHub run and positive attempt")
+    if selection.get("run_head_sha", current_head) != current_head:
+        raise PipelineError("Previous state selection must use the current publishing run head")
+    name = selection["artifact_name"]
+    if not isinstance(name, str):
+        raise PipelineError("Invalid previous state artifact name")
+    prior_attempt = int(current_attempt) - 1
+    name = name.replace("{run_id}", current_run).replace("{run_attempt}", str(prior_attempt))
+    if "{" in name or "}" in name:
+        raise PipelineError("Previous state artifact name has an unknown placeholder")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", name):
+        raise PipelineError("Invalid previous state artifact name")
+    if prior_attempt == 0:
+        return None
+    return dict(selection, run_id=current_run, run_attempt=prior_attempt, run_head_sha=current_head, artifact_name=name)
+
+
 def restore(selection, root, *, store_config, request=_api, downloader=download):
     required = {"schema", "operation", "repository", "run_id", "run_attempt", "run_head_sha", "artifact_name", "expected_workflow", "producer_job",
                 "allowed_branches", "allowed_events", "allowed_conclusions", "token_env"}
-    strict_keys(selection, required, required)
+    previous = isinstance(selection, dict) and selection.get("run_attempt") == "previous"
+    strict_keys(selection, required, required - {"run_head_sha"} if previous else required)
     if selection["schema"] != 1 or selection["operation"] != "restore":
         raise PipelineError("Unsupported state restore operation")
+    trusted_context(store_config["allowed_refs"])
+    selection = resolve_previous(selection)
+    if selection is None:
+        # No predecessor exists. Do not fetch credentials, call GitHub, write a
+        # state file or claim that an operation state was restored.
+        return {"schema": 1, "status": "passed", "operation": "restore", "restored": False,
+                "reason": "first_run_attempt", "store_operation": store_config["operation"]}
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", str(selection["artifact_name"])):
         raise PipelineError("Invalid state artifact name")
-    trusted_context(store_config["allowed_refs"])
     no_symlink(root, store_config["state_file"])
     target, existing = state_file(store_config, root)
     token = env_secret(selection["token_env"])
@@ -238,7 +274,7 @@ def restore(selection, root, *, store_config, request=_api, downloader=download)
                 target.chmod(0o600)
             except OSError:
                 raise PipelineError("Could not restore state without overwriting existing data") from None
-    return {"schema": 1, "status": "passed", "operation": "restore", "store_operation": store_config["operation"],
+    return {"schema": 1, "status": "passed", "operation": "restore", "restored": True, "store_operation": store_config["operation"],
             "candidate_identity": store_config["expected_identity"], "request_fingerprint": fingerprint(store_config), "phase": value["phase"],
             "state_sha256": hashlib.sha256(expected_bytes).hexdigest(), "state_file": store_config["state_file"],
             "provenance": {"repository": selection["repository"], "run_id": str(selection["run_id"]), "run_attempt": selection["run_attempt"],

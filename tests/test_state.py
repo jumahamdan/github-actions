@@ -91,6 +91,87 @@ class StateTests(unittest.TestCase):
             stores.execute(self.config, self.new_root, api=transport)
         transport.assert_not_called()
 
+    def previous_selection(self):
+        self.selection.update(run_attempt="previous", artifact_name="stores-run-{run_id}-attempt-{run_attempt}")
+        self.selection.pop("run_head_sha")
+
+    def test_previous_selector_first_attempt_does_not_fetch_or_create_state(self):
+        self.previous_selection()
+        request, download = unittest.mock.Mock(), unittest.mock.Mock()
+        with patch.dict(os.environ, {"GITHUB_RUN_ATTEMPT": "1", "GITHUB_SHA": "a" * 40, "GH_STATE_TOKEN": ""}):
+            result = state.restore(self.selection, self.root, store_config=self.config, request=request, downloader=download)
+        self.assertFalse(result["restored"])
+        self.assertEqual(result["reason"], "first_run_attempt")
+        self.assertNotIn("phase", result)
+        self.assertFalse((self.root / "state.json").exists())
+        request.assert_not_called()
+        download.assert_not_called()
+
+    def test_previous_selector_attempt_two_restores_one_and_still_refuses_uncertain_commit(self):
+        self.prepare()
+        self.previous_selection()
+        self.item["name"] = "stores-run-42-attempt-1"
+        with patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}):
+            result = self.restore()
+        self.assertTrue(result["restored"])
+        self.assertEqual(result["provenance"]["run_attempt"], 1)
+        transport = unittest.mock.Mock()
+        with self.assertRaisesRegex(PipelineError, "uncertain"):
+            stores.execute(self.config, self.new_root, api=transport)
+        transport.assert_not_called()
+
+    def test_previous_selector_attempt_three_fetches_exact_attempt_two(self):
+        self.prepare()
+        self.previous_selection()
+        self.metadata["run_attempt"] = 2
+        self.item["name"] = "stores-run-42-attempt-2"
+        def request(path, token):
+            self.calls.append(path)
+            if "/artifacts?" in path: return {"artifacts": [self.item]}
+            if "/jobs?" in path:
+                self.assertIn("/attempts/2/jobs?", path)
+                return {"jobs": [self.job]}
+            self.assertTrue(path.endswith("/attempts/2"))
+            return self.metadata
+        with patch.dict(os.environ, {"GITHUB_RUN_ATTEMPT": "3", "GITHUB_SHA": "a" * 40}):
+            self.assertEqual(self.restore(request=request)["provenance"]["run_attempt"], 2)
+        self.assertFalse(any("/attempts/1" in path for path in self.calls))
+
+    def test_previous_selector_refuses_foreign_run_bad_attempt_head_and_unknown_placeholders(self):
+        self.previous_selection()
+        original = copy.deepcopy(self.selection)
+        changes = ({"run_id": "41"}, {"repository": "foreign/app"}, {"run_head_sha": "f" * 40},
+                   {"artifact_name": "store-{unknown}"}, {"artifact_name": "store-{run_id.__class__}"},
+                   {"artifact_name": "store-{run_attempt:04d}"})
+        for change in changes:
+            with self.subTest(change=change), patch.dict(os.environ, {"GITHUB_RUN_ATTEMPT": "1", "GITHUB_SHA": "a" * 40}):
+                with self.assertRaises(PipelineError):
+                    state.restore({**original, **change}, self.root, store_config=self.config, request=self.request)
+        for attempt in ("0", "-1", "", "not-a-number"):
+            with self.subTest(attempt=attempt), patch.dict(os.environ, {"GITHUB_RUN_ATTEMPT": attempt, "GITHUB_SHA": "a" * 40}):
+                with self.assertRaisesRegex(PipelineError, "positive attempt"):
+                    state.restore(original, self.root, store_config=self.config, request=self.request)
+        self.assertFalse(self.calls)
+
+    def test_artifact_placeholders_are_rejected_for_explicit_attempts(self):
+        self.prepare()
+        self.selection["artifact_name"] = "stores-run-{run_id}-attempt-{run_attempt}"
+        with self.assertRaisesRegex(PipelineError, "Invalid state artifact"):
+            self.restore()
+        self.assertFalse(self.calls)
+
+    def test_previous_missing_or_stale_state_is_never_a_fresh_operation(self):
+        self.prepare()
+        self.previous_selection()
+        self.item["name"] = "stores-run-42-attempt-1"
+        self.item["created_at"] = "2025-12-31T23:00:00Z"
+        with patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), self.assertRaisesRegex(PipelineError, "selected producer attempt"):
+            self.restore()
+        self.item["expired"] = True
+        with patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), self.assertRaisesRegex(PipelineError, "selected producer attempt"):
+            self.restore()
+        self.assertFalse((self.new_root / "state.json").exists())
+
     def test_completed_pending_state_resumes_without_duplicate_commit(self):
         self.prepare(completed=True)
         self.metadata["conclusion"] = "success"
