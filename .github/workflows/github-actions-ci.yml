@@ -1,4 +1,4 @@
-name: Shared library validation
+name: Library · Validation
 'on':
   pull_request:
     branches:

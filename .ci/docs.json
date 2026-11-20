@@ -4,6 +4,6 @@
   "documents": [
     "README.md",
     "docs/**/*.md",
-    "templates/*.md"
+    "templates/**/*.md"
   ]
 }

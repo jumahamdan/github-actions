@@ -1,4 +1,4 @@
-name: Security Audit
+name: Legacy · Security audit
 
 on:
     workflow_call:

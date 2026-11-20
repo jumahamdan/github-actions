@@ -1,4 +1,4 @@
-name: AI Code Review
+name: Legacy · AI code review
 
 on:
     workflow_call:
