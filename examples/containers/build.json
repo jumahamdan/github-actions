@@ -2,7 +2,7 @@
   "operation": "build",
   "context": "service",
   "dockerfile": "service/Dockerfile",
-  "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source_sha": "workflow",
   "build_args": {
     "APP_VERSION": "1.0.0"
   },
