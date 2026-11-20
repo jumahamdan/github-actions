@@ -1,4 +1,5 @@
 # Caller source: render with scripts/render-product-workflows.py before adoption.
+# Its generated required policy accepts submitted/pending Play receipts only on staging.
 name: Staging · Android build and distribution
 'on':
   workflow_dispatch:

@@ -307,7 +307,12 @@ def render(config, revision, *, source=SOURCE, library=ROOT):
         header = ('# Generated from shared-library templates/callers/recipes/' + recipe + '.yml.\n'
                   '# Review product configuration, environments and credential mappings before adoption.\n')
         result[target] = header + yaml.safe_dump(workflow, sort_keys=False, allow_unicode=True, width=110)
-        result[policy_path] = json.dumps({'schema': 1, 'checks': {name: True for name in workflow['jobs'] if name != 'required'}}, indent=2) + '\n'
+        policy = {'schema': 1, 'checks': {name: True for name in workflow['jobs'] if name != 'required'}}
+        if recipe == 'android-staging':
+            # Play acknowledges submission without proving availability. Keep this run usable
+            # as a candidate producer while production continues to require passed evidence.
+            policy['staging_submissions'] = ['distribute']
+        result[policy_path] = json.dumps(policy, indent=2) + '\n'
         if recipe == 'android-staging':
             result['.ci/callers/read-android-build-number.py'] = (Path(source) / 'helpers/read-android-build-number.py').read_text()
         if recipe == 'promotion-checks':

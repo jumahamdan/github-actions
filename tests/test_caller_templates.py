@@ -152,7 +152,7 @@ class CallerTemplateTests(unittest.TestCase):
             result = subprocess.run(command, env={**env, 'GITHUB_REF': 'refs/heads/main'}, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
 
-    def test_store_retries_use_previous_state_and_gate_pending_outcomes(self):
+    def test_store_retries_use_previous_state_and_only_android_staging_allows_submission(self):
         for recipe in ('android-staging', 'apple-staging', 'mobile-release'):
             workflow, files = rendered(recipe)
             state = workflow['jobs']['distribute']['with']['state-restore']
@@ -160,7 +160,12 @@ class CallerTemplateTests(unittest.TestCase):
             self.assertIn('store-run-{run_id}-attempt-{run_attempt}', state)
             self.assertIn('"producer_job":"distribute / run"', state)
             gate = workflow['jobs']['required']
-            self.assertTrue(json.loads(files[gate['with']['config']])['checks']['distribute'])
+            policy = json.loads(files[gate['with']['config']])
+            self.assertTrue(policy['checks']['distribute'])
+            if recipe == 'android-staging':
+                self.assertEqual(policy['staging_submissions'], ['distribute'])
+            else:
+                self.assertNotIn('staging_submissions', policy)
 
     def test_apple_import_keeps_compilation_outside_github_and_requires_named_existing_key(self):
         workflow, _ = rendered('apple-staging')
@@ -174,10 +179,11 @@ class CallerTemplateTests(unittest.TestCase):
 
     def test_production_store_recipe_requires_main_and_selected_platform_identity(self):
         for platform in ('apple', 'android'):
-            workflow, _ = rendered('mobile-release', platform=platform)
+            workflow, files = rendered('mobile-release', platform=platform)
             job = workflow['jobs']['distribute']
             self.assertIn('refs/heads/main', job['if'])
             self.assertEqual(job['with']['environment'], 'production')
+            self.assertNotIn('staging_submissions', json.loads(files[workflow['jobs']['required']['with']['config']]))
             self.assertEqual(job['with']['artifact-workflow'], '.github/workflows/staging.yml')
             if platform == 'apple':
                 self.assertIn('ASC_PRIVATE_KEY_BASE64', job['secrets'])

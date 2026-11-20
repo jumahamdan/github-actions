@@ -260,6 +260,27 @@ class StoresTests(unittest.TestCase):
         stores.execute(self.config, self.root, api=self.api)
         self.assertEqual(len(self.api.group_builds), 1)
 
+    def test_rendered_apple_staging_requires_actual_testflight_readiness(self):
+        from shared_ci.gate import evaluate
+        from test_caller_templates import rendered
+
+        workflow, files = rendered("apple-staging")
+        policy = json.loads(files[workflow["jobs"]["required"]["with"]["config"]])
+        self.apple()
+        self.api.beta["internalBuildState"] = "PROCESSING"
+        receipt = stores.execute(self.config, self.root, api=self.api)
+        self.assertEqual((receipt["status"], receipt["state"]), ("pending", "beta_processing_or_review"))
+        results = {"import": {"result": "success", "outputs": {"status": "passed"}},
+                   "distribute": {"result": "success", "outputs": {key: receipt[key] for key in ("status", "state")}}}
+        with self.assertRaisesRegex(PipelineError, "pending"):
+            evaluate(policy, results)
+        self.api.beta["internalBuildState"] = "IN_BETA_TESTING"
+        receipt = stores.execute(self.config, self.root, api=self.api)
+        self.assertEqual((receipt["status"], receipt["state"]), ("passed", "testing_ready"))
+        results["distribute"]["outputs"] = {key: receipt[key] for key in ("status", "state")}
+        self.assertEqual(evaluate(policy, results)["status"], "passed")
+        self.assertEqual(len(self.api.group_builds), 1)
+
     def test_apple_wrong_app_fails(self):
         self.apple()
         self.api.app_id = "wrong"
