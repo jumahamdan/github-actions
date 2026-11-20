@@ -227,15 +227,16 @@ jobs:
     - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
       with:
         python-version: ${{ inputs.python-version }}
-    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
       with:
+        package-manager-cache: false
         node-version: ${{ inputs.node-version }}
     - if: ${{ inputs.profile == 'deno' }}
       uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed
       with:
         deno-version: ${{ inputs.deno-version }}
     - if: ${{ inputs.profile == 'flutter' }}
-      uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e
+      uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
       with:
         flutter-version: ${{ inputs.flutter-version }}
         channel: stable
@@ -282,8 +283,9 @@ jobs:
         selected-source-sha: ${{ steps.import-candidate.outputs.source-sha }}
         module: quality
     - name: Preserve sanitized evidence
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
+        archive: true
         name: ${{ format('{0}-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt) }}
         path: ${{ steps.execute.outputs.bundle }}
         if-no-files-found: error
@@ -316,8 +318,9 @@ jobs:
         manifest: ${{ inputs.candidate-manifest }}
     - name: Retain exact candidate
       if: ${{ inputs.candidate-config != '' && steps.execute.outputs.status == 'passed' }}
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
+        archive: true
         name: ${{ format('{0}-candidate-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt)
           }}
         path: ${{ steps.package.outputs.directory }}

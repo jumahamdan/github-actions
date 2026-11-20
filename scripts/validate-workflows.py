@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate v2 files, including GitHub.com self references unknown to actionlint 1.7.12."""
+"""Validate current workflows and the retained legacy TypeScript caller."""
 
 import json
 import re
@@ -13,16 +13,37 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def validate_legacy_typescript(parsed):
+    """Keep independently selectable checks as real steps, not embedded shell text."""
+    steps = parsed.get("jobs", {}).get("quality", {}).get("steps", [])
+    for name, flag, advisory in (
+        ("Run ESLint", "run_lint", True),
+        ("TypeScript type check", "run_typecheck", False),
+        ("Run tests", "run_tests", True),
+    ):
+        matches = [step for step in steps if step.get("name") == name]
+        if len(matches) != 1:
+            raise ValueError(f"Legacy TypeScript requires one independent {name} step")
+        step = matches[0]
+        if step.get("if") != "${{ inputs." + flag + " }}":
+            raise ValueError(f"Legacy TypeScript {name} must use its own input flag")
+        if step.get("continue-on-error", False) is not advisory:
+            raise ValueError(f"Legacy TypeScript {name} changed its failure policy")
+
+
 def validate():
     workflows = sorted((ROOT / ".github/workflows").glob("v2-*.yml"))
     workflows.append(ROOT / ".github/workflows/github-actions-ci.yml")
     workflows.append(ROOT / ".github/workflows/wiki-publish.yml")
+    workflows.append(ROOT / ".github/workflows/code-quality-typescript.yml")
     commands = []
     with tempfile.TemporaryDirectory(prefix="shared-ci-workflow-lint-") as d:
         for path in workflows:
             parsed = yaml.safe_load(path.read_text())
             if not isinstance(parsed, dict) or "jobs" not in parsed:
                 raise ValueError(f"Invalid workflow: {path.name}")
+            if path.name == "code-quality-typescript.yml":
+                validate_legacy_typescript(parsed)
             for job in parsed["jobs"].values():
                 for step in job.get("steps", []):
                     uses = step.get("uses", "")
