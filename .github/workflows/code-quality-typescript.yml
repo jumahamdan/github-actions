@@ -1,6 +1,6 @@
 name: Legacy · TypeScript quality
 
-on:
+'on':
   workflow_call:
     inputs:
       working_directory:
@@ -35,10 +35,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ inputs.node_version }}
           cache: "npm"
@@ -63,54 +65,62 @@ jobs:
           }
           echo "✅ No linting issues"
 
-            - name: TypeScript type check
-              if: ${{ inputs.run_typecheck }}
-              working-directory: ${{ inputs.working_directory }}
-              continue-on-error: false
-              run: |
-                  echo "📘 Running TypeScript type check..."
-                  
-                  # Check which tsconfig to use
-                  if [ -f "tsconfig.app.json" ]; then
-                    echo "Using tsconfig.app.json"
-                    npx tsc --noEmit --project tsconfig.app.json || {
-                      echo "❌ Type errors found - BLOCKING PR"
-                      echo "💡 Run 'npx tsc --noEmit --project tsconfig.app.json' locally"
-                      echo "💡 Fix all TypeScript errors before merging"
-                      exit 1
-                    }
-                  else
-                    echo "Using default tsconfig.json"
-                    npx tsc --noEmit || {
-                      echo "❌ Type errors found - BLOCKING PR"
-                      echo "💡 Run 'npx tsc --noEmit' locally to see details"
-                      echo "💡 Fix all TypeScript errors before merging"
-                      exit 1
-                    }
-                  fi
-                  
-                  echo "✅ No type errors"
+      - name: TypeScript type check
+        if: ${{ inputs.run_typecheck }}
+        working-directory: ${{ inputs.working_directory }}
+        continue-on-error: false
+        run: |
+          echo "📘 Running TypeScript type check..."
 
-            - name: Run tests
-              if: ${{ inputs.run_tests }}
-              working-directory: ${{ inputs.working_directory }}
-              continue-on-error: true
-              run: |
-                  echo "🧪 Running tests..."
-                  npm test -- --passWithNoTests || {
-                    echo "⚠️ Tests failed"
-                    echo "💡 Run 'npm test' locally to see details"
-                    exit 0
-                  }
-                  echo "✅ All tests passed"
+          # Check which tsconfig to use
+          if [ -f "tsconfig.app.json" ]; then
+            echo "Using tsconfig.app.json"
+            npx tsc --noEmit --project tsconfig.app.json || {
+              echo "❌ Type errors found - BLOCKING PR"
+              echo "💡 Run 'npx tsc --noEmit --project tsconfig.app.json' locally"
+              echo "💡 Fix all TypeScript errors before merging"
+              exit 1
+            }
+          else
+            echo "Using default tsconfig.json"
+            npx tsc --noEmit || {
+              echo "❌ Type errors found - BLOCKING PR"
+              echo "💡 Run 'npx tsc --noEmit' locally to see details"
+              echo "💡 Fix all TypeScript errors before merging"
+              exit 1
+            }
+          fi
+
+          echo "✅ No type errors"
+
+      - name: Run tests
+        if: ${{ inputs.run_tests }}
+        working-directory: ${{ inputs.working_directory }}
+        continue-on-error: true
+        run: |
+          echo "🧪 Running tests..."
+          npm test -- --passWithNoTests || {
+            echo "⚠️ Tests failed"
+            echo "💡 Run 'npm test' locally to see details"
+            exit 0
+          }
+          echo "✅ All tests passed"
 
       - name: Summary
         if: always()
+        env:
+          QUALITY_DIRECTORY: ${{ inputs.working_directory }}
+          QUALITY_NODE_VERSION: ${{ inputs.node_version }}
+          QUALITY_RUN_LINT: ${{ inputs.run_lint }}
+          QUALITY_RUN_TYPECHECK: ${{ inputs.run_typecheck }}
+          QUALITY_RUN_TESTS: ${{ inputs.run_tests }}
         run: |
-          echo "## 📊 TypeScript Quality Check Complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Directory:** ${{ inputs.working_directory }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Node.js:** ${{ inputs.node_version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Lint:** ${{ inputs.run_lint }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Type Check:** ${{ inputs.run_typecheck }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tests:** ${{ inputs.run_tests }}" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## 📊 TypeScript Quality Check Complete"
+            echo ""
+            printf -- '- **Directory:** %s\n' "$QUALITY_DIRECTORY"
+            printf -- '- **Node.js:** %s\n' "$QUALITY_NODE_VERSION"
+            printf -- '- **Lint:** %s\n' "$QUALITY_RUN_LINT"
+            printf -- '- **Type Check:** %s\n' "$QUALITY_RUN_TYPECHECK"
+            printf -- '- **Tests:** %s\n' "$QUALITY_RUN_TESTS"
+          } >> "$GITHUB_STEP_SUMMARY"

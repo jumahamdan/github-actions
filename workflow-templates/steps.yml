@@ -10,8 +10,9 @@ setup-python:
   with:
     python-version: ${{ inputs.python-version }}
 setup-node:
-  uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+  uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
   with:
+    package-manager-cache: false
     node-version: ${{ inputs.node-version }}
 setup-tools:
   uses: $/actions/v2-setup
@@ -47,8 +48,9 @@ authenticate-aws:
     role-session-name: shared-ci-${{ github.run_id }}
 retain-evidence:
   name: Preserve sanitized evidence
-  uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+  uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
   with:
+    archive: true
     name: ${{ format('{0}-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt) }}
     path: ${{ steps.execute.outputs.bundle }}
     if-no-files-found: error
@@ -84,8 +86,9 @@ package-candidate:
 retain-candidate:
   name: Retain exact candidate
   if: ${{ inputs.candidate-config != '' && steps.execute.outputs.status == 'passed' }}
-  uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+  uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
   with:
+    archive: true
     name: ${{ format('{0}-candidate-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt)
       }}
     path: ${{ steps.package.outputs.directory }}
@@ -96,8 +99,9 @@ retain-candidate:
 setup-node-for-tools:
   name: Set up exact Node for requested CLI tools
   if: ${{ inputs.npm-tools != '' }}
-  uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+  uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
   with:
+    package-manager-cache: false
     node-version: ${{ inputs.node-version }}
 setup-java:
   uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
@@ -138,7 +142,7 @@ setup-selected-deno:
     deno-version: ${{ inputs.deno-version }}
 setup-selected-flutter:
   if: ${{ inputs.profile == 'flutter' }}
-  uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e
+  uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
   with:
     flutter-version: ${{ inputs.flutter-version }}
     channel: stable
