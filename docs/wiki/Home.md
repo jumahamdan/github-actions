@@ -19,6 +19,8 @@ A product normally has a small number of visible entrypoints such as CI, promoti
 
 The intended branch route is **feature → develop → staging → main**. Matching verified quality results can be reused during promotion. Current security, native/device verification and deployed health still have their own checks. Juma decides when the products in this rollout promote.
 
+See how one product combines shared Linux checks, website delivery and a separate iOS release. [AliveDoctor CI/CD](Products-AliveDoctor.md)
+
 ## When these pages change
 
 Pages are written or updated when they are needed, reviewed with the repository changes, and published manually. Ordinary app releases do not automatically rewrite or publish the Wiki. The reviewed originals live in [the repository’s Wiki source folder](https://github.com/jumahamdan/github-actions/tree/main/docs/wiki).
