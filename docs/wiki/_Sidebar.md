@@ -3,6 +3,10 @@
 - [All workflows](Workflow-index.md)
 - [Publish Wiki](Docs-Publish-Wiki.md)
 
+**Product guides**
+
+- [AliveDoctor CI/CD](Products-AliveDoctor.md)
+
 **Control**
 
 - [Control · Product selection](Control-Product-selection.md)

@@ -6,6 +6,8 @@ The current library provides 26 reusable v2 modules and a manually invoked Wiki 
 
 Start with [Getting started](Getting-started.md) if you are setting up a product.
 
+For a product example using selected shared actions inside local workflows, see [AliveDoctor CI/CD](Products-AliveDoctor.md).
+
 ## Control
 
 - [Control · Product selection](Control-Product-selection.md)
