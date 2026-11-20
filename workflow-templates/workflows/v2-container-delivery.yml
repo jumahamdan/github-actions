@@ -1,0 +1,84 @@
+# Editable workflow source; shared definitions live one directory above.
+name: Deploy · Containers
+'on':
+  workflow_call:
+    inputs:
+      $merge:
+      - $ref: inputs.core
+      - $ref: inputs.python-tools
+      - $ref: inputs.execution
+      - $ref: inputs.candidate-creation
+      - $ref: inputs.candidate-import
+      - $ref: inputs.tool-bundles
+      - $ref: inputs.receipt-retention
+      - $ref: inputs.security-refresh
+      - $ref: inputs.environment-required
+      - current-release:
+          description: 'Runtime expected current server release: 24 lowercase hex characters or absent'
+          type: string
+          required: false
+          default: ''
+        container-selection:
+          description: Approved retained publication/tag or rollback target selection JSON
+          type: string
+          required: false
+          default: ''
+    outputs:
+      $ref: outputs.workflow
+    secrets:
+      $merge:
+      - $ref: secrets.artifact-read
+      - SSH_PRIVATE_KEY:
+          description: ssh private key
+          required: false
+        SSH_KNOWN_HOSTS:
+          description: ssh known hosts
+          required: false
+        REGISTRY_USERNAME:
+          description: registry username
+          required: false
+        REGISTRY_PASSWORD:
+          description: registry password
+          required: false
+permissions:
+  $merge:
+  - $ref: permissions.read
+  - packages: write
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      $ref: outputs.job
+    steps:
+    - $ref: steps.checkout
+    - $ref: steps.setup-python
+    - $ref: steps.setup-node-for-tools
+    - $ref: steps.setup-tools
+    - $ref: steps.import-candidate-trusted
+    - id: execute
+      uses: $/actions/v2-run
+      with:
+        $merge:
+        - $ref: bindings.execution
+        - $ref: bindings.selected-candidate
+        - module: containers
+          security-refresh: ${{ inputs.security-refresh }}
+          current-release: ${{ inputs.current-release }}
+          container-selection: ${{ inputs.container-selection }}
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+        REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        GH_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+        GH_EVIDENCE_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+    - $ref: steps.retain-evidence
+    - $ref: steps.create-candidate
+    - $ref: steps.package-candidate
+    - $ref: steps.retain-candidate
+    environment: ${{ inputs.environment }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    concurrency:
+      group: container-delivery-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false

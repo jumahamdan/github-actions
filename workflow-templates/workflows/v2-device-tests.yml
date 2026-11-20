@@ -1,0 +1,75 @@
+# Editable workflow source; shared definitions live one directory above.
+name: Mobile · Device tests
+'on':
+  workflow_call:
+    inputs:
+      $merge:
+      - $ref: inputs.core
+      - $ref: inputs.python-tools
+      - $ref: inputs.execution
+      - $ref: inputs.candidate-creation
+      - $ref: inputs.candidate-import
+      - $ref: inputs.receipt-retention
+      - environment:
+          description: Configured GitHub environment
+          type: string
+          required: true
+        google-workload-identity-provider:
+          description: Existing Google WIF provider
+          type: string
+          required: true
+        google-service-account:
+          description: Scoped existing Google service account
+          type: string
+          required: true
+        tool-bundles:
+          description: Reviewed built-in tool bundles
+          type: string
+          required: false
+          default: google-sdk
+    outputs:
+      $ref: outputs.workflow
+    secrets:
+      $ref: secrets.artifact-read
+permissions:
+  $ref: permissions.oidc
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    outputs:
+      $ref: outputs.job
+    steps:
+    - $ref: steps.checkout
+    - $ref: steps.setup-python
+    - $ref: steps.setup-java
+    - $ref: steps.setup-node-for-tools
+    - $ref: steps.setup-tools
+    - $ref: steps.import-candidate-trusted
+    - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+      id: google-auth
+      with:
+        workload_identity_provider: ${{ inputs.google-workload-identity-provider }}
+        service_account: ${{ inputs.google-service-account }}
+        create_credentials_file: true
+        token_format: access_token
+        access_token_scopes: https://www.googleapis.com/auth/cloud-platform
+    - id: execute
+      uses: $/actions/v2-run
+      with:
+        $merge:
+        - $ref: bindings.execution
+        - $ref: bindings.selected-candidate
+        - module: mobile
+          operation: device-test
+      env:
+        GOOGLE_DEVICE_ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token }}
+    - $ref: steps.retain-evidence
+    - $ref: steps.create-candidate
+    - $ref: steps.package-candidate
+    - $ref: steps.retain-candidate
+    environment: ${{ inputs.environment }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    concurrency:
+      group: mobile-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false

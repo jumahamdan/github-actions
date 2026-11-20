@@ -1,0 +1,83 @@
+# Editable workflow source; shared definitions live one directory above.
+name: Monitor · Symbols and releases
+'on':
+  workflow_call:
+    inputs:
+      $merge:
+      - $ref: inputs.core
+      - $ref: inputs.python-tools
+      - $ref: inputs.execution
+      - $ref: inputs.candidate-creation
+      - $ref: inputs.candidate-import
+      - $ref: inputs.tool-bundles
+      - $ref: inputs.receipt-retention
+      - $ref: inputs.security-refresh
+      - $ref: inputs.environment-required
+      - google-workload-identity-provider:
+          description: Existing Google WIF provider
+          type: string
+          required: false
+          default: ''
+        google-service-account:
+          description: Scoped existing Google service account
+          type: string
+          required: false
+          default: ''
+        prior-deployment:
+          description: Authenticated exact deployment receipt selector JSON for sentry-deploy
+          type: string
+          required: false
+          default: ''
+    outputs:
+      $ref: outputs.workflow
+    secrets:
+      $merge:
+      - $ref: secrets.artifact-read
+      - SENTRY_AUTH_TOKEN:
+          description: SENTRY_AUTH_TOKEN
+          required: false
+permissions:
+  $ref: permissions.oidc
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      $ref: outputs.job
+    steps:
+    - $ref: steps.checkout
+    - $ref: steps.setup-python
+    - $ref: steps.setup-node
+    - $ref: steps.setup-tools
+    - $ref: steps.import-candidate-trusted
+    - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+      id: google-auth
+      with:
+        workload_identity_provider: ${{ inputs.google-workload-identity-provider }}
+        service_account: ${{ inputs.google-service-account }}
+        create_credentials_file: true
+        token_format: access_token
+        access_token_scopes: https://www.googleapis.com/auth/cloud-platform
+      if: ${{ inputs.google-workload-identity-provider != '' }}
+    - id: execute
+      uses: $/actions/v2-run
+      with:
+        $merge:
+        - $ref: bindings.execution
+        - $ref: bindings.selected-candidate
+        - module: monitoring
+          security-refresh: ${{ inputs.security-refresh }}
+          prior-deployment: ${{ inputs.prior-deployment }}
+      env:
+        SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        GH_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+        GH_EVIDENCE_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+    - $ref: steps.retain-evidence
+    - $ref: steps.create-candidate
+    - $ref: steps.package-candidate
+    - $ref: steps.retain-candidate
+    environment: ${{ inputs.environment }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    concurrency:
+      group: monitoring-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false

@@ -1,0 +1,10 @@
+# Named bindings fragments; regenerate workflows after editing.
+execution:
+  config: ${{ inputs.config }}
+  root: ${{ inputs.root }}
+  credentials-config: ${{ inputs.credentials-config }}
+  receipt-path: ${{ inputs.receipt-path }}
+selected-candidate:
+  selected-manifest: ${{ steps.import-candidate.outputs.manifest }}
+  selected-identity: ${{ steps.import-candidate.outputs.candidate-identity }}
+  selected-source-sha: ${{ steps.import-candidate.outputs.source-sha }}

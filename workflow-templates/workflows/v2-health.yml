@@ -1,0 +1,43 @@
+# Editable workflow source; shared definitions live one directory above.
+name: Verify · Deployed health
+'on':
+  workflow_call:
+    inputs:
+      $merge:
+      - $ref: inputs.core
+      - $ref: inputs.python-tools
+      - $ref: inputs.execution
+      - $ref: inputs.candidate-creation
+      - $ref: inputs.candidate-import
+      - $ref: inputs.tool-bundles
+      - $ref: inputs.receipt-retention
+      - $ref: inputs.candidate-events
+    outputs:
+      $ref: outputs.workflow
+    secrets:
+      $ref: secrets.artifact-read
+permissions:
+  $ref: permissions.read
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      $ref: outputs.job
+    steps:
+    - $ref: steps.checkout
+    - $ref: steps.setup-python
+    - $ref: steps.setup-node-for-tools
+    - $ref: steps.setup-tools
+    - $ref: steps.import-candidate-verification
+    - id: execute
+      uses: $/actions/v2-run
+      with:
+        $merge:
+        - $ref: bindings.execution
+        - $ref: bindings.selected-candidate
+        - module: health
+    - $ref: steps.retain-evidence
+    - $ref: steps.create-candidate
+    - $ref: steps.package-candidate
+    - $ref: steps.retain-candidate

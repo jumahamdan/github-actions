@@ -1,0 +1,90 @@
+# Editable workflow source; shared definitions live one directory above.
+name: Checks · Reuse verified checks
+'on':
+  workflow_call:
+    inputs:
+      $merge:
+      - $ref: inputs.core
+      - $ref: inputs.python-tools
+      - $ref: inputs.execution
+      - $ref: inputs.candidate-creation
+      - $ref: inputs.candidate-import
+      - $ref: inputs.tool-bundles
+      - $ref: inputs.receipt-retention
+      - $ref: inputs.candidate-events
+      - quality-run-id:
+          description: quality-run-id
+          type: string
+          required: true
+        quality-run-head-sha:
+          description: quality-run-head-sha
+          type: string
+          required: true
+        quality-tested-sha:
+          description: quality-tested-sha
+          type: string
+          required: true
+        quality-run-attempt:
+          description: Exact producing quality attempt; use producer run-attempt output
+          type: string
+          required: true
+        quality-artifact:
+          description: Exact producing receipt-artifact-name output
+          type: string
+          required: true
+        quality-producer-job:
+          description: Exact completed quality job name; required for same-run reuse
+          type: string
+          required: false
+          default: ''
+        quality-allowed-branches:
+          description: Explicit JSON array of approved producer branch names
+          type: string
+          required: true
+        quality-allowed-events:
+          description: Explicit JSON array of approved push, pull_request or workflow_dispatch events
+          type: string
+          required: true
+    outputs:
+      $ref: outputs.workflow
+    secrets:
+      $merge:
+      - $ref: secrets.artifact-read
+      - GH_TOKEN:
+          description: Optional read-only receipt retrieval token
+          required: false
+permissions:
+  $ref: permissions.read
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      $ref: outputs.job
+    steps:
+    - $ref: steps.checkout
+    - $ref: steps.setup-python
+    - $ref: steps.setup-node-for-tools
+    - $ref: steps.setup-tools
+    - $ref: steps.import-candidate-verification
+    - id: execute
+      uses: $/actions/v2-run
+      with:
+        $merge:
+        - $ref: bindings.execution
+        - $ref: bindings.selected-candidate
+        - module: reuse
+      env:
+        GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+        QUALITY_RUN_ID: ${{ inputs.quality-run-id }}
+        QUALITY_RUN_HEAD_SHA: ${{ inputs.quality-run-head-sha }}
+        QUALITY_TESTED_SHA: ${{ inputs.quality-tested-sha }}
+        QUALITY_RUN_ATTEMPT: ${{ inputs.quality-run-attempt }}
+        QUALITY_ARTIFACT: ${{ inputs.quality-artifact }}
+        QUALITY_PRODUCER_JOB: ${{ inputs.quality-producer-job }}
+        QUALITY_ALLOWED_BRANCHES: ${{ inputs.quality-allowed-branches }}
+        QUALITY_ALLOWED_EVENTS: ${{ inputs.quality-allowed-events }}
+    - $ref: steps.retain-evidence
+    - $ref: steps.create-candidate
+    - $ref: steps.package-candidate
+    - $ref: steps.retain-candidate

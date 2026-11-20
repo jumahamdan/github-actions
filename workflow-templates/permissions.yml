@@ -1,0 +1,8 @@
+# Named permissions fragments; regenerate workflows after editing.
+read:
+  contents: read
+  actions: read
+oidc:
+  contents: read
+  actions: read
+  id-token: write
