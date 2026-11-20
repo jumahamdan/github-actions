@@ -6,7 +6,7 @@ The library has three separate layers: editable definitions, generated reusable 
 | --- | --- | --- |
 | Shared workflow definitions | `workflow-templates/workflows/` and named fragments under `workflow-templates/` | Reusable inputs, setup, execution order and evidence handling |
 | Generated executable YAML | `.github/workflows/v2-*.yml` | What GitHub executes; regenerate rather than hand-edit |
-| Shared actions | `actions/v2-*` | Setup, module execution and retained-artifact transport |
+| Shared actions | `actions/v2-*` | Setup, module execution, retained-artifact transport and Wiki publication |
 | Implementation modules | `shared_ci/` | Validated provider operations and common behavior |
 | Product caller starters | [templates/callers](../templates/callers/README.md) | A starting CI/build/delivery composition with explicit product prerequisites |
 | Product configuration | The adopting product's repository | Commands, paths, targets, existing credential names, evidence selection and promotion authority |
@@ -29,6 +29,8 @@ The library has three separate layers: editable definitions, generated reusable 
 The source format uses named references and explicit mapping composition, not arbitrary shell or Python execution. The generator rejects unresolved references, reference cycles and conflicting mapping entries. Refer to its [source format instructions](../workflow-templates/README.md) for the exact syntax. Generated headers point maintainers back to their source.
 
 Workflow names use a category and a clear purpose, such as `Checks · Code quality` or `Deploy · AWS`. The executable `v2-*.yml` paths are compatibility interfaces; a clearer display name is not a reason to break existing callers. The [catalog](workflow-catalog.md) groups the names for browsing, while the [caller reference](workflow-contracts.md) lists the authoritative input/secret/output contracts.
+
+`wiki-publish.yml` is a small manually invoked entrypoint that is also reusable by a product's manual caller. It uses the shared Wiki action and publisher. It is maintained directly because it supports `workflow_dispatch` as well as `workflow_call`; the 26 generated v2 workflows remain call-only. Wiki pages live in `docs/wiki/`, pass normal documentation checks, and publish only on an explicit manual run. See [Wiki publishing](wiki-publishing.md).
 
 ## Check generated files and callers
 

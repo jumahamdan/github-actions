@@ -10,7 +10,7 @@ This Wiki explains the shared CI/CD library used to build product pipelines. Eac
 - [Workflow index](Workflow-index.md): a page for each workflow, grouped by purpose.
 - [Release notes](Release-Notes.md) and [release publication](Release-Publish.md).
 - [Security scans](Security-Scans.md), [CodeQL](Security-CodeQL.md) and [dependency updates](Dependabot-Updates.md).
-- [Documentation checks](Checks-Documentation.md).
+- [Documentation checks](Checks-Documentation.md) and [manual Wiki publication](Docs-Publish-Wiki.md).
 - [Sentry and Crashlytics](Monitor-Symbols-and-releases.md).
 
 ## How products use it

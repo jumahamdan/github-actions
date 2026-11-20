@@ -1,6 +1,7 @@
 - [Home](Home.md)
 - [Getting started](Getting-started.md)
 - [All workflows](Workflow-index.md)
+- [Publish Wiki](Docs-Publish-Wiki.md)
 
 **Control**
 

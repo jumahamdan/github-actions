@@ -2,7 +2,7 @@
 
 Choose a workflow by the job it needs to do. A product uses only its applicable modules; this list is not a schedule that runs everything together.
 
-The current library provides 26 reusable v2 modules. The three Legacy entries remain for existing consumers. Library Validation and Dependabot maintain the shared repository.
+The current library provides 26 reusable v2 modules and a manually invoked Wiki publisher. The three Legacy entries remain for existing consumers. Library Validation and Dependabot maintain the shared repository.
 
 Start with [Getting started](Getting-started.md) if you are setting up a product.
 
@@ -22,6 +22,10 @@ Start with [Getting started](Getting-started.md) if you are setting up a product
 
 - [Security · CodeQL](Security-CodeQL.md)
 - [Security · Scans](Security-Scans.md)
+
+## Docs
+
+- [Docs · Publish Wiki](Docs-Publish-Wiki.md)
 
 ## AI
 

@@ -2505,12 +2505,13 @@
     },
     {
       "id": "DOC-02",
-      "service": "Documentation navigation",
+      "service": "Documentation navigation and manual Wiki publication",
       "modules": [
-        "docs"
+        "docs",
+        "wiki"
       ],
       "example": "examples/docs.json",
-      "adoption": "README/index/recovery templates provide navigation. Wiki enablement and audience are optional product choices.",
+      "adoption": "Review source pages, initialize the first Wiki page once, verify Wiki availability/audience, and publish explicitly from the default branch. Preserve unrelated pages and reconcile direct edits before publishing.",
       "tests": [
         {
           "file": "tests/test_docs.py",
@@ -2524,6 +2525,27 @@
             "test_no_match_unknown_fields_missing_required_and_output_collision",
             "test_reference_html_and_escaped_filename_links",
             "test_unicode_anchor_and_heading_link"
+          ]
+        },
+        {
+          "file": "tests/test_wiki.py",
+          "cases": [
+            "test_actions_context_requires_manual_default_branch_and_exact_source",
+            "test_actual_action_cannot_import_product_shadow_package",
+            "test_conflicting_unmanaged_page_is_never_overwritten",
+            "test_dangling_manifest_symlink_cannot_write_outside_checkout",
+            "test_gitignore_cannot_silently_omit_new_pages",
+            "test_initial_home_adoption_is_explicit_and_unrelated_pages_survive",
+            "test_invalid_manifest_and_destination_symlink_are_refused",
+            "test_links_are_rewritten_but_code_and_external_links_are_preserved",
+            "test_managed_manual_edits_or_missing_pages_refuse_publication",
+            "test_missing_and_escaping_links_or_anchors_fail",
+            "test_normal_git_push_noop_and_concurrent_update_refusal",
+            "test_publish_source_must_be_clean_tracked_and_exact",
+            "test_relative_targets_must_exist_in_the_selected_commit",
+            "test_removed_managed_pages_are_deleted_without_touching_unrelated_pages",
+            "test_symlink_pages_source_and_link_targets_fail",
+            "test_unsafe_or_case_colliding_source_files_fail"
           ]
         }
       ],

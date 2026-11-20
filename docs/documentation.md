@@ -9,3 +9,5 @@ Inline/reference Markdown links and HTML `href`/`src` links are checked. Local f
 `receipt` optionally writes a JSON summary with document hashes, local-link counts, unfetched external-link counts and generator results. `timeout` bounds generator commands (default 300 seconds, maximum 3600). Commands receive no deployment/provider secrets. Unknown configuration fields fail.
 
 Keep README, architecture, setup, release, environments and recovery documentation beside the code. Review behavior and documentation in the same PR. A Wiki may link to these documents, but this module does not enable a Wiki or publish private documents. No paid tools or account credentials are needed.
+
+The separate [Wiki publisher](wiki-publishing.md) can publish reviewed source pages after an explicit manual request. Its `Docs · Publish Wiki` workflow never publishes on a push, pull request or schedule. The [shared-library Wiki sources](wiki/Home.md) include an overview and a short explanation of each workflow.

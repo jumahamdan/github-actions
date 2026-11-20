@@ -21,6 +21,7 @@
     "actions/v2-setup",
     "actions/v2-run",
     "actions/v2-artifacts",
+    "actions/v2-wiki",
     ".github/workflows",
     ".ci/quality.json",
     "tooling/requirements-ci.in",

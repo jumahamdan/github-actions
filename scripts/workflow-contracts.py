@@ -15,7 +15,9 @@ def render():
     lines = ['# Reusable workflow contracts', '',
              'Generated from the callable workflows. Supply public account IDs, role ARNs, model IDs, environment names and paths through `with:`; map existing credentials explicitly through `secrets:`. Never put credential values in a configuration file or commit. Optional secrets are required when the selected operation uses that provider. See [credential ownership and rotation](credentials.md) and [integration](integration.md).', '',
              'Every workflow below also requires the caller permissions declared in its YAML; a called workflow cannot raise the caller’s token permissions. Environment protections and provider access must be configured in the consuming repository/account.', '']
-    for path in sorted((ROOT / '.github/workflows').glob('v2-*.yml')):
+    paths = list((ROOT / '.github/workflows').glob('v2-*.yml'))
+    paths.append(ROOT / '.github/workflows/wiki-publish.yml')
+    for path in sorted(paths):
         data = yaml.safe_load(path.read_text())
         contract = data.get('on', data.get(True, {})).get('workflow_call', {})
         lines += ['## ' + path.stem, '', '[Workflow source](../.github/workflows/' + path.name + ')', '',
