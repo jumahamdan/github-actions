@@ -1,0 +1,31 @@
+name: Publish reviewed Wiki pages
+description: Publish a flat reviewed Markdown source directory to the caller repository Wiki on manual request.
+inputs:
+  source-directory:
+    description: Reviewed Markdown page directory relative to the caller repository
+    default: docs/wiki
+  adopt-existing-home:
+    description: Replace the initial unmanaged Home page on the first publication only
+    default: 'false'
+  github-token:
+    description: Same-repository GitHub token with contents write permission
+    required: true
+runs:
+  using: composite
+  steps:
+  - name: Publish reviewed pages
+    shell: bash
+    env:
+      WIKI_ACTION_PATH: ${{ github.action_path }}
+      WIKI_SOURCE: ${{ inputs.source-directory }}
+      WIKI_ADOPT_HOME: ${{ inputs.adopt-existing-home }}
+      WIKI_GITHUB_TOKEN: ${{ inputs.github-token }}
+    run: |
+      args=(--root "$GITHUB_WORKSPACE" --repository "$GITHUB_REPOSITORY" --source "$WIKI_SOURCE" --publish)
+      if [[ "$WIKI_ADOPT_HOME" == "true" ]]; then
+        args+=(--adopt-existing-home)
+      elif [[ "$WIKI_ADOPT_HOME" != "false" ]]; then
+        echo "adopt-existing-home must be true or false" >&2
+        exit 1
+      fi
+      PYTHONPATH="$WIKI_ACTION_PATH/../.." python3 -B -P -m shared_ci.wiki "${args[@]}"
