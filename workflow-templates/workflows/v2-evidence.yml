@@ -1,0 +1,71 @@
+# Editable workflow source; shared definitions live one directory above.
+name: Release · Candidate evidence
+'on':
+  workflow_call:
+    inputs:
+      $merge:
+      - $ref: inputs.core
+      - $ref: inputs.python-tools
+      - $ref: inputs.execution
+      - $ref: inputs.candidate-import
+      - $ref: inputs.tool-bundles
+      - $ref: inputs.receipt-retention
+      - $ref: inputs.security-refresh
+      - $ref: inputs.candidate-events
+      - $ref: inputs.operation
+      - $ref: inputs.candidate-evidence
+    outputs:
+      $ref: outputs.workflow
+    secrets:
+      $ref: secrets.artifact-read
+permissions:
+  $ref: permissions.read
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      $ref: outputs.job
+    steps:
+    - $ref: steps.checkout
+    - $ref: steps.setup-python
+    - $ref: steps.setup-node-for-tools
+    - $ref: steps.setup-tools
+    - $ref: steps.import-candidate-verification
+    - id: execute
+      uses: $/actions/v2-run
+      with:
+        $merge:
+        - $ref: bindings.selected-candidate
+        - module: evidence
+          config: ${{ inputs.config }}
+          root: ${{ inputs.root }}
+          operation: ${{ inputs.operation }}
+          credentials-config: ${{ inputs.credentials-config }}
+          receipt-path: ${{ inputs.operation == 'create' && inputs.candidate-manifest || inputs.receipt-path }}
+          check-digests: ${{ inputs.check-digests }}
+          security-refresh: ${{ inputs.security-refresh }}
+          check-receipts: ${{ inputs.check-receipts }}
+          candidate-build: ${{ inputs.candidate-build }}
+      env:
+        GH_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+        GH_EVIDENCE_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+    - $ref: steps.retain-evidence
+    - id: package
+      if: ${{ inputs.operation == 'create' && steps.execute.outputs.status == 'passed' }}
+      uses: $/actions/v2-artifacts
+      with:
+        operation: package
+        root: ${{ inputs.root }}
+        manifest: ${{ inputs.candidate-manifest }}
+    - name: Retain exact candidate
+      if: ${{ inputs.operation == 'create' && steps.execute.outputs.status == 'passed' }}
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      with:
+        name: ${{ format('{0}-candidate-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt)
+          }}
+        path: ${{ steps.package.outputs.directory }}
+        if-no-files-found: error
+        include-hidden-files: true
+        retention-days: ${{ inputs.candidate-retention-days }}
+      id: retain-candidate

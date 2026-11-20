@@ -1,0 +1,81 @@
+# Editable workflow source; shared definitions live one directory above.
+name: AI · Live evaluations
+'on':
+  workflow_call:
+    inputs:
+      $merge:
+      - $ref: inputs.core
+      - $ref: inputs.python-tools
+      - $ref: inputs.execution
+      - $ref: inputs.candidate-creation
+      - $ref: inputs.candidate-import
+      - $ref: inputs.tool-bundles
+      - $ref: inputs.receipt-retention
+      - $ref: inputs.environment-required
+      - aws-role:
+          description: Optional distinct Bedrock evaluation role
+          required: false
+          type: string
+          default: ''
+        aws-region:
+          description: AWS region
+          required: false
+          type: string
+          default: us-east-1
+    outputs:
+      $ref: outputs.workflow
+    secrets:
+      $merge:
+      - $ref: secrets.artifact-read
+      - OPENAI_API_KEY:
+          description: Existing OpenAI evaluation credential
+          required: false
+        ANTHROPIC_API_KEY:
+          description: Existing Anthropic evaluation credential
+          required: false
+        GEMINI_API_KEY:
+          description: Existing Gemini evaluation credential
+          required: false
+        AI_TARGET_TOKEN:
+          description: Existing product evaluation credential
+          required: false
+permissions:
+  $ref: permissions.oidc
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      $ref: outputs.job
+    steps:
+    - $ref: steps.checkout
+    - $ref: steps.setup-python
+    - $ref: steps.setup-node
+    - $ref: steps.setup-ai-tools
+    - $ref: steps.import-candidate-trusted
+    - if: ${{ inputs.aws-role != '' }}
+      uses: aws-actions/configure-aws-credentials@cabfdba3510de1431bac9dba27511d97497fc100
+      with:
+        role-to-assume: ${{ inputs.aws-role }}
+        aws-region: ${{ inputs.aws-region }}
+    - id: execute
+      uses: $/actions/v2-run
+      with:
+        $merge:
+        - $ref: bindings.execution
+        - $ref: bindings.selected-candidate
+        - module: ai
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        AI_TARGET_TOKEN: ${{ secrets.AI_TARGET_TOKEN }}
+    - $ref: steps.retain-evidence
+    - $ref: steps.create-candidate
+    - $ref: steps.package-candidate
+    - $ref: steps.retain-candidate
+    environment: ${{ inputs.environment }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    concurrency:
+      group: ai-live-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false

@@ -1,0 +1,35 @@
+# Caller source: render with scripts/render-product-workflows.py before adoption.
+name: Promotion checks
+'on':
+  pull_request:
+    branches:
+    - staging
+    - main
+permissions:
+  $ref: shared.read-permissions
+concurrency:
+  group: promotion-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  route:
+    uses: jumahamdan/github-actions/.github/workflows/v2-plan.yml@@@LIBRARY_SHA@@
+    with:
+      config: '@@PRODUCTS_CONFIG@@'
+      artifact-name: route
+  reuse:
+    needs:
+    - route
+    uses: jumahamdan/github-actions/.github/workflows/v2-reuse.yml@@@LIBRARY_SHA@@
+    with:
+      config: '@@REUSE_CONFIG@@'
+      artifact-name: promotion-quality
+      quality-run-id: ${{ fromJSON(vars.PROMOTION_QUALITY).run_id }}
+      quality-run-attempt: ${{ fromJSON(vars.PROMOTION_QUALITY).run_attempt }}
+      quality-run-head-sha: ${{ fromJSON(vars.PROMOTION_QUALITY).run_head_sha }}
+      quality-tested-sha: ${{ fromJSON(vars.PROMOTION_QUALITY).tested_sha }}
+      quality-artifact: ${{ fromJSON(vars.PROMOTION_QUALITY).artifact }}
+      quality-producer-job: quality / run
+      quality-allowed-branches: ${{ format('["{0}"]', fromJSON(vars.PROMOTION_QUALITY).branch) }}
+      quality-allowed-events: '["pull_request"]'
+  required:
+    $ref: shared.gate

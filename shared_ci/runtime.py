@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 
 from .artifacts import no_symlink, safe_name, verify_manifest
-from .common import PipelineError, atomic_json, confined_path, load_json, run, sha256_file, strict_keys
+from .common import PipelineError, atomic_json, confined_path, load_json, run, sha256_file, strict_keys, trusted_context
 from .evidence import fetch_receipt, security_refresh_context, verify_checks
 from .security import authorize_refresh
 from .stores import env_secret
@@ -213,6 +213,18 @@ class Invocation:
                 raise PipelineError("Evidence verification configuration differs from the selected candidate")
 
         if name == "containers":
+            if operation == "build" and self.config.get("source_sha") == "workflow":
+                # The caller owns allowed build branches; this marker proves a
+                # trusted runner context and exact clean checkout, not delivery authority.
+                context = trusted_context([os.environ.get("GITHUB_REF", "")])
+                source = context["sha"]
+                if not re.fullmatch(r"[0-9a-f]{40}", source):
+                    raise PipelineError("Container build marker requires an exact workflow source SHA")
+                if run(["git", "rev-parse", "HEAD"], cwd=self.root).stdout.strip() != source:
+                    raise PipelineError("Container workflow source differs from the checked-out commit")
+                if run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=self.root).stdout.strip():
+                    raise PipelineError("Container build marker requires clean tracked source")
+                self.config["source_sha"] = source
             if operation in {"publish", "promote", "manifest", "deploy"} and self.selection is None:
                 raise PipelineError("Container delivery requires an explicitly selected retained candidate")
             if operation == "publish":

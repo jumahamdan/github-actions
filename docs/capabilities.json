@@ -74,6 +74,7 @@
             "test_package_fresh_outside_workspace_only",
             "test_package_rejects_changed_inputs",
             "test_pr_merge_candidate_cannot_substitute_run_head_for_bundle_source",
+            "test_rendered_android_staging_submission_allows_cross_run_candidate_but_not_release",
             "test_roundtrip_verifies_origin_and_preserves_tracked_source",
             "test_same_running_pr_authenticates_api_head_independent_of_merge_sha",
             "test_same_running_workflow_accepts_completed_producer",
@@ -173,6 +174,7 @@
             "test_only_documented_review_rejection_allows_defer",
             "test_other_providers_never_use_apple_private_key",
             "test_promote_existing_bundle_without_upload",
+            "test_rendered_apple_staging_requires_actual_testflight_readiness",
             "test_source_selection_mismatch_fails",
             "test_source_tree_in_candidate_identity_cannot_change",
             "test_state_cannot_overwrite_candidate",
@@ -298,6 +300,7 @@
             "test_only_documented_review_rejection_allows_defer",
             "test_other_providers_never_use_apple_private_key",
             "test_promote_existing_bundle_without_upload",
+            "test_rendered_apple_staging_requires_actual_testflight_readiness",
             "test_source_selection_mismatch_fails",
             "test_source_tree_in_candidate_identity_cannot_change",
             "test_state_cannot_overwrite_candidate",
@@ -2084,6 +2087,7 @@
             "test_package_fresh_outside_workspace_only",
             "test_package_rejects_changed_inputs",
             "test_pr_merge_candidate_cannot_substitute_run_head_for_bundle_source",
+            "test_rendered_android_staging_submission_allows_cross_run_candidate_but_not_release",
             "test_roundtrip_verifies_origin_and_preserves_tracked_source",
             "test_same_running_pr_authenticates_api_head_independent_of_merge_sha",
             "test_same_running_workflow_accepts_completed_producer",
@@ -2127,6 +2131,7 @@
             "test_only_documented_review_rejection_allows_defer",
             "test_other_providers_never_use_apple_private_key",
             "test_promote_existing_bundle_without_upload",
+            "test_rendered_apple_staging_requires_actual_testflight_readiness",
             "test_source_selection_mismatch_fails",
             "test_source_tree_in_candidate_identity_cannot_change",
             "test_state_cannot_overwrite_candidate",
@@ -2148,6 +2153,9 @@
             "test_candidate_build_uses_explicit_allocation_only_for_workflow_marker",
             "test_candidate_creation_materializes_authenticated_other_job_check",
             "test_changed_retained_bytes_after_operation_do_not_publish_success",
+            "test_container_build_literal_source_is_not_replaced_by_workflow_source",
+            "test_container_build_marker_refuses_invalid_source_context_or_dirty_checkout_before_docker",
+            "test_container_build_workflow_source_resolves_actual_checkout_without_editing_config",
             "test_container_deploy_requires_retained_compose_and_support_files",
             "test_container_manifest_derives_source_and_checks_component_publication",
             "test_container_promotion_uses_exact_retained_publication",
@@ -2582,7 +2590,7 @@
         "runtime"
       ],
       "example": "examples/deploy-aws-static.json",
-      "adoption": "Configure and verify the actual product account, targets and recovery procedure during adoption.",
+      "adoption": "Configure and verify the actual product account, targets and recovery procedure during adoption. Shared workflow sources are generated and drift-checked; product caller templates still need product-owned configuration.",
       "tests": [
         {
           "file": "tests/test_deploy.py",
@@ -2651,6 +2659,9 @@
             "test_candidate_build_uses_explicit_allocation_only_for_workflow_marker",
             "test_candidate_creation_materializes_authenticated_other_job_check",
             "test_changed_retained_bytes_after_operation_do_not_publish_success",
+            "test_container_build_literal_source_is_not_replaced_by_workflow_source",
+            "test_container_build_marker_refuses_invalid_source_context_or_dirty_checkout_before_docker",
+            "test_container_build_workflow_source_resolves_actual_checkout_without_editing_config",
             "test_container_deploy_requires_retained_compose_and_support_files",
             "test_container_manifest_derives_source_and_checks_component_publication",
             "test_container_promotion_uses_exact_retained_publication",
@@ -2703,6 +2714,49 @@
             "test_package_allocates_fresh_destination_outside_caller_and_uses_selected_manifest",
             "test_provider_execution_uses_authenticated_import_outputs_and_retry_safe_artifact_names",
             "test_untrusted_events_workspace_escape_and_nonpassing_receipts_cannot_export_outputs"
+          ]
+        },
+        {
+          "file": "tests/test_workflow_generation.py",
+          "cases": [
+            "test_auto_trigger_and_duplicate_display_name_are_rejected",
+            "test_check_refuses_missing_output_and_generate_refuses_unsourced_files",
+            "test_check_refuses_modified_output_without_rewriting_it",
+            "test_directive_typos_siblings_and_wrong_merge_types_fail",
+            "test_duplicate_yaml_keys_aliases_merges_and_nonstring_keys_fail",
+            "test_expansions_are_independent_and_do_not_mutate_source_fragments",
+            "test_generation_is_repeatable_and_only_writes_changed_outputs",
+            "test_invalid_unused_fragment_fails_before_any_output_is_written",
+            "test_mapping_composition_never_silently_overrides_keys",
+            "test_one_shared_edit_reaches_each_consumer_without_expression_evaluation",
+            "test_repository_generated_files_match_editable_sources",
+            "test_source_names_and_fragment_names_cannot_hide_unsupported_files",
+            "test_unknown_and_recursive_references_are_rejected",
+            "test_unquoted_github_event_key_and_real_booleans_keep_correct_types"
+          ]
+        },
+        {
+          "file": "tests/test_caller_templates.py",
+          "cases": [
+            "test_all_recipes_and_provider_variants_match_reusable_contracts",
+            "test_android_helper_passes_the_dispatch_number_to_product_builds_and_rejects_invalid_context",
+            "test_android_inspection_and_store_jobs_consume_actual_producer_outputs",
+            "test_apple_import_keeps_compilation_outside_github_and_requires_named_existing_key",
+            "test_ci_checks_only_feature_prs_and_has_no_provider_credentials",
+            "test_cli_writes_deterministic_files_and_never_overwrites_existing_work",
+            "test_container_build_uses_native_adapter_and_retains_exact_candidate",
+            "test_enabled_checks_have_an_always_reported_complete_required_policy",
+            "test_missing_repository_duplicate_output_and_duplicate_json_keys_fail",
+            "test_only_selected_hosting_provider_secret_is_exposed",
+            "test_production_store_recipe_requires_main_and_selected_platform_identity",
+            "test_promotion_uses_authenticated_original_quality_without_reexecuting_tests",
+            "test_provider_delivery_is_manual_branch_bound_and_authenticates_retained_candidate",
+            "test_reusable_tool_defaults_are_preserved_and_bundles_accept_explicit_lists",
+            "test_store_retries_use_previous_state_and_only_android_staging_allows_submission",
+            "test_untrusted_ref_invalid_paths_and_unknown_or_typed_options_fail",
+            "test_validation_refuses_unknown_producer_outputs_and_dependency_cycles",
+            "test_validation_refuses_weakened_or_invalid_caller_contracts",
+            "test_wordpress_packages_without_implicit_dashboard_publication"
           ]
         }
       ],

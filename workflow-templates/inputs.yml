@@ -1,0 +1,220 @@
+# Named inputs fragments; regenerate workflows after editing.
+core:
+  config:
+    description: Configuration path relative to caller root
+    required: true
+    type: string
+  root:
+    description: Caller root relative to workspace
+    required: false
+    type: string
+    default: .
+  python-version:
+    description: Exact Python version
+    required: false
+    type: string
+    default: 3.12.3
+  node-version:
+    description: Exact Node version
+    required: false
+    type: string
+    default: 22.23.4
+  binary-manifest:
+    description: Caller checksum manifest for extra CLI tools
+    required: false
+    type: string
+    default: ''
+  npm-tools:
+    description: Caller lockfile-based CLI tool directory
+    required: false
+    type: string
+    default: ''
+  artifact-name:
+    description: Unique artifact base name; actual receipt and candidate names include run/attempt
+    required: true
+    type: string
+python-tools:
+  python-tools:
+    description: Hash-locked caller pip requirements file
+    type: string
+    required: false
+    default: ''
+execution:
+  credentials-config:
+    description: Named credential contract relative to caller root
+    type: string
+    required: false
+    default: ''
+  receipt-path:
+    type: string
+    description: Retained module receipt path relative to caller root
+    required: false
+    default: ''
+candidate-creation:
+  candidate-config:
+    description: Optional evidence.create configuration after this operation
+    type: string
+    required: false
+    default: ''
+  candidate-manifest:
+    description: Retained candidate manifest path
+    type: string
+    required: false
+    default: .ci-output/candidate.json
+  candidate-retention-days:
+    description: Retention covering promotion and symbol recovery
+    type: number
+    required: false
+    default: 90
+  check-digests:
+    type: string
+    description: Trusted required receipt digests from prior step/job outputs
+    required: false
+    default: '{}'
+  check-receipts:
+    description: JSON mapping retained check paths to authenticated receipt selectors for candidate composition
+    type: string
+    required: false
+    default: '{}'
+  candidate-build:
+    description: Trusted allocated build number for candidate config build=workflow; creation only
+    type: string
+    required: false
+    default: ''
+candidate-import:
+  artifact-run-id:
+    description: Producer run ID; empty disables import
+    type: string
+    required: false
+    default: ''
+  artifact-run-attempt:
+    description: Producer run attempt
+    type: string
+    required: false
+    default: '1'
+  artifact-source-sha:
+    description: Expected original candidate commit
+    type: string
+    required: false
+    default: ''
+  artifact-identity:
+    description: Expected selected candidate identity
+    type: string
+    required: false
+    default: ''
+  artifact-workflow:
+    description: Trusted producer workflow path
+    type: string
+    required: false
+    default: ''
+  artifact-input-name:
+    description: Unique candidate artifact to import
+    type: string
+    required: false
+    default: ''
+  artifact-producer-job:
+    description: Completed producer job name for same-run transport
+    type: string
+    required: false
+    default: ''
+  artifact-allowed-branches:
+    description: JSON array of trusted producer branch names; required whenever importing
+    type: string
+    required: false
+    default: '[]'
+  artifact-run-head-sha:
+    description: Explicit producer REST run head SHA; defaults to candidate source SHA for push
+    type: string
+    required: false
+    default: ''
+tool-bundles:
+  tool-bundles:
+    description: Reviewed built-in tool bundles
+    type: string
+    required: false
+    default: ''
+receipt-retention:
+  receipt-retention-days:
+    description: Retain operation receipts and retry state for this many days
+    type: number
+    required: false
+    default: 90
+security-refresh:
+  security-refresh:
+    description: JSON mapping original security checks to authenticated current scan selectors and policy hashes
+    type: string
+    required: false
+    default: ''
+environment-required:
+  environment:
+    description: Explicit configured GitHub environment
+    required: true
+    type: string
+aws-identity:
+  aws-role:
+    description: Explicit deployment role
+    required: true
+    type: string
+  aws-region:
+    description: Explicit AWS region
+    required: true
+    type: string
+language-versions:
+  deno-version:
+    description: Exact Deno version
+    required: false
+    type: string
+    default: 2.4.5
+  flutter-version:
+    description: Exact Flutter version
+    required: false
+    type: string
+    default: 3.47.6
+  php-version:
+    description: Exact PHP runtime series
+    required: false
+    type: string
+    default: '8.3'
+candidate-events:
+  artifact-allowed-events:
+    description: Explicit producer event array; pull_request is for uncredentialed verification only
+    type: string
+    required: false
+    default: '["push","workflow_dispatch"]'
+operation:
+  operation:
+    description: Explicit module operation
+    required: true
+    type: string
+candidate-evidence:
+  candidate-manifest:
+    description: Retained candidate manifest path
+    type: string
+    required: false
+    default: .ci-output/candidate.json
+  candidate-retention-days:
+    description: Retention covering promotion and symbol recovery
+    type: number
+    required: false
+    default: 90
+  check-digests:
+    type: string
+    description: Trusted required receipt digests from prior step/job outputs
+    required: false
+    default: '{}'
+  check-receipts:
+    description: JSON mapping retained check paths to authenticated receipt selectors for candidate composition
+    type: string
+    required: false
+    default: '{}'
+  candidate-build:
+    description: Trusted allocated build number for candidate config build=workflow; creation only
+    type: string
+    required: false
+    default: ''
+receipt-path:
+  receipt-path:
+    type: string
+    description: Retained module receipt path relative to caller root
+    required: false
+    default: ''

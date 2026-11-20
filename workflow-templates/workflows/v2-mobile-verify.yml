@@ -1,0 +1,71 @@
+# Editable workflow source; shared definitions live one directory above.
+name: Mobile · Android verification
+'on':
+  workflow_call:
+    inputs:
+      $merge:
+      - $ref: inputs.core
+      - $ref: inputs.python-tools
+      - $ref: inputs.execution
+      - $ref: inputs.candidate-creation
+      - $ref: inputs.candidate-import
+      - $ref: inputs.receipt-retention
+      - environment:
+          description: Configured GitHub environment
+          type: string
+          required: true
+        tool-bundles:
+          description: Reviewed built-in tool bundles
+          type: string
+          required: false
+          default: bundletool,android-build-tools
+    outputs:
+      $ref: outputs.workflow
+    secrets:
+      $merge:
+      - $ref: secrets.artifact-read
+      - ANDROID_KEYSTORE_BASE64:
+          description: ANDROID_KEYSTORE_BASE64
+          required: false
+        ANDROID_STORE_PASSWORD:
+          description: ANDROID_STORE_PASSWORD
+          required: false
+        ANDROID_KEY_PASSWORD:
+          description: ANDROID_KEY_PASSWORD
+          required: false
+permissions:
+  $ref: permissions.read
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      $ref: outputs.job
+    steps:
+    - $ref: steps.checkout
+    - $ref: steps.setup-python
+    - $ref: steps.setup-java
+    - $ref: steps.setup-node-for-tools
+    - $ref: steps.setup-tools
+    - $ref: steps.import-candidate-trusted
+    - id: execute
+      uses: $/actions/v2-run
+      with:
+        $merge:
+        - $ref: bindings.execution
+        - $ref: bindings.selected-candidate
+        - module: mobile
+          operation: android-derive
+      env:
+        ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    - $ref: steps.retain-evidence
+    - $ref: steps.create-candidate
+    - $ref: steps.package-candidate
+    - $ref: steps.retain-candidate
+    environment: ${{ inputs.environment }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    concurrency:
+      group: mobile-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "repository": "example/product",
+  "workflows": [
+    {
+      "recipe": "ci",
+      "profile": "shell",
+      "security": false,
+      "docs": false
+    },
+    {
+      "recipe": "promotion-checks"
+    }
+  ]
+}

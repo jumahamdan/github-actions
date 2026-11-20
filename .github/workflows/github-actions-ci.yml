@@ -1,4 +1,4 @@
-name: Shared library validation
+name: Library · Validation
 'on':
   pull_request:
     branches:
@@ -34,6 +34,12 @@ jobs:
       run: 'python3 -m shared_ci.tools --manifest tooling/binaries.json --destination "$RUNNER_TEMP/shared-ci-tools"
 
         printf ''%s\n'' "$RUNNER_TEMP/shared-ci-tools" >> "$GITHUB_PATH"'
+    - name: Generated workflow sources match published YAML
+      run: python3 scripts/generate-workflows.py --check
+    - name: Workflow catalog matches callable workflows
+      run: python3 scripts/workflow-catalog.py --check
+    - name: Validate product caller templates and rendered workflow syntax
+      run: python3 -B scripts/render-product-workflows.py --check --actionlint
     - name: Validate workflow and action contracts
       run: python3 scripts/validate-workflows.py
     - name: Scan source for exposed secrets

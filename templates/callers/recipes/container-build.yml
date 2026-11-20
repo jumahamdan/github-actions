@@ -1,0 +1,37 @@
+# Caller source: render with scripts/render-product-workflows.py before adoption.
+name: Build · Container candidate
+'on':
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: Previously allocated product build number
+        type: string
+        required: true
+      check_receipts:
+        description: Authenticated additional typed checks required by candidate config
+        type: string
+        required: false
+        default: '{}'
+permissions:
+  $ref: shared.read-permissions
+concurrency:
+  $ref: shared.manual-concurrency
+jobs:
+  build:
+    if:
+      $ref: shared.provider-condition
+    uses: jumahamdan/github-actions/.github/workflows/v2-container-build.yml@@@LIBRARY_SHA@@
+    with:
+      config: '@@CONTAINER_BUILD_CONFIG@@'
+      artifact-name: container-build
+      receipt-path: checks/container-build.json
+      candidate-config: '@@CANDIDATE_CONFIG@@'
+      candidate-manifest: candidate.json
+      candidate-build: ${{ inputs.build_number }}
+      check-receipts: ${{ inputs.check_receipts }}
+      binary-manifest: '@@BINARY_MANIFEST@@'
+      npm-tools: '@@NPM_TOOLS@@'
+      python-tools: '@@PYTHON_TOOLS@@'
+      tool-bundles: '@@TOOL_BUNDLES@@'
+  required:
+    $ref: shared.gate

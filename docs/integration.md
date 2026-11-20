@@ -2,6 +2,12 @@
 
 Use one product at a time. Inventory its existing triggers, toolchain, build outputs, deployment target, credentials and recovery process before changing its caller. A website and mobile application can use separate workflows in one repository or independent repositories. Shared workflows contain generic execution; product configuration and release authority remain in the product repository.
 
+## Start from a product caller
+
+Choose the relevant [caller starter](../templates/callers/README.md), render it with a reviewed full library SHA, and review the product-specific prerequisites before adding it to the product repo. CI, a staging build/deployment and an explicit release are the visible entrypoints; they compose the selected [reusable building blocks](workflow-catalog.md).
+
+Delivery starters begin with deliberate manual selections. They do not prove a deployment is authorized or choose a candidate automatically. Keep required configuration, existing secrets and authenticated original build/check evidence explicit. Add an automatic staging trigger only after the real integration and recovery path have been verified.
+
 ## Branch route and avoiding duplicate work
 
 The branch route is `feature → develop → staging → main`. `v2-plan.yml` enforces the PR route and selects products from their changed paths. [Product selection](../examples/products.json) declares product paths and shared paths. It emits a phase and per-product `check`, `verify`, `deliver` booleans. Invalid promotion routes and `pull_request_target` fail. Changes to shared configuration select all affected products.

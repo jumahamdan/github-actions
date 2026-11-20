@@ -12,10 +12,11 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
-from shared_ci import artifacts
+from shared_ci import artifacts, stores
 from shared_ci.common import PipelineError, atomic_json, fingerprint, load_json, sha256_file
 from shared_ci.evidence import IDENTITY_FIELDS
-from test_stores import fixture
+from shared_ci.gate import evaluate
+from test_stores import fixture, PlayAPI, TRUST
 
 
 class ArtifactTests(unittest.TestCase):
@@ -24,7 +25,7 @@ class ArtifactTests(unittest.TestCase):
         self.base = Path(self.tmp.name)
         self.root = self.base / "source"
         self.root.mkdir()
-        _, self.candidate, self.inspected = fixture(self.root)
+        self.store_config, self.candidate, self.inspected = fixture(self.root)
         self.git(self.root, "init", "-q")
         self.git(self.root, "add", "input.txt")
         self.git(self.root, "-c", "user.name=Synthetic Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "fixture")
@@ -36,6 +37,7 @@ class ArtifactTests(unittest.TestCase):
         self.candidate.update(source_sha=self.sha, source_tree=self.tree)
         self.candidate["checks"]["inspection.json"] = sha256_file(self.root / "inspection.json")
         self.rehash()
+        self.store_config.update(expected_identity=self.candidate["identity"], expected_source_sha=self.sha)
         self.destination = self.base / "bundle"
         self.package_config = {"schema": 1, "operation": "package", "manifest": "candidate.json", "expected_identity": self.candidate["identity"], "expected_source_sha": self.sha, "output_dir_env": "TEST_BUNDLE_OUTPUT"}
         self.env = patch.dict(os.environ, {"TEST_BUNDLE_OUTPUT": str(self.destination), "ARTIFACT_TOKEN": "synthetic-token"})
@@ -108,6 +110,49 @@ class ArtifactTests(unittest.TestCase):
         self.assertFalse((self.target / "bundle.json").exists())
         self.assertEqual(self.git(self.target, "status", "--porcelain", "--untracked-files=no"), "")
         self.fetch()  # identical artifacts are safe to import again
+
+    def test_rendered_android_staging_submission_allows_cross_run_candidate_but_not_release(self):
+        from test_caller_templates import rendered
+
+        staging, staging_files = rendered("android-staging")
+        release, release_files = rendered("mobile-release", platform="android")
+        staging_policy = json.loads(staging_files[staging["jobs"]["required"]["with"]["config"]])
+        release_policy = json.loads(release_files[release["jobs"]["required"]["with"]["config"]])
+        api = PlayAPI(sha256_file(self.root / "app.aab"))
+        with patch.dict(os.environ, TRUST), patch("shared_ci.stores.verify_aab",
+                                                  return_value=(self.root / "app.aab", api.digest)):
+            receipt = stores.execute(self.store_config, self.root, api=api)
+            self.assertEqual((receipt["status"], receipt["state"]), ("pending", "submitted"))
+            self.assertIs(receipt["availability_verified"], False)
+            results = {name: {"result": "success", "outputs": {"status": "passed"}}
+                       for name in staging["jobs"] if name != "required"}
+            results["distribute"]["outputs"] = {key: receipt[key] for key in ("status", "state")}
+            gate = evaluate(staging_policy, results)
+        self.assertEqual(gate["checks"]["distribute"], "submitted")
+        self.assertEqual(gate["status"], "passed")
+        self.assertIs(receipt["availability_verified"], False)
+
+        # Successful upstream jobs plus this successful gate make a successful producer
+        # attempt. Keep the production import's whole-run trust check intact.
+        self.metadata["conclusion"] = "success" if gate["status"] == "passed" else "failure"
+        producer = release["jobs"]["distribute"]["with"]
+        self.fetch_config["expected_workflow"] = producer["artifact-workflow"]
+        self.fetch_config["allowed_branches"] = json.loads(producer["artifact-allowed-branches"])
+        self.metadata.update(path=producer["artifact-workflow"] + "@staging", event="workflow_dispatch")
+        self.fetch_config["artifact_name"] = self.item["name"] = "android-verify-candidate-run-42-attempt-2"
+        self.bundle()
+        with patch.dict(os.environ, {**TRUST, "GITHUB_REF": "refs/heads/main", "GITHUB_RUN_ID": "84",
+                                     "GITHUB_RUN_ATTEMPT": "1", "GITHUB_REPOSITORY": "example/synthetic"}):
+            imported = self.fetch()
+            self.assertEqual(imported["status"], "passed")
+            self.assertEqual(imported["provenance"]["run_id"], "42")
+            self.assertEqual((self.root / "app.aab").read_bytes(), (self.target / "app.aab").read_bytes())
+            with self.assertRaisesRegex(PipelineError, "pending"):
+                evaluate(release_policy, {"distribute": results["distribute"]})
+            # A failed producer attempt still cannot be imported from another run.
+            self.metadata["conclusion"] = "failure"
+            with self.assertRaisesRegex(PipelineError, "Producer run"):
+                self.fetch()
 
     def test_package_fresh_outside_workspace_only(self):
         with patch.dict(os.environ, {"TEST_BUNDLE_OUTPUT": str(self.root / "out")}):

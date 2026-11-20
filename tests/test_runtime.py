@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
-from shared_ci import evidence, runtime, state, stores
+from shared_ci import containers, evidence, runtime, state, stores
 from shared_ci.common import PipelineError, atomic_json, fingerprint, load_json, sha256_file
 from shared_ci.evidence import IDENTITY_FIELDS
 from shared_ci.security import _candidate_binding
@@ -272,6 +272,88 @@ class RuntimeTests(unittest.TestCase):
         self.env['SHARED_CURRENT_RELEASE'] = '$(unsafe)'
         with self.assertRaisesRegex(PipelineError, 'Current release'):
             self.execute()
+
+    def configure_container_build(self, source='workflow'):
+        self.without_candidate()
+        self.env['SHARED_MODULE'] = 'containers'
+        (self.root / 'Dockerfile').write_text('FROM scratch\n')
+        self.git('add', 'Dockerfile')
+        self.write_config({'operation': 'build', 'context': '.', 'dockerfile': 'Dockerfile', 'source_sha': source,
+                           'archive': 'out/container.tar', 'receipt': 'out/container.json',
+                           'tests': [{'argv': ['docker', 'run', '--rm', '{image}', '--self-test']}]})
+        self.env['GITHUB_SHA'] = self.git('rev-parse', 'HEAD')
+
+    def container_commands(self):
+        calls = []
+        real_run = containers.run
+        image = 'sha256:' + 'b' * 64
+        def execute(argv, **kwargs):
+            if argv[0] == 'git':
+                return real_run(argv, **kwargs)
+            self.assertEqual(argv[0], 'docker')
+            calls.append(argv)
+            output = image + '\n' if argv[:3] == ['docker', 'image', 'inspect'] else ''
+            if argv[:3] == ['docker', 'image', 'save']:
+                Path(argv[argv.index('--output') + 1]).write_bytes(b'synthetic tested container archive')
+            return subprocess.CompletedProcess(argv, 0, output, '')
+        return calls, execute
+
+    def test_container_build_workflow_source_resolves_actual_checkout_without_editing_config(self):
+        self.configure_container_build()
+        original = self.config_path.read_bytes()
+        calls, provider = self.container_commands()
+        with patch('shared_ci.containers.run', side_effect=provider):
+            result = self.execute()
+        source = self.git('rev-parse', 'HEAD')
+        self.assertEqual(result['source_sha'], source)
+        self.assertEqual(result['assurance']['source_sha'], source)
+        self.assertEqual(result['config_sha256'], fingerprint({**self.config, 'source_sha': source}))
+        self.assertEqual(self.config_path.read_bytes(), original)
+        self.assertEqual(load_json(self.config_path)['source_sha'], 'workflow')
+        self.assertEqual(result['archive']['sha256'], sha256_file(self.root / 'out/container.tar'))
+        self.assertEqual(sum(command[:2] == ['docker', 'build'] for command in calls), 1)
+        self.assertIn(['docker', 'run', '--rm', result['image_id'], '--self-test'], calls)
+
+    def test_container_build_marker_refuses_invalid_source_context_or_dirty_checkout_before_docker(self):
+        self.configure_container_build()
+        valid = dict(self.env)
+        cases = [
+            {'GITHUB_SHA': ''}, {'GITHUB_SHA': 'bad'}, {'GITHUB_SHA': 'A' * 40}, {'GITHUB_SHA': '0' * 40},
+            {'GITHUB_ACTIONS': ''}, {'GITHUB_EVENT_NAME': ''}, {'GITHUB_EVENT_NAME': 'pull_request_target'},
+            {'GITHUB_EVENT_NAME': 'pull_request'}, {'GITHUB_EVENT_NAME': 'workflow_run'},
+            {'GITHUB_REF': ''}, {'GITHUB_REF': 'refs/tags/v1'},
+        ]
+        for change in cases:
+            with self.subTest(change=change):
+                self.env = {**valid, **change}
+                calls, provider = self.container_commands()
+                with patch('shared_ci.containers.run', side_effect=provider), self.assertRaises(PipelineError):
+                    self.execute()
+                self.assertEqual(calls, [])
+                self.assertFalse((self.root / 'out/container.tar').exists())
+        self.env = valid
+        (self.root / 'input.txt').write_text('changed tracked source')
+        calls, provider = self.container_commands()
+        with patch('shared_ci.containers.run', side_effect=provider), self.assertRaisesRegex(PipelineError, 'clean tracked source'):
+            self.execute()
+        self.assertEqual(calls, [])
+
+    def test_container_build_literal_source_is_not_replaced_by_workflow_source(self):
+        self.configure_container_build(source='a' * 40)
+        calls, provider = self.container_commands()
+        with patch('shared_ci.containers.run', side_effect=provider), self.assertRaisesRegex(PipelineError, 'source SHA differs'):
+            self.execute()
+        self.assertEqual(calls, [])
+        with patch.dict(os.environ, self.env, clear=True):
+            selected = runtime.Invocation('containers', self.config, self.root, 'c' * 40)
+        self.assertEqual(selected.config['source_sha'], 'a' * 40)
+        self.assertEqual(load_json(self.config_path)['source_sha'], 'a' * 40)
+        # Direct callers with the actual SHA keep the pre-existing build contract.
+        config = {**self.config, 'source_sha': self.git('rev-parse', 'HEAD')}
+        with patch.dict(os.environ, {}, clear=True), patch('shared_ci.containers.run', side_effect=provider):
+            result = containers.execute(config, self.root)
+        self.assertEqual(result['source_sha'], config['source_sha'])
+        self.assertTrue(calls)
 
     def candidate_config(self, destination='quality.json', build='1'):
         self.without_candidate()

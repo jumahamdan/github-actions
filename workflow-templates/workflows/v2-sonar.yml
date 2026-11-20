@@ -1,0 +1,117 @@
+# Editable workflow source; shared definitions live one directory above.
+name: Checks · Sonar analysis
+'on':
+  workflow_call:
+    inputs:
+      $merge:
+      - $ref: inputs.core
+      - $ref: inputs.python-tools
+      - $ref: inputs.execution
+      - $ref: inputs.candidate-creation
+      - $ref: inputs.candidate-import
+      - $ref: inputs.receipt-retention
+      - quality-run-id:
+          description: Verified source quality run
+          required: true
+          type: string
+        quality-run-attempt:
+          description: Exact producer quality attempt, including an earlier attempt retained during a retry
+          required: true
+          type: string
+        quality-producer-job:
+          description: Exact completed quality job name; required for same-run coverage import
+          required: false
+          type: string
+          default: ''
+        quality-allowed-branches:
+          description: Explicit JSON array of allowed producer head branch names, without refs/heads or wildcards
+          required: true
+          type: string
+        quality-allowed-events:
+          description: Explicit JSON event allowlist; add pull_request only for approved same-repository PR coverage
+          required: false
+          type: string
+          default: '["push","workflow_dispatch"]'
+        quality-source-sha:
+          description: Expected quality source SHA
+          required: true
+          type: string
+        quality-artifact:
+          description: Quality receipt+coverage artifact
+          required: true
+          type: string
+        quality-workflow:
+          description: Trusted quality workflow path
+          required: true
+          type: string
+        environment:
+          description: Configured GitHub environment
+          type: string
+          required: true
+        quality-run-head-sha:
+          description: API run head SHA, distinct from PR tested merge SHA
+          type: string
+          required: false
+          default: ''
+        allow-pull-request:
+          type: boolean
+          description: Explicit opt-in for same-repository PR analysis on configured trusted refs
+          required: false
+          default: false
+        tool-bundles:
+          description: Reviewed built-in tool bundles
+          type: string
+          required: false
+          default: sonar
+    outputs:
+      $ref: outputs.workflow
+    secrets:
+      $merge:
+      - $ref: secrets.artifact-read
+      - SONAR_TOKEN:
+          description: Existing Sonar token
+          required: false
+permissions:
+  $ref: permissions.read
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      $ref: outputs.job
+    steps:
+    - $ref: steps.checkout
+    - $ref: steps.setup-python
+    - $ref: steps.setup-node-for-tools
+    - $ref: steps.setup-tools
+    - $ref: steps.import-candidate-trusted
+    - id: execute
+      uses: $/actions/v2-run
+      with:
+        $merge:
+        - $ref: bindings.execution
+        - $ref: bindings.selected-candidate
+        - module: sonar
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        GH_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+        QUALITY_RUN_ID: ${{ inputs.quality-run-id }}
+        QUALITY_RUN_ATTEMPT: ${{ inputs.quality-run-attempt }}
+        QUALITY_PRODUCER_JOB: ${{ inputs.quality-producer-job }}
+        QUALITY_ALLOWED_BRANCHES: ${{ inputs.quality-allowed-branches }}
+        QUALITY_ALLOWED_EVENTS: ${{ inputs.quality-allowed-events }}
+        QUALITY_SOURCE_SHA: ${{ inputs.quality-source-sha }}
+        QUALITY_ARTIFACT: ${{ inputs.quality-artifact }}
+        QUALITY_WORKFLOW: ${{ inputs.quality-workflow }}
+        QUALITY_RUN_HEAD_SHA: ${{ inputs.quality-run-head-sha || inputs.quality-source-sha }}
+    - $ref: steps.retain-evidence
+    - $ref: steps.create-candidate
+    - $ref: steps.package-candidate
+    - $ref: steps.retain-candidate
+    environment: ${{ inputs.environment }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (inputs.allow-pull-request
+      && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+      }}
+    concurrency:
+      group: sonar-${{ github.repository }}-${{ inputs.environment }}-${{ github.ref }}
+      cancel-in-progress: false

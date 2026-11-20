@@ -1,4 +1,4 @@
-name: TypeScript Code Quality
+name: Legacy · TypeScript quality
 
 on:
   workflow_call:

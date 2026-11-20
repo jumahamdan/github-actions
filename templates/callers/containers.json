@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "repository": "example/product",
+  "workflows": [
+    {
+      "recipe": "ci"
+    },
+    {
+      "recipe": "promotion-checks"
+    },
+    {
+      "recipe": "container-build"
+    },
+    {
+      "recipe": "container-delivery"
+    },
+    {
+      "recipe": "container-delivery",
+      "filename": "release.yml",
+      "branch": "main",
+      "environment": "production",
+      "delivery_config": ".ci/container-production.json"
+    }
+  ]
+}

@@ -1,0 +1,121 @@
+# Editable workflow source; shared definitions live one directory above.
+name: Mobile · Store distribution
+'on':
+  workflow_call:
+    inputs:
+      $merge:
+      - $ref: inputs.core
+      - $ref: inputs.python-tools
+      - $ref: inputs.execution
+      - $ref: inputs.candidate-creation
+      - $ref: inputs.candidate-import
+      - $ref: inputs.tool-bundles
+      - $ref: inputs.receipt-retention
+      - $ref: inputs.security-refresh
+      - $ref: inputs.environment-required
+      - google-workload-identity-provider:
+          description: Existing Google WIF provider
+          type: string
+          required: false
+          default: ''
+        google-service-account:
+          description: Scoped existing Google service account
+          type: string
+          required: false
+          default: ''
+        asc-key-id:
+          description: Existing App Store Connect key ID
+          type: string
+          required: false
+          default: ''
+        asc-issuer-id:
+          description: Existing App Store Connect issuer ID
+          type: string
+          required: false
+          default: ''
+        google-scopes:
+          description: Explicit Play or Firebase OAuth scope
+          type: string
+          required: false
+          default: https://www.googleapis.com/auth/androidpublisher
+        state-restore:
+          description: Exact prior attempt state selector JSON; required for mutating retries
+          type: string
+          required: false
+          default: ''
+        store-selection:
+          description: Moving Apple build/version IDs or Play expected track digest JSON; fixed app/package/track
+            remain in config
+          type: string
+          required: false
+          default: ''
+    outputs:
+      $ref: outputs.workflow
+    secrets:
+      $merge:
+      - $ref: secrets.artifact-read
+      - ASC_BEARER_TOKEN:
+          description: ASC_BEARER_TOKEN
+          required: false
+        GOOGLE_OAUTH_ACCESS_TOKEN:
+          description: GOOGLE_OAUTH_ACCESS_TOKEN
+          required: false
+        ASC_PRIVATE_KEY_BASE64:
+          description: ASC_PRIVATE_KEY_BASE64
+          required: false
+        STATE_READ_TOKEN:
+          description: Optional existing Actions read token for previous operation state
+          required: false
+permissions:
+  $ref: permissions.oidc
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      $ref: outputs.job
+    steps:
+    - $ref: steps.checkout
+    - $ref: steps.setup-python
+    - $ref: steps.setup-node
+    - $ref: steps.setup-java
+    - $ref: steps.setup-tools
+    - $ref: steps.import-candidate-trusted
+    - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+      id: google-auth
+      with:
+        workload_identity_provider: ${{ inputs.google-workload-identity-provider }}
+        service_account: ${{ inputs.google-service-account }}
+        create_credentials_file: true
+        token_format: access_token
+        access_token_scopes: ${{ inputs.google-scopes }}
+      if: ${{ inputs.google-workload-identity-provider != '' }}
+    - id: execute
+      uses: $/actions/v2-run
+      with:
+        $merge:
+        - $ref: bindings.execution
+        - $ref: bindings.selected-candidate
+        - module: stores
+          security-refresh: ${{ inputs.security-refresh }}
+          state-restore: ${{ inputs.state-restore }}
+          store-selection: ${{ inputs.store-selection }}
+      env:
+        ASC_BEARER_TOKEN: ${{ secrets.ASC_BEARER_TOKEN }}
+        GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token || secrets.GOOGLE_OAUTH_ACCESS_TOKEN
+          }}
+        ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+        ASC_KEY_ID: ${{ inputs.asc-key-id }}
+        ASC_ISSUER_ID: ${{ inputs.asc-issuer-id }}
+        GH_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+        GH_STATE_TOKEN: ${{ secrets.STATE_READ_TOKEN || secrets.ARTIFACT_READ_TOKEN || github.token }}
+        GH_EVIDENCE_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+    - $ref: steps.retain-evidence
+    - $ref: steps.create-candidate
+    - $ref: steps.package-candidate
+    - $ref: steps.retain-candidate
+    environment: ${{ inputs.environment }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    concurrency:
+      group: mobile-stores-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false

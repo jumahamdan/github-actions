@@ -1,0 +1,151 @@
+# Named steps fragments; regenerate workflows after editing.
+checkout:
+  uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+  with:
+    persist-credentials: false
+    fetch-depth: 0
+    ref: ${{ github.sha }}
+setup-python:
+  uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+  with:
+    python-version: ${{ inputs.python-version }}
+setup-node:
+  uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+  with:
+    node-version: ${{ inputs.node-version }}
+setup-tools:
+  uses: $/actions/v2-setup
+  with:
+    binary-manifest: ${{ inputs.binary-manifest }}
+    npm-tools: ${{ inputs.npm-tools }}
+    ai-tools: 'false'
+    python-tools: ${{ inputs.python-tools }}
+    tool-bundles: ${{ inputs.tool-bundles }}
+import-candidate-trusted:
+  id: import-candidate
+  if: ${{ inputs.artifact-run-id != '' }}
+  uses: $/actions/v2-artifacts
+  with:
+    operation: fetch
+    root: ${{ inputs.root }}
+    run-id: ${{ inputs.artifact-run-id }}
+    run-attempt: ${{ inputs.artifact-run-attempt }}
+    source-sha: ${{ inputs.artifact-source-sha }}
+    identity: ${{ inputs.artifact-identity }}
+    workflow: ${{ inputs.artifact-workflow }}
+    artifact-name: ${{ inputs.artifact-input-name }}
+    producer-job: ${{ inputs.artifact-producer-job }}
+    allowed-branches: ${{ inputs.artifact-allowed-branches }}
+    run-head-sha: ${{ inputs.artifact-run-head-sha }}
+  env:
+    GH_ARTIFACT_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+authenticate-aws:
+  uses: aws-actions/configure-aws-credentials@cabfdba3510de1431bac9dba27511d97497fc100
+  with:
+    role-to-assume: ${{ inputs.aws-role }}
+    aws-region: ${{ inputs.aws-region }}
+    role-session-name: shared-ci-${{ github.run_id }}
+retain-evidence:
+  name: Preserve sanitized evidence
+  uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+  with:
+    name: ${{ format('{0}-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt) }}
+    path: ${{ steps.execute.outputs.bundle }}
+    if-no-files-found: error
+    retention-days: ${{ inputs.receipt-retention-days }}
+    include-hidden-files: false
+  if: ${{ always() && steps.execute.outputs.bundle != '' }}
+  id: retain-evidence
+create-candidate:
+  id: candidate
+  if: ${{ inputs.candidate-config != '' && steps.execute.outputs.status == 'passed' }}
+  uses: $/actions/v2-run
+  with:
+    module: evidence
+    operation: create
+    config: ${{ inputs.candidate-config }}
+    root: ${{ inputs.root }}
+    receipt-path: ${{ inputs.candidate-manifest }}
+    check-digests: ${{ inputs.check-digests }}
+    current-receipt-path: ${{ steps.execute.outputs.retained-path }}
+    current-receipt-sha: ${{ steps.execute.outputs.receipt-sha256 }}
+    check-receipts: ${{ inputs.check-receipts }}
+    candidate-build: ${{ inputs.candidate-build }}
+  env:
+    GH_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+package-candidate:
+  id: package
+  if: ${{ inputs.candidate-config != '' && steps.execute.outputs.status == 'passed' }}
+  uses: $/actions/v2-artifacts
+  with:
+    operation: package
+    root: ${{ inputs.root }}
+    manifest: ${{ inputs.candidate-manifest }}
+retain-candidate:
+  name: Retain exact candidate
+  if: ${{ inputs.candidate-config != '' && steps.execute.outputs.status == 'passed' }}
+  uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+  with:
+    name: ${{ format('{0}-candidate-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt)
+      }}
+    path: ${{ steps.package.outputs.directory }}
+    if-no-files-found: error
+    include-hidden-files: true
+    retention-days: ${{ inputs.candidate-retention-days }}
+  id: retain-candidate
+setup-node-for-tools:
+  name: Set up exact Node for requested CLI tools
+  if: ${{ inputs.npm-tools != '' }}
+  uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+  with:
+    node-version: ${{ inputs.node-version }}
+setup-java:
+  uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+  with:
+    distribution: temurin
+    java-version: 21.0.9+10
+setup-ai-tools:
+  uses: $/actions/v2-setup
+  with:
+    binary-manifest: ${{ inputs.binary-manifest }}
+    npm-tools: ${{ inputs.npm-tools }}
+    ai-tools: 'true'
+    python-tools: ${{ inputs.python-tools }}
+    tool-bundles: ${{ inputs.tool-bundles }}
+import-candidate-verification:
+  id: import-candidate
+  if: ${{ inputs.artifact-run-id != '' }}
+  uses: $/actions/v2-artifacts
+  with:
+    operation: fetch
+    root: ${{ inputs.root }}
+    run-id: ${{ inputs.artifact-run-id }}
+    run-attempt: ${{ inputs.artifact-run-attempt }}
+    source-sha: ${{ inputs.artifact-source-sha }}
+    identity: ${{ inputs.artifact-identity }}
+    workflow: ${{ inputs.artifact-workflow }}
+    artifact-name: ${{ inputs.artifact-input-name }}
+    producer-job: ${{ inputs.artifact-producer-job }}
+    allowed-branches: ${{ inputs.artifact-allowed-branches }}
+    run-head-sha: ${{ inputs.artifact-run-head-sha }}
+    allowed-events: ${{ inputs.artifact-allowed-events }}
+  env:
+    GH_ARTIFACT_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+setup-selected-deno:
+  if: ${{ inputs.profile == 'deno' }}
+  uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed
+  with:
+    deno-version: ${{ inputs.deno-version }}
+setup-selected-flutter:
+  if: ${{ inputs.profile == 'flutter' }}
+  uses: subosito/flutter-action@fd55f4c5af5b953cc57a2be44cb082c8f6635e8e
+  with:
+    flutter-version: ${{ inputs.flutter-version }}
+    channel: stable
+    cache: true
+setup-selected-php:
+  if: ${{ inputs.profile == 'php' }}
+  uses: shivammathur/setup-php@d52fc211a0436f8839a587b3b5b8efddab4744ea
+  with:
+    php-version: ${{ inputs.php-version }}
+    coverage: none
