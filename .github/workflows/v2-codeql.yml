@@ -376,7 +376,7 @@ jobs:
       with:
         persist-credentials: false
         ref: ${{ github.sha }}
-    - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
         name: ${{ format('{0}-codeql-sarif-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt)
           }}
