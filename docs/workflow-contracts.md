@@ -1066,3 +1066,16 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
 **Outputs:** `status`, `candidate-identity`, `source-sha`, `receipt-sha256`, `state`, `candidate-manifest`, `receipt-artifact-name`, `candidate-artifact-name`, `run-id`, `run-attempt`.
+
+## wiki-publish
+
+[Workflow source](../.github/workflows/wiki-publish.yml)
+
+| Input | Required / default | Meaning |
+| --- | --- | --- |
+| `source-directory` | 'docs/wiki' | Reviewed Markdown page directory |
+| `adopt-existing-home` | False | Replace the initial Home page on the first publication |
+
+**Named secrets:** none.
+
+**Outputs:** none.

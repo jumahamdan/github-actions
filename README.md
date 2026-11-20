@@ -2,7 +2,7 @@
 
 Reusable checks, builds, release evidence and delivery adapters for independent products. Each product chooses its language, providers and release process, then calls the shared pieces it needs.
 
-**Start with the [workflow catalog](docs/workflow-catalog.md).** It groups the workflows by purpose and explains when they run. The long GitHub Actions list includes callable building blocks; it does not mean every workflow runs on each change. `Library · Validation` checks this repository, and GitHub manages the separate Dependabot update runs.
+**Start with the [workflow catalog](docs/workflow-catalog.md).** It groups the workflows by purpose and explains when they run. The [Wiki source pages](docs/wiki/Home.md) provide a plain-language overview and a page for each workflow. The long GitHub Actions list includes callable building blocks; it does not mean every workflow runs on each change. `Library · Validation` checks this repository, and GitHub manages the separate Dependabot update runs.
 
 ## Start here
 
@@ -19,12 +19,13 @@ Adopt one product at a time. Templates do not configure accounts or establish th
 | --- | --- |
 | `workflow-templates/` | Editable workflow definitions and shared named fragments |
 | `.github/workflows/v2-*.yml` | Generated callable workflows with names grouped by purpose |
-| `actions/v2-*` | Three shared actions for setup, execution and artifact transport |
+| `actions/v2-*` | Shared actions for setup, execution, artifact transport and Wiki publishing |
 | `shared_ci/` | Validated implementation modules, split by function |
 | [templates/callers](templates/callers/README.md) | Product workflow starters and their renderer configuration |
 | `examples/` | Product configuration examples with synthetic identifiers |
 | `tests/` and `fixtures/` | Unit/contract tests and isolated verification inputs |
 | `docs/` | Integration, provider contracts, recovery and generated references |
+| `docs/wiki/` | Reviewed source pages for the shared-library Wiki |
 
 For library changes, edit the source definitions and regenerate; see [Maintaining the library](docs/maintaining-workflows.md). Common execution and source fragments avoid copying provider behavior into every product. Each generated workflow remains readable and independently callable.
 
@@ -45,7 +46,7 @@ For library changes, edit the source definitions and regenerate; see [Maintainin
 | Sentry and Crashlytics | [Monitoring](docs/monitoring.md) |
 | Mock/live AI evaluations and advisory AI review | [AI evaluations](docs/ai-evaluations.md) |
 | Security and coverage analysis | [Security](docs/security.md), [Sonar](docs/sonar.md) |
-| Documentation and optional Wiki navigation | [Documentation checks](docs/documentation.md) |
+| Documentation and manual Wiki publication | [Documentation checks](docs/documentation.md), [Wiki publishing](docs/wiki-publishing.md) |
 
 Default library validation uses local fixtures and mock AI providers. Live model/device jobs, provider delivery and store submissions require explicit product configuration and verification. Apple compilation and signing stay in Xcode Cloud or an existing authorized Mac lane; there is no GitHub macOS runner.
 

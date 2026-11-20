@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 def validate():
     workflows = sorted((ROOT / ".github/workflows").glob("v2-*.yml"))
     workflows.append(ROOT / ".github/workflows/github-actions-ci.yml")
+    workflows.append(ROOT / ".github/workflows/wiki-publish.yml")
     commands = []
     with tempfile.TemporaryDirectory(prefix="shared-ci-workflow-lint-") as d:
         for path in workflows:
