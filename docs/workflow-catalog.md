@@ -8,7 +8,7 @@ This repository contains 26 reusable v2 workflows, 3 legacy callable workflows a
 
 | Kind | When it runs |
 | --- | --- |
-| [Shared library validation](../.github/workflows/github-actions-ci.yml) | PRs into `main`, pushes to `main`, or an explicit manual run. Its jobs call the reusable quality and mock-AI workflows. |
+| [Library · Validation](../.github/workflows/github-actions-ci.yml) | PRs into `main`, pushes to `main`, or an explicit manual run. Its jobs call the reusable quality and mock-AI workflows. |
 | Dependabot Updates | GitHub-managed dependency checks configured in [Dependabot settings](../.github/dependabot.yml). |
 | 26 reusable v2 workflows | Only when another workflow calls them with `workflow_call`. They do not independently trigger on pushes or PRs. |
 | 3 legacy workflows | Only when an existing caller invokes them. Deprecated for new adoption. |
@@ -23,77 +23,77 @@ Each workflow link opens its executable YAML. The implementation column links sh
 
 | Workflow | Use it for | Implementation |
 | --- | --- | --- |
-| [Shared v2 product selection](../.github/workflows/v2-plan.yml) | Select affected products and validate the branch route. | [plan](../shared_ci/plan.py), [evidence](../shared_ci/evidence.py) |
-| [Shared v2 required](../.github/workflows/v2-required.yml) | Require every applicable job to finish successfully. | [gate](../shared_ci/gate.py), [evidence](../shared_ci/evidence.py) |
+| [Control · Product selection](../.github/workflows/v2-plan.yml) | Select affected products and validate the branch route. | [plan](../shared_ci/plan.py), [evidence](../shared_ci/evidence.py) |
+| [Control · Required checks](../.github/workflows/v2-required.yml) | Require every applicable job to finish successfully. | [gate](../shared_ci/gate.py), [evidence](../shared_ci/evidence.py) |
 
 ### Checks
 
 | Workflow | Use it for | Implementation |
 | --- | --- | --- |
-| [Shared v2 checks](../.github/workflows/v2-checks.yml) | Run the product's configured format, lint, types, tests and build commands. | [quality](../shared_ci/quality.py), [evidence](../shared_ci/evidence.py) |
-| [Shared v2 docs](../.github/workflows/v2-docs.yml) | Check documentation links, anchors and generated facts. | [docs](../shared_ci/docs.py), [evidence](../shared_ci/evidence.py) |
-| [Shared v2 reuse verified quality](../.github/workflows/v2-reuse.yml) | Reuse original passing checks after authenticating their run and matching inputs. | [reuse](../shared_ci/reuse.py), [evidence](../shared_ci/evidence.py) |
-| [Shared v2 sonar](../.github/workflows/v2-sonar.yml) | Analyze code with authenticated matching coverage and the selected Sonar project. | [sonar](../shared_ci/sonar.py), [evidence](../shared_ci/evidence.py) |
+| [Checks · Code quality](../.github/workflows/v2-checks.yml) | Run the product's configured format, lint, types, tests and build commands. | [quality](../shared_ci/quality.py), [evidence](../shared_ci/evidence.py) |
+| [Checks · Documentation](../.github/workflows/v2-docs.yml) | Check documentation links, anchors and generated facts. | [docs](../shared_ci/docs.py), [evidence](../shared_ci/evidence.py) |
+| [Checks · Reuse verified checks](../.github/workflows/v2-reuse.yml) | Reuse original passing checks after authenticating their run and matching inputs. | [reuse](../shared_ci/reuse.py), [evidence](../shared_ci/evidence.py) |
+| [Checks · Sonar analysis](../.github/workflows/v2-sonar.yml) | Analyze code with authenticated matching coverage and the selected Sonar project. | [sonar](../shared_ci/sonar.py), [evidence](../shared_ci/evidence.py) |
 
 ### Security
 
 | Workflow | Use it for | Implementation |
 | --- | --- | --- |
-| [Shared v2 CodeQL](../.github/workflows/v2-codeql.yml) | Build and analyze selected languages with CodeQL; upload only where allowed. | [security](../shared_ci/security.py) |
-| [Shared v2 security](../.github/workflows/v2-security.yml) | Run configured security scanners and enforce their policy. | [security](../shared_ci/security.py), [evidence](../shared_ci/evidence.py) |
+| [Security · CodeQL](../.github/workflows/v2-codeql.yml) | Build and analyze selected languages with CodeQL; upload only where allowed. | [security](../shared_ci/security.py) |
+| [Security · Scans](../.github/workflows/v2-security.yml) | Run configured security scanners and enforce their policy. | [security](../shared_ci/security.py), [evidence](../shared_ci/evidence.py) |
 
 ### AI
 
 | Workflow | Use it for | Implementation |
 | --- | --- | --- |
-| [Shared v2 ai-live](../.github/workflows/v2-ai-live.yml) | Run explicitly enabled provider evaluations with product assertions and limits. | [ai](../shared_ci/ai.py), [evidence](../shared_ci/evidence.py) |
-| [Shared v2 ai-mock](../.github/workflows/v2-ai-mock.yml) | Run deterministic AI tests with a fake provider and no paid model calls. | [ai](../shared_ci/ai.py), [evidence](../shared_ci/evidence.py) |
+| [AI · Live evaluations](../.github/workflows/v2-ai-live.yml) | Run explicitly enabled provider evaluations with product assertions and limits. | [ai](../shared_ci/ai.py), [evidence](../shared_ci/evidence.py) |
+| [AI · Mock evaluations](../.github/workflows/v2-ai-mock.yml) | Run deterministic AI tests with a fake provider and no paid model calls. | [ai](../shared_ci/ai.py), [evidence](../shared_ci/evidence.py) |
 
 ### Build
 
 | Workflow | Use it for | Implementation |
 | --- | --- | --- |
-| [Shared v2 container-build](../.github/workflows/v2-container-build.yml) | Build and test container images for an immutable candidate. | [containers](../shared_ci/containers.py), [evidence](../shared_ci/evidence.py) |
-| [Shared v2 wordpress-package](../.github/workflows/v2-wordpress-package.yml) | Check and package WordPress code for an explicit publishing handoff. | [wordpress](../shared_ci/wordpress.py), [evidence](../shared_ci/evidence.py) |
+| [Build · Containers](../.github/workflows/v2-container-build.yml) | Build and test container images for an immutable candidate. | [containers](../shared_ci/containers.py), [evidence](../shared_ci/evidence.py) |
+| [Build · WordPress package](../.github/workflows/v2-wordpress-package.yml) | Check and package WordPress code for an explicit publishing handoff. | [wordpress](../shared_ci/wordpress.py), [evidence](../shared_ci/evidence.py) |
 
 ### Mobile
 
 | Workflow | Use it for | Implementation |
 | --- | --- | --- |
-| [Shared v2 Android build](../.github/workflows/v2-android-build.yml) | Run the configured Android build and retain its candidate evidence. | [quality](../shared_ci/quality.py), [evidence](../shared_ci/evidence.py) |
-| [Shared v2 Android candidate derivation](../.github/workflows/v2-mobile-verify.yml) | Derive and verify Android test artifacts from the selected retained bundle. | [mobile](../shared_ci/mobile.py), [evidence](../shared_ci/evidence.py) |
-| [Shared v2 Apple Cloud evidence import](../.github/workflows/v2-apple-import.yml) | Import private evidence from an authenticated Apple build; no compilation here. | [apple_bridge](../shared_ci/apple_bridge.py) |
-| [Shared v2 Google device tests](../.github/workflows/v2-device-tests.yml) | Run explicitly enabled Google device tests on verified mobile artifacts. | [mobile](../shared_ci/mobile.py), [evidence](../shared_ci/evidence.py) |
-| [Shared v2 mobile-stores](../.github/workflows/v2-mobile-stores.yml) | Operate on the selected Play or Apple build and preserve processing/review state. | [stores](../shared_ci/stores.py), [evidence](../shared_ci/evidence.py) |
+| [Mobile · Android build](../.github/workflows/v2-android-build.yml) | Run the configured Android build and retain its candidate evidence. | [quality](../shared_ci/quality.py), [evidence](../shared_ci/evidence.py) |
+| [Mobile · Android verification](../.github/workflows/v2-mobile-verify.yml) | Derive and verify Android test artifacts from the selected retained bundle. | [mobile](../shared_ci/mobile.py), [evidence](../shared_ci/evidence.py) |
+| [Mobile · Apple evidence import](../.github/workflows/v2-apple-import.yml) | Import private evidence from an authenticated Apple build; no compilation here. | [apple_bridge](../shared_ci/apple_bridge.py) |
+| [Mobile · Device tests](../.github/workflows/v2-device-tests.yml) | Run explicitly enabled Google device tests on verified mobile artifacts. | [mobile](../shared_ci/mobile.py), [evidence](../shared_ci/evidence.py) |
+| [Mobile · Store distribution](../.github/workflows/v2-mobile-stores.yml) | Operate on the selected Play or Apple build and preserve processing/review state. | [stores](../shared_ci/stores.py), [evidence](../shared_ci/evidence.py) |
 
 ### Deploy
 
 | Workflow | Use it for | Implementation |
 | --- | --- | --- |
-| [Shared v2 aws](../.github/workflows/v2-aws.yml) | Execute the selected AWS infrastructure, site or backend operation. | [deploy](../shared_ci/deploy.py), [evidence](../shared_ci/evidence.py) |
-| [Shared v2 container-delivery](../.github/workflows/v2-container-delivery.yml) | Publish, promote, deploy or recover the selected immutable container release. | [containers](../shared_ci/containers.py), [evidence](../shared_ci/evidence.py) |
-| [Shared v2 firebase](../.github/workflows/v2-firebase.yml) | Execute the selected Firebase hosting, functions, rules or configuration operation. | [deploy](../shared_ci/deploy.py), [evidence](../shared_ci/evidence.py) |
-| [Shared v2 web-deploy](../.github/workflows/v2-web-deploy.yml) | Execute the configured web-hosting deployment or promotion operation. | [deploy](../shared_ci/deploy.py), [evidence](../shared_ci/evidence.py) |
+| [Deploy · AWS](../.github/workflows/v2-aws.yml) | Execute the selected AWS infrastructure, site or backend operation. | [deploy](../shared_ci/deploy.py), [evidence](../shared_ci/evidence.py) |
+| [Deploy · Containers](../.github/workflows/v2-container-delivery.yml) | Publish, promote, deploy or recover the selected immutable container release. | [containers](../shared_ci/containers.py), [evidence](../shared_ci/evidence.py) |
+| [Deploy · Firebase](../.github/workflows/v2-firebase.yml) | Execute the selected Firebase hosting, functions, rules or configuration operation. | [deploy](../shared_ci/deploy.py), [evidence](../shared_ci/evidence.py) |
+| [Deploy · Web hosting](../.github/workflows/v2-web-deploy.yml) | Execute the configured web-hosting deployment or promotion operation. | [deploy](../shared_ci/deploy.py), [evidence](../shared_ci/evidence.py) |
 
 ### Monitor
 
 | Workflow | Use it for | Implementation |
 | --- | --- | --- |
-| [Shared v2 monitoring](../.github/workflows/v2-monitoring.yml) | Verify/upload symbols and record candidate-bound monitoring releases or deployments. | [monitoring](../shared_ci/monitoring.py), [evidence](../shared_ci/evidence.py) |
+| [Monitor · Symbols and releases](../.github/workflows/v2-monitoring.yml) | Verify/upload symbols and record candidate-bound monitoring releases or deployments. | [monitoring](../shared_ci/monitoring.py), [evidence](../shared_ci/evidence.py) |
 
 ### Verify
 
 | Workflow | Use it for | Implementation |
 | --- | --- | --- |
-| [Shared v2 deployed health](../.github/workflows/v2-health.yml) | Check the deployed target's health and expected revision. | [health](../shared_ci/health.py), [evidence](../shared_ci/evidence.py) |
+| [Verify · Deployed health](../.github/workflows/v2-health.yml) | Check the deployed target's health and expected revision. | [health](../shared_ci/health.py), [evidence](../shared_ci/evidence.py) |
 
 ### Release
 
 | Workflow | Use it for | Implementation |
 | --- | --- | --- |
-| [Shared v2 evidence](../.github/workflows/v2-evidence.yml) | Create or verify the selected candidate and its required evidence. | [evidence](../shared_ci/evidence.py) |
-| [Shared v2 release-notes](../.github/workflows/v2-release-notes.yml) | Prepare notes for the configured public, tester and internal audiences. | [release](../shared_ci/release.py), [evidence](../shared_ci/evidence.py) |
-| [Shared v2 release-publish](../.github/workflows/v2-release-publish.yml) | Publish the approved GitHub tag, notes and exact release assets. | [release](../shared_ci/release.py), [evidence](../shared_ci/evidence.py) |
+| [Release · Candidate evidence](../.github/workflows/v2-evidence.yml) | Create or verify the selected candidate and its required evidence. | [evidence](../shared_ci/evidence.py) |
+| [Release · Notes](../.github/workflows/v2-release-notes.yml) | Prepare notes for the configured public, tester and internal audiences. | [release](../shared_ci/release.py), [evidence](../shared_ci/evidence.py) |
+| [Release · Publish](../.github/workflows/v2-release-publish.yml) | Publish the approved GitHub tag, notes and exact release assets. | [release](../shared_ci/release.py), [evidence](../shared_ci/evidence.py) |
 
 ## Legacy compatibility
 
@@ -101,9 +101,9 @@ These callable paths and execution contracts remain available to existing consum
 
 | Workflow | Status |
 | --- | --- |
-| [AI Code Review](../.github/workflows/ai-code-review.yml) | Compatibility only; do not adopt. |
-| [TypeScript Code Quality](../.github/workflows/code-quality-typescript.yml) | Compatibility only; do not adopt. |
-| [Security Audit](../.github/workflows/security-audit.yml) | Compatibility only; do not adopt. |
+| [Legacy · AI code review](../.github/workflows/ai-code-review.yml) | Compatibility only; do not adopt. |
+| [Legacy · TypeScript quality](../.github/workflows/code-quality-typescript.yml) | Compatibility only; do not adopt. |
+| [Legacy · Security audit](../.github/workflows/security-audit.yml) | Compatibility only; do not adopt. |
 
 ## Adoption and maintenance
 

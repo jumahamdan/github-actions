@@ -17,14 +17,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `aws-role` | '' | Optional distinct Bedrock evaluation role |
-| `aws-region` | 'us-east-1' | AWS region |
-| `environment` | required | Explicit configured GitHub environment |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -32,16 +33,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
+| `environment` | required | Explicit configured GitHub environment |
+| `aws-role` | '' | Optional distinct Bedrock evaluation role |
+| `aws-region` | 'us-east-1' | AWS region |
 
-**Named secrets:** `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AI_TARGET_TOKEN`, `ARTIFACT_READ_TOKEN`.
+**Named secrets:** `ARTIFACT_READ_TOKEN`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `AI_TARGET_TOKEN`.
 
 **Outputs:** `status`, `candidate-identity`, `source-sha`, `receipt-sha256`, `state`, `candidate-manifest`, `receipt-artifact-name`, `candidate-artifact-name`, `run-id`, `run-attempt`.
 
@@ -63,6 +63,10 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -70,15 +74,11 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -97,16 +97,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `profile` | 'flutter' | Android build profile |
-| `deno-version` | '2.4.5' | Exact Deno version |
-| `flutter-version` | '3.47.6' | Exact Flutter version |
-| `php-version` | '8.3' | Exact PHP runtime series |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
-| `environment` | required | Configured GitHub environment |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -114,16 +113,17 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
+| `deno-version` | '2.4.5' | Exact Deno version |
+| `flutter-version` | '3.47.6' | Exact Flutter version |
+| `php-version` | '8.3' | Exact PHP runtime series |
+| `profile` | 'flutter' | Android build profile |
+| `environment` | required | Configured GitHub environment |
 
-**Named secrets:** `ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, `ARTIFACT_READ_TOKEN`.
+**Named secrets:** `ARTIFACT_READ_TOKEN`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_PASSWORD`.
 
 **Outputs:** `status`, `candidate-identity`, `source-sha`, `receipt-sha256`, `state`, `candidate-manifest`, `receipt-artifact-name`, `candidate-artifact-name`, `run-id`, `run-attempt`.
 
@@ -140,15 +140,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `aws-role` | required | Explicit deployment role |
-| `aws-region` | required | Explicit AWS region |
-| `environment` | required | Explicit configured GitHub environment |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
-| `credentials-config` | required | Named credential contract relative to caller root |
-| `receipt-path` | '' | Retained module receipt path relative to caller root |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
 | `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
+| `environment` | required | Explicit configured GitHub environment |
+| `aws-role` | required | Explicit deployment role |
+| `aws-region` | required | Explicit AWS region |
+| `receipt-path` | '' | Retained module receipt path relative to caller root |
+| `credentials-config` | required | Named credential contract relative to caller root |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
 | `apple-bridge-selection` | required | Approved candidate/source, configured Cloud workflow/product plus run/build, and immutable S3 version JSON |
 | `asc-key-id` | required | Existing App Store Connect API key identifier |
 | `asc-issuer-id` | required | Existing App Store Connect issuer identifier |
@@ -170,14 +170,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `aws-role` | required | Explicit deployment role |
-| `aws-region` | required | Explicit AWS region |
-| `environment` | required | Explicit configured GitHub environment |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -185,15 +186,14 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
+| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
-| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `environment` | required | Explicit configured GitHub environment |
+| `aws-role` | required | Explicit deployment role |
+| `aws-region` | required | Explicit AWS region |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -212,15 +212,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `profile` | required | Declared profile |
-| `deno-version` | '2.4.5' | Exact Deno version |
-| `flutter-version` | '3.47.6' | Exact Flutter version |
-| `php-version` | '8.3' | Exact PHP runtime series |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -228,15 +228,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
+| `deno-version` | '2.4.5' | Exact Deno version |
+| `flutter-version` | '3.47.6' | Exact Flutter version |
+| `php-version` | '8.3' | Exact PHP runtime series |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `profile` | required | Declared profile |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -248,6 +248,18 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 
 | Input | Required / default | Meaning |
 | --- | --- | --- |
+| `artifact-run-id` | '' | Producer run ID; empty disables import |
+| `artifact-run-attempt` | '1' | Producer run attempt |
+| `artifact-source-sha` | '' | Expected original candidate commit |
+| `artifact-identity` | '' | Expected selected candidate identity |
+| `artifact-workflow` | '' | Trusted producer workflow path |
+| `artifact-input-name` | '' | Unique candidate artifact to import |
+| `artifact-producer-job` | '' | Completed producer job name for same-run transport |
+| `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
+| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
+| `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
+| `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `config` | required | Product security policy JSON containing exactly one CodeQL SARIF scan |
 | `language` | required | One Linux CodeQL language (actions, cpp, csharp, go, java, javascript, python, ruby, rust) |
 | `build-mode` | 'none' | Explicit none or manual; Go and Kotlin require manual in this workflow |
@@ -260,18 +272,6 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `advanced-setup-confirmed` | required | Caller disabled default setup and duplicate CodeQL workflows |
 | `upload-to-github` | False | Explicitly upload raw SARIF to entitled GitHub code scanning |
 | `artifact-name` | required | Unique aggregate security receipt artifact name |
-| `artifact-run-id` | '' | Producer run ID; empty disables import |
-| `artifact-run-attempt` | '1' | Producer run attempt |
-| `artifact-source-sha` | '' | Expected original candidate commit |
-| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `artifact-identity` | '' | Expected selected candidate identity |
-| `artifact-workflow` | '' | Trusted producer workflow path |
-| `artifact-input-name` | '' | Unique candidate artifact to import |
-| `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
-| `receipt-path` | '' | Retained module receipt path relative to caller root |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -295,6 +295,10 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -302,16 +306,12 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
+| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
-| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -330,12 +330,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `environment` | required | Explicit configured GitHub environment |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -343,19 +346,16 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
+| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
+| `environment` | required | Explicit configured GitHub environment |
 | `current-release` | '' | Runtime expected current server release: 24 lowercase hex characters or absent |
-| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `container-selection` | '' | Approved retained publication/tag or rollback target selection JSON |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
-**Named secrets:** `SSH_PRIVATE_KEY`, `SSH_KNOWN_HOSTS`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, `ARTIFACT_READ_TOKEN`.
+**Named secrets:** `ARTIFACT_READ_TOKEN`, `SSH_PRIVATE_KEY`, `SSH_KNOWN_HOSTS`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`.
 
 **Outputs:** `status`, `candidate-identity`, `source-sha`, `receipt-sha256`, `state`, `candidate-manifest`, `receipt-artifact-name`, `candidate-artifact-name`, `run-id`, `run-attempt`.
 
@@ -374,12 +374,13 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
-| `environment` | required | Configured GitHub environment |
-| `google-workload-identity-provider` | required | Existing Google WIF provider |
-| `google-service-account` | required | Scoped existing Google service account |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -387,14 +388,13 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | 'google-sdk' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
+| `environment` | required | Configured GitHub environment |
+| `google-workload-identity-provider` | required | Existing Google WIF provider |
+| `google-service-account` | required | Scoped existing Google service account |
+| `tool-bundles` | 'google-sdk' | Reviewed built-in tool bundles |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -418,6 +418,10 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -425,15 +429,11 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -452,11 +452,9 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `operation` | required | Explicit module operation |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
-| `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -464,15 +462,17 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
+| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
-| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
+| `operation` | required | Explicit module operation |
+| `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
@@ -492,15 +492,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `google-workload-identity-provider` | required | Google federation provider |
-| `google-service-account` | required | Scoped deployment service account |
-| `google-scopes` | 'https://www.googleapis.com/auth/cloud-platform' | OAuth scopes |
-| `environment` | required | Explicit configured GitHub environment |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -508,15 +508,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | 'google-sdk' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
+| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
-| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `environment` | required | Explicit configured GitHub environment |
+| `google-workload-identity-provider` | required | Google federation provider |
+| `google-service-account` | required | Scoped deployment service account |
+| `google-scopes` | 'https://www.googleapis.com/auth/cloud-platform' | OAuth scopes |
+| `tool-bundles` | 'google-sdk' | Reviewed built-in tool bundles |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -540,6 +540,10 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -547,15 +551,11 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -574,16 +574,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `environment` | required | Explicit configured GitHub environment |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
-| `google-workload-identity-provider` | '' | Existing Google WIF provider |
-| `google-service-account` | '' | Scoped existing Google service account |
-| `asc-key-id` | '' | Existing App Store Connect key ID |
-| `asc-issuer-id` | '' | Existing App Store Connect issuer ID |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -591,20 +590,21 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `google-scopes` | 'https://www.googleapis.com/auth/androidpublisher' | Explicit Play or Firebase OAuth scope |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
+| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
+| `environment` | required | Explicit configured GitHub environment |
+| `google-workload-identity-provider` | '' | Existing Google WIF provider |
+| `google-service-account` | '' | Scoped existing Google service account |
+| `asc-key-id` | '' | Existing App Store Connect key ID |
+| `asc-issuer-id` | '' | Existing App Store Connect issuer ID |
+| `google-scopes` | 'https://www.googleapis.com/auth/androidpublisher' | Explicit Play or Firebase OAuth scope |
 | `state-restore` | '' | Exact prior attempt state selector JSON; required for mutating retries |
-| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `store-selection` | '' | Moving Apple build/version IDs or Play expected track digest JSON; fixed app/package/track remain in config |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
-**Named secrets:** `ASC_BEARER_TOKEN`, `GOOGLE_OAUTH_ACCESS_TOKEN`, `ASC_PRIVATE_KEY_BASE64`, `ARTIFACT_READ_TOKEN`, `STATE_READ_TOKEN`.
+**Named secrets:** `ARTIFACT_READ_TOKEN`, `ASC_BEARER_TOKEN`, `GOOGLE_OAUTH_ACCESS_TOKEN`, `ASC_PRIVATE_KEY_BASE64`, `STATE_READ_TOKEN`.
 
 **Outputs:** `status`, `candidate-identity`, `source-sha`, `receipt-sha256`, `state`, `candidate-manifest`, `receipt-artifact-name`, `candidate-artifact-name`, `run-id`, `run-attempt`.
 
@@ -623,10 +623,13 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
-| `environment` | required | Configured GitHub environment |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -634,16 +637,13 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | 'bundletool,android-build-tools' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
+| `environment` | required | Configured GitHub environment |
+| `tool-bundles` | 'bundletool,android-build-tools' | Reviewed built-in tool bundles |
 
-**Named secrets:** `ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, `ARTIFACT_READ_TOKEN`.
+**Named secrets:** `ARTIFACT_READ_TOKEN`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_PASSWORD`.
 
 **Outputs:** `status`, `candidate-identity`, `source-sha`, `receipt-sha256`, `state`, `candidate-manifest`, `receipt-artifact-name`, `candidate-artifact-name`, `run-id`, `run-attempt`.
 
@@ -660,14 +660,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `environment` | required | Explicit configured GitHub environment |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
-| `google-workload-identity-provider` | '' | Existing Google WIF provider |
-| `google-service-account` | '' | Scoped existing Google service account |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -675,18 +676,17 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
+| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
-| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `environment` | required | Explicit configured GitHub environment |
+| `google-workload-identity-provider` | '' | Existing Google WIF provider |
+| `google-service-account` | '' | Scoped existing Google service account |
 | `prior-deployment` | '' | Authenticated exact deployment receipt selector JSON for sentry-deploy |
 
-**Named secrets:** `SENTRY_AUTH_TOKEN`, `ARTIFACT_READ_TOKEN`.
+**Named secrets:** `ARTIFACT_READ_TOKEN`, `SENTRY_AUTH_TOKEN`.
 
 **Outputs:** `status`, `candidate-identity`, `source-sha`, `receipt-sha256`, `state`, `candidate-manifest`, `receipt-artifact-name`, `candidate-artifact-name`, `run-id`, `run-attempt`.
 
@@ -708,6 +708,10 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -715,19 +719,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
-**Outputs:** `status`, `plan`, `candidate-identity`, `source-sha`, `receipt-sha256`, `state`, `candidate-manifest`, `receipt-artifact-name`, `candidate-artifact-name`, `run-id`, `run-attempt`.
+**Outputs:** `status`, `candidate-identity`, `source-sha`, `receipt-sha256`, `state`, `candidate-manifest`, `receipt-artifact-name`, `candidate-artifact-name`, `run-id`, `run-attempt`, `plan`.
 
 ## v2-release-notes
 
@@ -742,12 +742,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `operation` | required | Explicit module operation |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -755,16 +758,13 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
+| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
-| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `operation` | required | Explicit module operation |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`, `GH_TOKEN`.
 
@@ -783,13 +783,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `environment` | required | Explicit configured GitHub environment |
-| `operation` | required | Explicit module operation |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -797,17 +799,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
+| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
-| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `environment` | required | Explicit configured GitHub environment |
+| `operation` | required | Explicit module operation |
 
-**Named secrets:** `RELEASE_TOKEN`, `ARTIFACT_READ_TOKEN`.
+**Named secrets:** `ARTIFACT_READ_TOKEN`, `RELEASE_TOKEN`.
 
 **Outputs:** `status`, `candidate-identity`, `source-sha`, `receipt-sha256`, `state`, `candidate-manifest`, `receipt-artifact-name`, `candidate-artifact-name`, `run-id`, `run-attempt`.
 
@@ -824,12 +824,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `job-results` | required | toJSON(needs) from caller |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -837,15 +840,12 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `job-results` | required | toJSON(needs) from caller |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -869,6 +869,10 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -876,18 +880,14 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
+| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
+| `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
 | `quality-run-id` | required | quality-run-id |
 | `quality-run-head-sha` | required | quality-run-head-sha |
 | `quality-tested-sha` | required | quality-tested-sha |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
-| `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
-| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
-| `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `quality-run-attempt` | required | Exact producing quality attempt; use producer run-attempt output |
 | `quality-artifact` | required | Exact producing receipt-artifact-name output |
 | `quality-producer-job` | '' | Exact completed quality job name; required for same-run reuse |
@@ -916,6 +916,10 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -923,15 +927,11 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
@@ -950,6 +950,25 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
+| `python-tools` | '' | Hash-locked caller pip requirements file |
+| `credentials-config` | '' | Named credential contract relative to caller root |
+| `receipt-path` | '' | Retained module receipt path relative to caller root |
+| `candidate-config` | '' | Optional evidence.create configuration after this operation |
+| `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `artifact-run-id` | '' | Producer run ID; empty disables import |
+| `artifact-run-attempt` | '1' | Producer run attempt |
+| `artifact-source-sha` | '' | Expected original candidate commit |
+| `artifact-identity` | '' | Expected selected candidate identity |
+| `artifact-workflow` | '' | Trusted producer workflow path |
+| `artifact-input-name` | '' | Unique candidate artifact to import |
+| `artifact-producer-job` | '' | Completed producer job name for same-run transport |
+| `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
+| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `quality-run-id` | required | Verified source quality run |
 | `quality-run-attempt` | required | Exact producer quality attempt, including an earlier attempt retained during a retry |
 | `quality-producer-job` | '' | Exact completed quality job name; required for same-run coverage import |
@@ -958,31 +977,12 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `quality-source-sha` | required | Expected quality source SHA |
 | `quality-artifact` | required | Quality receipt+coverage artifact |
 | `quality-workflow` | required | Trusted quality workflow path |
-| `python-tools` | '' | Hash-locked caller pip requirements file |
-| `credentials-config` | '' | Named credential contract relative to caller root |
 | `environment` | required | Configured GitHub environment |
-| `receipt-path` | '' | Retained module receipt path relative to caller root |
-| `candidate-config` | '' | Optional evidence.create configuration after this operation |
-| `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
-| `artifact-run-id` | '' | Producer run ID; empty disables import |
-| `artifact-run-attempt` | '1' | Producer run attempt |
-| `artifact-source-sha` | '' | Expected original candidate commit |
-| `artifact-identity` | '' | Expected selected candidate identity |
-| `artifact-workflow` | '' | Trusted producer workflow path |
-| `artifact-input-name` | '' | Unique candidate artifact to import |
-| `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
 | `quality-run-head-sha` | '' | API run head SHA, distinct from PR tested merge SHA |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
 | `allow-pull-request` | False | Explicit opt-in for same-repository PR analysis on configured trusted refs |
 | `tool-bundles` | 'sonar' | Reviewed built-in tool bundles |
-| `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
-| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
-**Named secrets:** `SONAR_TOKEN`, `ARTIFACT_READ_TOKEN`.
+**Named secrets:** `ARTIFACT_READ_TOKEN`, `SONAR_TOKEN`.
 
 **Outputs:** `status`, `candidate-identity`, `source-sha`, `receipt-sha256`, `state`, `candidate-manifest`, `receipt-artifact-name`, `candidate-artifact-name`, `run-id`, `run-attempt`.
 
@@ -999,12 +999,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `environment` | required | Explicit configured GitHub environment |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -1012,18 +1015,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
+| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
+| `environment` | required | Explicit configured GitHub environment |
 | `prior-deployment` | '' | Exact successful prior deployment receipt selector JSON for immutable provider promotion |
-| `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 
-**Named secrets:** `CLOUDFLARE_API_TOKEN`, `VERCEL_TOKEN`, `NETLIFY_AUTH_TOKEN`, `ARTIFACT_READ_TOKEN`.
+**Named secrets:** `ARTIFACT_READ_TOKEN`, `CLOUDFLARE_API_TOKEN`, `VERCEL_TOKEN`, `NETLIFY_AUTH_TOKEN`.
 
 **Outputs:** `status`, `candidate-identity`, `source-sha`, `receipt-sha256`, `state`, `candidate-manifest`, `receipt-artifact-name`, `candidate-artifact-name`, `run-id`, `run-attempt`.
 
@@ -1040,12 +1040,15 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `binary-manifest` | '' | Caller checksum manifest for extra CLI tools |
 | `npm-tools` | '' | Caller lockfile-based CLI tool directory |
 | `artifact-name` | required | Unique artifact base name; actual receipt and candidate names include run/attempt |
-| `php-version` | '8.3' | PHP version |
 | `python-tools` | '' | Hash-locked caller pip requirements file |
 | `credentials-config` | '' | Named credential contract relative to caller root |
 | `receipt-path` | '' | Retained module receipt path relative to caller root |
 | `candidate-config` | '' | Optional evidence.create configuration after this operation |
 | `candidate-manifest` | '.ci-output/candidate.json' | Retained candidate manifest path |
+| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
+| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
+| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
 | `artifact-run-id` | '' | Producer run ID; empty disables import |
 | `artifact-run-attempt` | '1' | Producer run attempt |
 | `artifact-source-sha` | '' | Expected original candidate commit |
@@ -1053,15 +1056,12 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `artifact-workflow` | '' | Trusted producer workflow path |
 | `artifact-input-name` | '' | Unique candidate artifact to import |
 | `artifact-producer-job` | '' | Completed producer job name for same-run transport |
-| `candidate-retention-days` | 90 | Retention covering promotion and symbol recovery |
-| `check-digests` | '{}' | Trusted required receipt digests from prior step/job outputs |
-| `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `artifact-allowed-branches` | '[]' | JSON array of trusted producer branch names; required whenever importing |
-| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-run-head-sha` | '' | Explicit producer REST run head SHA; defaults to candidate source SHA for push |
-| `check-receipts` | '{}' | JSON mapping retained check paths to authenticated receipt selectors for candidate composition |
+| `tool-bundles` | '' | Reviewed built-in tool bundles |
+| `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
-| `candidate-build` | '' | Trusted allocated build number for candidate config build=workflow; creation only |
+| `php-version` | '8.3' | PHP version |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 
