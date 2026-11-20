@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "repository": "example/product",
+  "workflows": [
+    {
+      "recipe": "ci"
+    },
+    {
+      "recipe": "promotion-checks"
+    },
+    {
+      "recipe": "candidate-build"
+    },
+    {
+      "recipe": "web-delivery",
+      "provider": "aws"
+    },
+    {
+      "recipe": "web-delivery",
+      "provider": "aws",
+      "filename": "release.yml",
+      "branch": "main",
+      "environment": "production",
+      "delivery_config": ".ci/deploy-production.json"
+    }
+  ]
+}

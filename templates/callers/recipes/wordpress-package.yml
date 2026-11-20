@@ -1,0 +1,37 @@
+# Caller source: render with scripts/render-product-workflows.py before adoption.
+name: Staging · WordPress package
+'on':
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: Previously allocated package build number
+        type: string
+        required: true
+      check_receipts:
+        description: Authenticated checks declared by the package candidate config
+        type: string
+        required: false
+        default: '{}'
+permissions:
+  $ref: shared.read-permissions
+concurrency:
+  $ref: shared.manual-concurrency
+jobs:
+  package:
+    if:
+      $ref: shared.provider-condition
+    uses: jumahamdan/github-actions/.github/workflows/v2-wordpress-package.yml@@@LIBRARY_SHA@@
+    with:
+      config: '@@WORDPRESS_CONFIG@@'
+      artifact-name: wordpress-package
+      receipt-path: checks/wordpress.json
+      candidate-config: '@@CANDIDATE_CONFIG@@'
+      candidate-manifest: candidate.json
+      candidate-build: ${{ inputs.build_number }}
+      check-receipts: ${{ inputs.check_receipts }}
+      binary-manifest: '@@BINARY_MANIFEST@@'
+      npm-tools: '@@NPM_TOOLS@@'
+      python-tools: '@@PYTHON_TOOLS@@'
+      tool-bundles: '@@TOOL_BUNDLES@@'
+  required:
+    $ref: shared.gate

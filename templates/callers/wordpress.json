@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "repository": "example/product",
+  "workflows": [
+    {
+      "recipe": "ci",
+      "profile": "php"
+    },
+    {
+      "recipe": "promotion-checks"
+    },
+    {
+      "recipe": "wordpress-package"
+    }
+  ]
+}

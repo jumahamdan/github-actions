@@ -1,0 +1,61 @@
+# Caller source: render with scripts/render-product-workflows.py before adoption.
+name: Staging · Apple import and TestFlight
+'on':
+  workflow_dispatch:
+    inputs:
+      apple_selection:
+        description: Authenticated Cloud run/build and immutable private evidence version selection JSON
+        type: string
+        required: true
+      store_selection:
+        description: JSON with the verified Apple build_id
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+concurrency:
+  $ref: shared.manual-concurrency
+jobs:
+  import:
+    if:
+      $ref: shared.provider-condition
+    uses: jumahamdan/github-actions/.github/workflows/v2-apple-import.yml@@@LIBRARY_SHA@@
+    with:
+      config: '@@APPLE_IMPORT_CONFIG@@'
+      artifact-name: apple-import
+      environment: '@@ENVIRONMENT@@'
+      credentials-config: '@@APPLE_CREDENTIALS_CONFIG@@'
+      aws-role: ${{ vars.@@VARIABLE_PREFIX@@_AWS_ROLE_ARN }}
+      aws-region: ${{ vars.@@VARIABLE_PREFIX@@_AWS_REGION }}
+      asc-key-id: ${{ vars.@@VARIABLE_PREFIX@@_ASC_KEY_ID }}
+      asc-issuer-id: ${{ vars.@@VARIABLE_PREFIX@@_ASC_ISSUER_ID }}
+      apple-bridge-selection: ${{ inputs.apple_selection }}
+      binary-manifest: '@@BINARY_MANIFEST@@'
+      npm-tools: '@@NPM_TOOLS@@'
+      python-tools: '@@PYTHON_TOOLS@@'
+      tool-bundles: '@@TOOL_BUNDLES@@'
+    secrets:
+      ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+  distribute:
+    needs:
+    - import
+    uses: jumahamdan/github-actions/.github/workflows/v2-mobile-stores.yml@@@LIBRARY_SHA@@
+    with:
+      $merge:
+      - $ref: shared.store-with
+      - $ref: shared.apple-store-auth
+      - artifact-run-id: ${{ needs.import.outputs.run-id }}
+        artifact-run-attempt: ${{ needs.import.outputs.run-attempt }}
+        artifact-run-head-sha: ${{ github.sha }}
+        artifact-source-sha: ${{ needs.import.outputs.source-sha }}
+        artifact-identity: ${{ needs.import.outputs.candidate-identity }}
+        artifact-input-name: ${{ needs.import.outputs.candidate-artifact-name }}
+        artifact-workflow: .github/workflows/@@FILENAME@@
+        artifact-producer-job: import / run
+        artifact-allowed-branches: '["@@BRANCH@@"]'
+    secrets:
+      ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+  required:
+    $ref: shared.gate

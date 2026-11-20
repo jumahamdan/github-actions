@@ -1,0 +1,29 @@
+# Caller source: render with scripts/render-product-workflows.py before adoption.
+name: Release · @@PLATFORM_LABEL@@ store promotion
+'on':
+  workflow_dispatch:
+    inputs:
+      $merge:
+      - $ref: shared.manual-candidate-inputs
+      - store_selection:
+          description: Approved store build/version/track selection JSON for the configured operation
+          type: string
+          required: true
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+concurrency:
+  $ref: shared.manual-concurrency
+jobs:
+  distribute:
+    if:
+      $ref: shared.provider-condition
+    uses: jumahamdan/github-actions/.github/workflows/v2-mobile-stores.yml@@@LIBRARY_SHA@@
+    with:
+      $merge:
+      - $ref: shared.candidate-with
+      - $ref: shared.store-with
+      - $ref: shared.@@PLATFORM@@-store-auth
+  required:
+    $ref: shared.gate

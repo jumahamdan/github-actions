@@ -1,0 +1,68 @@
+# Caller source: render with scripts/render-product-workflows.py before adoption.
+read-permissions:
+  contents: read
+  actions: read
+manual-candidate-inputs:
+  candidate:
+    description: 'JSON: run_id, run_attempt, run_head_sha, source_sha, identity, artifact'
+    type: string
+    required: true
+  security_refresh:
+    description: Authenticated candidate-bound security refresh selection, if required
+    type: string
+    required: false
+    default: '{}'
+candidate-with:
+  artifact-run-id: ${{ fromJSON(inputs.candidate).run_id }}
+  artifact-run-attempt: ${{ fromJSON(inputs.candidate).run_attempt }}
+  artifact-run-head-sha: ${{ fromJSON(inputs.candidate).run_head_sha }}
+  artifact-source-sha: ${{ fromJSON(inputs.candidate).source_sha }}
+  artifact-identity: ${{ fromJSON(inputs.candidate).identity }}
+  artifact-input-name: ${{ fromJSON(inputs.candidate).artifact }}
+  artifact-workflow: '@@PRODUCER_WORKFLOW@@'
+  artifact-allowed-branches: '["staging"]'
+  security-refresh: ${{ inputs.security_refresh }}
+provider-with:
+  config: '@@DELIVERY_CONFIG@@'
+  environment: '@@ENVIRONMENT@@'
+  artifact-name: delivery
+  binary-manifest: '@@BINARY_MANIFEST@@'
+  npm-tools: '@@NPM_TOOLS@@'
+  python-tools: '@@PYTHON_TOOLS@@'
+  tool-bundles: '@@TOOL_BUNDLES@@'
+provider-condition: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/@@BRANCH@@' }}
+manual-concurrency:
+  group: delivery-@@ENVIRONMENT@@-${{ github.repository }}
+  cancel-in-progress: false
+gate:
+  if: ${{ always() }}
+  needs:
+  - '@@GATE_NEEDS@@'
+  uses: jumahamdan/github-actions/.github/workflows/v2-required.yml@@@LIBRARY_SHA@@
+  with:
+    config: '@@GATE_CONFIG@@'
+    artifact-name: required
+    job-results: ${{ toJSON(needs) }}
+android-secrets:
+  ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+  ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+  ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+store-with:
+  config: '@@STORE_CONFIG@@'
+  environment: '@@ENVIRONMENT@@'
+  artifact-name: store
+  store-selection: ${{ inputs.store_selection }}
+  state-restore: '{"schema":1,"operation":"restore","repository":"${{ github.repository }}","run_id":"${{ github.run_id
+    }}","run_attempt":"previous","artifact_name":"store-run-{run_id}-attempt-{run_attempt}","expected_workflow":".github/workflows/@@FILENAME@@","producer_job":"distribute
+    / run","allowed_branches":["@@BRANCH@@"],"allowed_events":["workflow_dispatch"],"allowed_conclusions":["success","failure","cancelled","timed_out"],"token_env":"GH_STATE_TOKEN"}'
+  binary-manifest: '@@BINARY_MANIFEST@@'
+  npm-tools: '@@NPM_TOOLS@@'
+  python-tools: '@@PYTHON_TOOLS@@'
+  tool-bundles: '@@TOOL_BUNDLES@@'
+android-store-auth:
+  google-workload-identity-provider: ${{ vars.@@VARIABLE_PREFIX@@_GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+  google-service-account: ${{ vars.@@VARIABLE_PREFIX@@_GOOGLE_SERVICE_ACCOUNT }}
+apple-store-auth:
+  credentials-config: '@@APPLE_CREDENTIALS_CONFIG@@'
+  asc-key-id: ${{ vars.@@VARIABLE_PREFIX@@_ASC_KEY_ID }}
+  asc-issuer-id: ${{ vars.@@VARIABLE_PREFIX@@_ASC_ISSUER_ID }}

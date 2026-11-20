@@ -1,0 +1,91 @@
+# Caller source: render with scripts/render-product-workflows.py before adoption.
+name: Staging · Android build and distribution
+'on':
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: Expected Android versionCode already selected by product build configuration
+        type: string
+        required: true
+      store_selection:
+        description: JSON with approved Play expected_track_digest for upload
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+concurrency:
+  $ref: shared.manual-concurrency
+jobs:
+  build:
+    if:
+      $ref: shared.provider-condition
+    uses: jumahamdan/github-actions/.github/workflows/v2-android-build.yml@@@LIBRARY_SHA@@
+    with:
+      environment: '@@ENVIRONMENT@@'
+      config: '@@QUALITY_CONFIG@@'
+      profile: '@@PROFILE@@'
+      artifact-name: android-build
+      credentials-config: '@@ANDROID_CREDENTIALS_CONFIG@@'
+      receipt-path: checks/build.json
+      candidate-config: '@@BUILD_CANDIDATE_CONFIG@@'
+      candidate-manifest: build-candidate.json
+      candidate-build: ${{ inputs.build_number }}
+      binary-manifest: '@@BINARY_MANIFEST@@'
+      npm-tools: '@@NPM_TOOLS@@'
+      python-tools: '@@PYTHON_TOOLS@@'
+      tool-bundles: '@@TOOL_BUNDLES@@'
+    secrets:
+      $ref: shared.android-secrets
+  verify:
+    needs:
+    - build
+    uses: jumahamdan/github-actions/.github/workflows/v2-mobile-verify.yml@@@LIBRARY_SHA@@
+    with:
+      $merge:
+      - artifact-run-id: ${{ needs.build.outputs.run-id }}
+        artifact-run-attempt: ${{ needs.build.outputs.run-attempt }}
+        artifact-run-head-sha: ${{ github.sha }}
+        artifact-source-sha: ${{ needs.build.outputs.source-sha }}
+        artifact-identity: ${{ needs.build.outputs.candidate-identity }}
+        artifact-input-name: ${{ needs.build.outputs.candidate-artifact-name }}
+        artifact-workflow: .github/workflows/@@FILENAME@@
+        artifact-producer-job: build / run
+        artifact-allowed-branches: '["@@BRANCH@@"]'
+      - environment: '@@ENVIRONMENT@@'
+        config: '@@ANDROID_VERIFY_CONFIG@@'
+        artifact-name: android-verify
+        credentials-config: '@@ANDROID_CREDENTIALS_CONFIG@@'
+        receipt-path: checks/android.json
+        candidate-config: '@@CANDIDATE_CONFIG@@'
+        candidate-manifest: candidate.json
+        candidate-build: ${{ inputs.build_number }}
+        check-receipts: '{"checks/build.json":{"repository":"${{ github.repository }}","run_id":"${{ needs.build.outputs.run-id
+          }}","run_attempt":${{ needs.build.outputs.run-attempt }},"run_head_sha":"${{ github.sha }}","expected_workflow":".github/workflows/@@FILENAME@@","artifact_name":"${{
+          needs.build.outputs.receipt-artifact-name }}","producer_job":"build / run","allowed_branches":["staging"],"allowed_events":["workflow_dispatch"]}}'
+        binary-manifest: '@@BINARY_MANIFEST@@'
+        npm-tools: '@@NPM_TOOLS@@'
+        python-tools: '@@PYTHON_TOOLS@@'
+        tool-bundles: '@@TOOL_BUNDLES@@'
+    secrets:
+      $ref: shared.android-secrets
+  distribute:
+    needs:
+    - verify
+    uses: jumahamdan/github-actions/.github/workflows/v2-mobile-stores.yml@@@LIBRARY_SHA@@
+    with:
+      $merge:
+      - $ref: shared.store-with
+      - $ref: shared.android-store-auth
+      - artifact-run-id: ${{ needs.verify.outputs.run-id }}
+        artifact-run-attempt: ${{ needs.verify.outputs.run-attempt }}
+        artifact-run-head-sha: ${{ github.sha }}
+        artifact-source-sha: ${{ needs.verify.outputs.source-sha }}
+        artifact-identity: ${{ needs.verify.outputs.candidate-identity }}
+        artifact-input-name: ${{ needs.verify.outputs.candidate-artifact-name }}
+        artifact-workflow: .github/workflows/@@FILENAME@@
+        artifact-producer-job: verify / run
+        artifact-allowed-branches: '["@@BRANCH@@"]'
+  required:
+    $ref: shared.gate

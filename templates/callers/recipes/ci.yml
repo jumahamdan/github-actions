@@ -1,0 +1,56 @@
+# Caller source: render with scripts/render-product-workflows.py before adoption.
+name: CI
+'on':
+  pull_request:
+    branches:
+    - develop
+permissions:
+  $ref: shared.read-permissions
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  route:
+    uses: jumahamdan/github-actions/.github/workflows/v2-plan.yml@@@LIBRARY_SHA@@
+    with:
+      config: '@@PRODUCTS_CONFIG@@'
+      artifact-name: route
+  quality:
+    needs:
+    - route
+    uses: jumahamdan/github-actions/.github/workflows/v2-checks.yml@@@LIBRARY_SHA@@
+    with:
+      config: '@@QUALITY_CONFIG@@'
+      profile: '@@PROFILE@@'
+      artifact-name: ci-quality
+      binary-manifest: '@@BINARY_MANIFEST@@'
+      npm-tools: '@@NPM_TOOLS@@'
+      python-tools: '@@PYTHON_TOOLS@@'
+      tool-bundles: '@@TOOL_BUNDLES@@'
+  security:
+    needs:
+    - route
+    uses: jumahamdan/github-actions/.github/workflows/v2-security.yml@@@LIBRARY_SHA@@
+    with:
+      config: '@@SECURITY_CONFIG@@'
+      artifact-name: ci-security
+      binary-manifest: '@@BINARY_MANIFEST@@'
+      npm-tools: '@@NPM_TOOLS@@'
+      python-tools: '@@PYTHON_TOOLS@@'
+      tool-bundles: '@@TOOL_BUNDLES@@'
+  docs:
+    needs:
+    - route
+    uses: jumahamdan/github-actions/.github/workflows/v2-docs.yml@@@LIBRARY_SHA@@
+    with:
+      config: '@@DOCS_CONFIG@@'
+      artifact-name: ci-docs
+  mock-ai:
+    needs:
+    - route
+    uses: jumahamdan/github-actions/.github/workflows/v2-ai-mock.yml@@@LIBRARY_SHA@@
+    with:
+      config: '@@MOCK_AI_CONFIG@@'
+      artifact-name: ci-ai-mock
+  required:
+    $ref: shared.gate

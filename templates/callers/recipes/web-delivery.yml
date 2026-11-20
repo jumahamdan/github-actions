@@ -1,0 +1,20 @@
+# Caller source: render with scripts/render-product-workflows.py before adoption.
+name: '@@STAGE_LABEL@@ · Web deployment'
+'on':
+  workflow_dispatch:
+    inputs:
+      $merge:
+      - $ref: shared.manual-candidate-inputs
+      - prior_deployment:
+          description: Authenticated prior deployment selector for provider promotion operations
+          type: string
+          required: false
+          default: '{}'
+permissions: '@@PROVIDER_PERMISSIONS@@'
+concurrency:
+  $ref: shared.manual-concurrency
+jobs:
+  delivery:
+    $ref: providers.@@PROVIDER@@
+  required:
+    $ref: shared.gate

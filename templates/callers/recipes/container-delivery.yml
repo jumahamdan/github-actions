@@ -1,0 +1,40 @@
+# Caller source: render with scripts/render-product-workflows.py before adoption.
+name: '@@STAGE_LABEL@@ · Container deployment'
+'on':
+  workflow_dispatch:
+    inputs:
+      $merge:
+      - $ref: shared.manual-candidate-inputs
+      - current_release:
+          description: Current server release identifier, or absent for a verified first deployment
+          type: string
+          required: true
+        container_selection:
+          description: Runtime publication/digest selection required by the configured operation
+          type: string
+          required: false
+          default: '{}'
+permissions:
+  contents: read
+  actions: read
+  packages: write
+concurrency:
+  $ref: shared.manual-concurrency
+jobs:
+  delivery:
+    if:
+      $ref: shared.provider-condition
+    uses: jumahamdan/github-actions/.github/workflows/v2-container-delivery.yml@@@LIBRARY_SHA@@
+    with:
+      $merge:
+      - $ref: shared.provider-with
+      - $ref: shared.candidate-with
+      - current-release: ${{ inputs.current_release }}
+        container-selection: ${{ inputs.container_selection }}
+    secrets:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+      REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+  required:
+    $ref: shared.gate

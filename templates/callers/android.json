@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "repository": "example/product",
+  "workflows": [
+    {
+      "recipe": "ci",
+      "profile": "flutter"
+    },
+    {
+      "recipe": "promotion-checks"
+    },
+    {
+      "recipe": "android-staging"
+    },
+    {
+      "recipe": "mobile-release",
+      "platform": "android"
+    }
+  ]
+}
