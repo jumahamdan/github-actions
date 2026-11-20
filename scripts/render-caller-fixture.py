@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Render the credential-free cross-repository contract caller at an exact library SHA."""
+import argparse
+import json
+import re
+import shutil
+from pathlib import Path
+import yaml
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--revision',required=True)
+    parser.add_argument('--output',required=True)
+    parser.add_argument('--retry-proof',action='store_true',help='Make a synthetic downstream job fail once to test a failed-jobs rerun')
+    args=parser.parse_args()
+    if not re.fullmatch(r'[0-9a-f]{40}',args.revision):raise SystemExit('An exact reviewed library commit is required')
+    root=Path(__file__).resolve().parent.parent
+    output=Path(args.output)
+    if output.exists():raise SystemExit('Fixture output must be a fresh directory')
+    shutil.copytree(root/'fixtures/caller',output)
+    prefix='jumahamdan/github-actions/.github/workflows/'
+    workflow_name='retry.yml' if args.retry_proof else 'contract.yml'
+    reuse_path=output/'.ci/reuse.json'
+    reuse_config=json.loads(reuse_path.read_text())
+    reuse_config['source']['workflow']='.github/workflows/'+workflow_name
+    reuse_path.write_text(json.dumps(reuse_config,indent=2)+'\n')
+    workflow={'name':'Shared library cross-repository contract','on':{'push':{'branches':['main']},'pull_request':{'branches':['main']},'workflow_dispatch':None},
+              'permissions':{'contents':'read','actions':'read'},'jobs':{
+      'build':{'uses':prefix+'v2-checks.yml@'+args.revision,'with':{
+        'profile':'shell','config':'.ci/quality.json','artifact-name':'synthetic-build','candidate-config':'.ci/candidate.json',
+        'candidate-manifest':'build/candidate.json','candidate-retention-days':7}},
+      'reuse':{'needs':['build'],'uses':prefix+'v2-reuse.yml@'+args.revision,'with':{
+        'config':'.ci/reuse.json','artifact-name':'synthetic-reuse',
+        'quality-run-id':'${{ needs.build.outputs.run-id }}',
+        'quality-run-attempt':'${{ needs.build.outputs.run-attempt }}',
+        'quality-run-head-sha':'${{ github.event.pull_request.head.sha || github.sha }}',
+        'quality-tested-sha':'${{ needs.build.outputs.source-sha }}',
+        'quality-artifact':'${{ needs.build.outputs.receipt-artifact-name }}',
+        'quality-producer-job':'build / run',
+        'quality-allowed-branches':"${{ format('[\"{0}\"]', github.head_ref || github.ref_name) }}",
+        'quality-allowed-events':'["push","workflow_dispatch","pull_request"]'}},
+      'verify':{'needs':['build','reuse'],'uses':prefix+'v2-evidence.yml@'+args.revision,'with':{
+        'config':'build/candidate.json','operation':'verify','artifact-name':'synthetic-verification',
+        'artifact-run-id':'${{ needs.build.outputs.run-id }}','artifact-run-attempt':'${{ needs.build.outputs.run-attempt }}',
+        'artifact-run-head-sha':'${{ github.event.pull_request.head.sha || github.sha }}',
+        'artifact-source-sha':'${{ needs.build.outputs.source-sha }}','artifact-identity':'${{ needs.build.outputs.candidate-identity }}',
+        'artifact-workflow':'.github/workflows/'+workflow_name,'artifact-input-name':'${{ needs.build.outputs.candidate-artifact-name }}',
+        'artifact-producer-job':'build / run',
+        'artifact-allowed-branches':"${{ format('[\"{0}\"]', github.head_ref || github.ref_name) }}",
+        'artifact-allowed-events':'["push","workflow_dispatch","pull_request"]'}}}}
+    if args.retry_proof:
+        workflow['name']='Shared library earlier-attempt retry contract'
+        workflow['jobs']['retry-boundary']={'needs':['build'],'runs-on':'ubuntu-24.04','timeout-minutes':2,
+            'steps':[{'name':'Deliberately require one failed-jobs rerun','shell':'bash','run':'test "$GITHUB_RUN_ATTEMPT" -gt 1'}]}
+        workflow['jobs']['reuse']['needs']=['build','retry-boundary']
+    target=output/'.github/workflows'/workflow_name;target.parent.mkdir(parents=True)
+    target.write_text(yaml.safe_dump(workflow,sort_keys=False,width=110))
+    (output/'README.md').write_text('# Shared workflow contract fixture\n\nSynthetic, credential-free cross-repository build and artifact-transfer test. No product code or provider deployments.\n')
+    (output/'.gitignore').write_text('build/\n__pycache__/\n')
+
+
+if __name__=='__main__':main()

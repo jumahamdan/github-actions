@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "profile": "node",
+  "toolchain": [
+    {
+      "command": [
+        "node",
+        "--version"
+      ],
+      "version": "22.14.0"
+    },
+    {
+      "command": [
+        "npm",
+        "--version"
+      ],
+      "version": "10.9.2"
+    }
+  ],
+  "lockfiles": [
+    "package-lock.json"
+  ],
+  "inputs": [
+    "package.json",
+    "package-lock.json",
+    "src",
+    "test"
+  ],
+  "checks": [
+    {
+      "name": "format",
+      "kind": "format",
+      "command": [
+        "npm",
+        "run",
+        "format:check"
+      ]
+    },
+    {
+      "name": "lint",
+      "kind": "lint",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ]
+    },
+    {
+      "name": "types",
+      "kind": "typecheck",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ]
+    },
+    {
+      "name": "tests",
+      "kind": "test",
+      "command": [
+        "npm",
+        "run",
+        "test:ci"
+      ],
+      "test_report": {
+        "path": ".ci-results/junit.xml",
+        "format": "junit"
+      }
+    }
+  ],
+  "required_checks": [
+    "format",
+    "lint",
+    "types",
+    "tests"
+  ],
+  "receipt": ".ci-results/node-quality.json",
+  "install": [
+    "npm",
+    "ci"
+  ]
+}

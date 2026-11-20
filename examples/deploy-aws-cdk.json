@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "provider": "aws-cdk",
+  "operation": "deploy",
+  "environment": "staging",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "inputs": [
+    "cdk.json",
+    "package.json",
+    "package-lock.json",
+    "src"
+  ],
+  "tools": {
+    "aws": {
+      "command": [
+        "aws"
+      ],
+      "version": "2.27.49"
+    },
+    "cdk": {
+      "command": [
+        "cdk"
+      ],
+      "version": "2.1029.0"
+    }
+  },
+  "settings": {
+    "account": "123456789012",
+    "region": "us-east-1",
+    "stack": "ExampleStaging",
+    "externally_managed_ssm_parameters": [
+      "/example/staging/runtime/model",
+      "/example/staging/runtime/daily-token-cap"
+    ],
+    "protected_logical_ids": []
+  },
+  "receipt": ".ci-results/deployment.json",
+  "timeout": 1800
+}

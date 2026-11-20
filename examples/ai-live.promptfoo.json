@@ -1,0 +1,33 @@
+{
+  "description": "Configure your product model and assertions before enabling",
+  "providers": [
+    "openai:responses:configure-your-model"
+  ],
+  "prompts": [
+    "Reply with exactly the supplied word: {{word}}"
+  ],
+  "tests": [
+    {
+      "vars": {
+        "word": "hello"
+      },
+      "assert": [
+        {
+          "type": "equals",
+          "value": "hello"
+        }
+      ]
+    },
+    {
+      "vars": {
+        "word": "world"
+      },
+      "assert": [
+        {
+          "type": "equals",
+          "value": "world"
+        }
+      ]
+    }
+  ]
+}

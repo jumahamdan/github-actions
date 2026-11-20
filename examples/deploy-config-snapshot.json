@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "provider": "firebase",
+  "operation": "snapshot",
+  "environment": "staging",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "inputs": [
+    "firebase.json"
+  ],
+  "expected_input_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "tools": {
+    "firebase": {
+      "command": [
+        "firebase"
+      ],
+      "version": "14.10.1"
+    }
+  },
+  "settings": {
+    "kind": "remote-config",
+    "project": "example-staging"
+  },
+  "receipt": ".ci-results/deployment.json",
+  "timeout": 1800
+}

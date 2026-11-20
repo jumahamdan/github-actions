@@ -1,0 +1,319 @@
+name: Shared v2 aws
+'on':
+  workflow_call:
+    inputs:
+      config:
+        description: Configuration path relative to caller root
+        required: true
+        type: string
+      root:
+        description: Caller root relative to workspace
+        required: false
+        type: string
+        default: .
+      python-version:
+        description: Exact Python version
+        required: false
+        type: string
+        default: 3.12.3
+      node-version:
+        description: Exact Node version
+        required: false
+        type: string
+        default: 22.23.4
+      binary-manifest:
+        description: Caller checksum manifest for extra CLI tools
+        required: false
+        type: string
+        default: ''
+      npm-tools:
+        description: Caller lockfile-based CLI tool directory
+        required: false
+        type: string
+        default: ''
+      artifact-name:
+        description: Unique artifact base name; actual receipt and candidate names include run/attempt
+        required: true
+        type: string
+      aws-role:
+        description: Explicit deployment role
+        required: true
+        type: string
+      aws-region:
+        description: Explicit AWS region
+        required: true
+        type: string
+      environment:
+        description: Explicit configured GitHub environment
+        required: true
+        type: string
+      python-tools:
+        description: Hash-locked caller pip requirements file
+        type: string
+        required: false
+        default: ''
+      credentials-config:
+        description: Named credential contract relative to caller root
+        type: string
+        required: false
+        default: ''
+      receipt-path:
+        type: string
+        description: Retained module receipt path relative to caller root
+        required: false
+        default: ''
+      candidate-config:
+        description: Optional evidence.create configuration after this operation
+        type: string
+        required: false
+        default: ''
+      candidate-manifest:
+        description: Retained candidate manifest path
+        type: string
+        required: false
+        default: .ci-output/candidate.json
+      artifact-run-id:
+        description: Producer run ID; empty disables import
+        type: string
+        required: false
+        default: ''
+      artifact-run-attempt:
+        description: Producer run attempt
+        type: string
+        required: false
+        default: '1'
+      artifact-source-sha:
+        description: Expected original candidate commit
+        type: string
+        required: false
+        default: ''
+      artifact-identity:
+        description: Expected selected candidate identity
+        type: string
+        required: false
+        default: ''
+      artifact-workflow:
+        description: Trusted producer workflow path
+        type: string
+        required: false
+        default: ''
+      artifact-input-name:
+        description: Unique candidate artifact to import
+        type: string
+        required: false
+        default: ''
+      artifact-producer-job:
+        description: Completed producer job name for same-run transport
+        type: string
+        required: false
+        default: ''
+      candidate-retention-days:
+        description: Retention covering promotion and symbol recovery
+        type: number
+        required: false
+        default: 90
+      check-digests:
+        type: string
+        description: Trusted required receipt digests from prior step/job outputs
+        required: false
+        default: '{}'
+      tool-bundles:
+        description: Reviewed built-in tool bundles
+        type: string
+        required: false
+        default: ''
+      artifact-allowed-branches:
+        description: JSON array of trusted producer branch names; required whenever importing
+        type: string
+        required: false
+        default: '[]'
+      receipt-retention-days:
+        description: Retain operation receipts and retry state for this many days
+        type: number
+        required: false
+        default: 90
+      security-refresh:
+        description: JSON mapping original security checks to authenticated current scan selectors and policy hashes
+        type: string
+        required: false
+        default: ''
+      artifact-run-head-sha:
+        description: Explicit producer REST run head SHA; defaults to candidate source SHA for push
+        type: string
+        required: false
+        default: ''
+      check-receipts:
+        description: JSON mapping retained check paths to authenticated receipt selectors for candidate composition
+        type: string
+        required: false
+        default: '{}'
+      candidate-build:
+        description: Trusted allocated build number for candidate config build=workflow; creation only
+        type: string
+        required: false
+        default: ''
+    outputs:
+      status:
+        description: passed, advisory, or pending; only passed satisfies release gates
+        value: ${{ jobs.run.outputs.status }}
+      candidate-identity:
+        description: candidate-identity
+        value: ${{ jobs.run.outputs.candidate-identity }}
+      source-sha:
+        description: source-sha
+        value: ${{ jobs.run.outputs.source-sha }}
+      receipt-sha256:
+        description: receipt-sha256
+        value: ${{ jobs.run.outputs.receipt-sha256 }}
+      state:
+        description: Provider processing/review/availability state
+        value: ${{ jobs.run.outputs.state }}
+      candidate-manifest:
+        description: Verified retained candidate manifest path
+        value: ${{ jobs.run.outputs.candidate-manifest }}
+      receipt-artifact-name:
+        description: Exact uploaded receipt/state artifact name for authenticated reuse or retry
+        value: ${{ jobs.run.outputs.receipt-artifact-name }}
+      candidate-artifact-name:
+        description: Exact uploaded candidate artifact name for downstream import
+        value: ${{ jobs.run.outputs.candidate-artifact-name }}
+      run-id:
+        description: Producer run ID
+        value: ${{ jobs.run.outputs.run-id }}
+      run-attempt:
+        description: Producer run attempt
+        value: ${{ jobs.run.outputs.run-attempt }}
+    secrets:
+      ARTIFACT_READ_TOKEN:
+        description: Optional existing token when GitHub token cannot read producer artifacts
+        required: false
+permissions:
+  contents: read
+  id-token: write
+  actions: read
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      status: ${{ steps.execute.outputs.status }}
+      candidate-identity: ${{ steps.package.outputs.candidate-identity || steps.import-candidate.outputs.candidate-identity
+        || steps.execute.outputs.candidate-identity }}
+      source-sha: ${{ steps.package.outputs.source-sha || steps.import-candidate.outputs.source-sha || steps.execute.outputs.source-sha
+        }}
+      receipt-sha256: ${{ steps.execute.outputs.receipt-sha256 }}
+      state: ${{ steps.execute.outputs.state }}
+      candidate-manifest: ${{ steps.package.outputs.manifest || steps.import-candidate.outputs.manifest || steps.execute.outputs.manifest
+        }}
+      receipt-artifact-name: ${{ steps.retain-evidence.outcome == 'success' && format('{0}-run-{1}-attempt-{2}',
+        inputs.artifact-name, github.run_id, github.run_attempt) || '' }}
+      candidate-artifact-name: ${{ steps.retain-candidate.outcome == 'success' && format('{0}-candidate-run-{1}-attempt-{2}',
+        inputs.artifact-name, github.run_id, github.run_attempt) || '' }}
+      run-id: ${{ github.run_id }}
+      run-attempt: ${{ github.run_attempt }}
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+        fetch-depth: 0
+        ref: ${{ github.sha }}
+    - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      with:
+        python-version: ${{ inputs.python-version }}
+    - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+      with:
+        node-version: ${{ inputs.node-version }}
+    - uses: $/actions/v2-setup
+      with:
+        binary-manifest: ${{ inputs.binary-manifest }}
+        npm-tools: ${{ inputs.npm-tools }}
+        ai-tools: 'false'
+        python-tools: ${{ inputs.python-tools }}
+        tool-bundles: ${{ inputs.tool-bundles }}
+    - id: import-candidate
+      if: ${{ inputs.artifact-run-id != '' }}
+      uses: $/actions/v2-artifacts
+      with:
+        operation: fetch
+        root: ${{ inputs.root }}
+        run-id: ${{ inputs.artifact-run-id }}
+        run-attempt: ${{ inputs.artifact-run-attempt }}
+        source-sha: ${{ inputs.artifact-source-sha }}
+        identity: ${{ inputs.artifact-identity }}
+        workflow: ${{ inputs.artifact-workflow }}
+        artifact-name: ${{ inputs.artifact-input-name }}
+        producer-job: ${{ inputs.artifact-producer-job }}
+        allowed-branches: ${{ inputs.artifact-allowed-branches }}
+        run-head-sha: ${{ inputs.artifact-run-head-sha }}
+      env:
+        GH_ARTIFACT_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+    - uses: aws-actions/configure-aws-credentials@cabfdba3510de1431bac9dba27511d97497fc100
+      with:
+        role-to-assume: ${{ inputs.aws-role }}
+        aws-region: ${{ inputs.aws-region }}
+        role-session-name: shared-ci-${{ github.run_id }}
+    - id: execute
+      uses: $/actions/v2-run
+      with:
+        module: deploy
+        config: ${{ inputs.config }}
+        root: ${{ inputs.root }}
+        credentials-config: ${{ inputs.credentials-config }}
+        receipt-path: ${{ inputs.receipt-path }}
+        selected-manifest: ${{ steps.import-candidate.outputs.manifest }}
+        selected-identity: ${{ steps.import-candidate.outputs.candidate-identity }}
+        selected-source-sha: ${{ steps.import-candidate.outputs.source-sha }}
+        security-refresh: ${{ inputs.security-refresh }}
+      env:
+        DEPLOYMENT_ENVIRONMENT: ${{ inputs.environment }}
+        GH_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+        GH_EVIDENCE_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+    - name: Preserve sanitized evidence
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      with:
+        name: ${{ format('{0}-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt) }}
+        path: ${{ steps.execute.outputs.bundle }}
+        if-no-files-found: error
+        retention-days: ${{ inputs.receipt-retention-days }}
+        include-hidden-files: false
+      if: ${{ always() && steps.execute.outputs.bundle != '' }}
+      id: retain-evidence
+    - id: candidate
+      if: ${{ inputs.candidate-config != '' && steps.execute.outputs.status == 'passed' }}
+      uses: $/actions/v2-run
+      with:
+        module: evidence
+        operation: create
+        config: ${{ inputs.candidate-config }}
+        root: ${{ inputs.root }}
+        receipt-path: ${{ inputs.candidate-manifest }}
+        check-digests: ${{ inputs.check-digests }}
+        current-receipt-path: ${{ steps.execute.outputs.retained-path }}
+        current-receipt-sha: ${{ steps.execute.outputs.receipt-sha256 }}
+        check-receipts: ${{ inputs.check-receipts }}
+        candidate-build: ${{ inputs.candidate-build }}
+      env:
+        GH_TOKEN: ${{ secrets.ARTIFACT_READ_TOKEN || github.token }}
+    - id: package
+      if: ${{ inputs.candidate-config != '' && steps.execute.outputs.status == 'passed' }}
+      uses: $/actions/v2-artifacts
+      with:
+        operation: package
+        root: ${{ inputs.root }}
+        manifest: ${{ inputs.candidate-manifest }}
+    - name: Retain exact candidate
+      if: ${{ inputs.candidate-config != '' && steps.execute.outputs.status == 'passed' }}
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+      with:
+        name: ${{ format('{0}-candidate-run-{1}-attempt-{2}', inputs.artifact-name, github.run_id, github.run_attempt)
+          }}
+        path: ${{ steps.package.outputs.directory }}
+        if-no-files-found: error
+        include-hidden-files: true
+        retention-days: ${{ inputs.candidate-retention-days }}
+      id: retain-candidate
+    environment: ${{ inputs.environment }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    concurrency:
+      group: aws-${{ github.repository }}-${{ inputs.environment }}
+      cancel-in-progress: false

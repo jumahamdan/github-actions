@@ -1,0 +1,15 @@
+{
+  "operation": "device-test",
+  "provider": "ddp-instrumentation",
+  "live_enabled": false,
+  "allowed_refs": ["refs/heads/staging"],
+  "app": "build/device-tests/candidate.apk",
+  "test": "build/device-tests/instrumentation.apk",
+  "project": "example-project",
+  "bucket": "example-device-results",
+  "location": "us-central1",
+  "access_token_env": "GOOGLE_DEVICE_ACCESS_TOKEN",
+  "timeout_seconds": 300,
+  "deadline_seconds": 1800,
+  "devices": ["replace-with-ddp-device-id"]
+}

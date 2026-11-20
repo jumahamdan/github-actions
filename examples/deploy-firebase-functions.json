@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "provider": "firebase",
+  "operation": "deploy",
+  "environment": "staging",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "inputs": [
+    "firebase.json",
+    "functions"
+  ],
+  "tools": {
+    "firebase": {
+      "command": [
+        "firebase"
+      ],
+      "version": "14.10.1"
+    },
+    "gcloud": {
+      "command": [
+        "gcloud"
+      ],
+      "version": "582.0.0"
+    }
+  },
+  "settings": {
+    "project": "example-staging",
+    "config": "firebase.json",
+    "components": [
+      "functions"
+    ],
+    "allow_provider_rebuild": true,
+    "functions": [
+      {
+        "name": "eventCheckIn",
+        "region": "us-central1"
+      }
+    ]
+  },
+  "receipt": ".ci-results/deployment.json",
+  "timeout": 1800
+}

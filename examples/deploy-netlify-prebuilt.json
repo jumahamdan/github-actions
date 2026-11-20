@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "provider": "netlify",
+  "operation": "deploy",
+  "environment": "staging",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "inputs": [
+    "dist",
+    "netlify.toml"
+  ],
+  "tools": {
+    "netlify": {
+      "command": [
+        "netlify"
+      ],
+      "version": "23.1.0"
+    }
+  },
+  "settings": {
+    "site_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    "directory": "dist",
+    "context": "deploy-preview",
+    "production": false,
+    "build_mode": "prebuilt"
+  },
+  "receipt": ".ci-results/deployment.json",
+  "timeout": 1800
+}

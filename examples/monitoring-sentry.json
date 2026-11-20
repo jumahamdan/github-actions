@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "candidate": "candidate.json",
+  "inspection": "receipts/mobile.json",
+  "expected_identity": "0000000000000000000000000000000000000000000000000000000000000000",
+  "expected_source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "operation": "sentry-native",
+  "tool": {
+    "prefix": [
+      "sentry-cli"
+    ],
+    "version": "REPLACE_WITH_EXACT_PINNED_VERSION_OUTPUT"
+  },
+  "symbols": [
+    "dSYMs/App.app.dSYM/Contents/Resources/DWARF/App"
+  ],
+  "sentry": {
+    "org": "example-org",
+    "project": "example-app",
+    "token_env": "SENTRY_AUTH_TOKEN",
+    "release": "org.example.app@1.0.0+123",
+    "environment": "staging",
+    "dist": "123"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "profile": "swift",
+  "toolchain": [
+    {
+      "command": [
+        "swiftlint",
+        "version"
+      ],
+      "version": "0.59.1"
+    }
+  ],
+  "lockfiles": [],
+  "inputs": [
+    ".swiftlint.yml",
+    "Sources"
+  ],
+  "checks": [
+    {
+      "name": "lint",
+      "kind": "lint",
+      "command": [
+        "swiftlint",
+        "lint",
+        "--strict"
+      ]
+    }
+  ],
+  "required_checks": [
+    "lint"
+  ],
+  "receipt": ".ci-results/swift-quality.json"
+}

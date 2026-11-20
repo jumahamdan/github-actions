@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "threshold": "high",
+  "max_age_hours": 24,
+  "exceptions": [],
+  "scans": [
+    {
+      "id": "filesystem-dependencies-iac-secrets",
+      "format": "trivy",
+      "command": [
+        "trivy",
+        "fs",
+        "--skip-check-update",
+        "--scanners",
+        "vuln,misconfig,secret",
+        "--format=json",
+        "--output={report}",
+        "."
+      ],
+      "version_command": [
+        "trivy",
+        "--version"
+      ],
+      "version": "0.69.3",
+      "output": "file",
+      "rules_identity": "builtin:0.69.3",
+      "database_identity": {
+        "command": [
+          "trivy",
+          "--version",
+          "--format=json"
+        ],
+        "max_age_hours": 24
+      },
+      "allowed_exit_codes": [
+        0
+      ]
+    }
+  ]
+}

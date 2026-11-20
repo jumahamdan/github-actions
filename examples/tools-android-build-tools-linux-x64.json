@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "bounds": {
+    "max_download_bytes": 67108864,
+    "max_expanded_bytes": 167772160,
+    "max_files": 256
+  },
+  "tools": [
+    {
+      "name": "android-build-tools",
+      "version": "35.0.0",
+      "url": "https://dl.google.com/android/repository/build-tools_r35_linux.zip",
+      "sha256": "bd3a4966912eb8b30ed0d00b0cda6b6543b949d5ffe00bea54c04c81e1561d88",
+      "format": "zip",
+      "strip_prefix": "android-15",
+      "entrypoints": {
+        "apksigner": "apksigner",
+        "zipalign": "zipalign",
+        "aapt2": "aapt2"
+      }
+    }
+  ]
+}

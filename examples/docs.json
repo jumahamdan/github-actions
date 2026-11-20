@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "documents": [
+    "README.md",
+    "docs/**/*.md"
+  ],
+  "required_files": [
+    "docs/architecture.md",
+    "docs/release.md",
+    "docs/recovery.md"
+  ],
+  "generated": [
+    {
+      "command": [
+        "python3",
+        "scripts/docs/generate_facts.py"
+      ],
+      "outputs": [
+        "README.md"
+      ]
+    }
+  ],
+  "receipt": ".ci-results/docs.json"
+}

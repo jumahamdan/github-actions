@@ -1,0 +1,29 @@
+{
+  "operation": "apple-emergency-archive",
+  "kind": "native",
+  "xcode": {
+    "version": "26.1",
+    "build": "17B55"
+  },
+  "project": "Example.xcodeproj",
+  "scheme": "Example",
+  "locks": {
+    "Example.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "execution": {
+    "mode": "emergency-mac",
+    "operator": "release-operator",
+    "reason": "Authorized emergency build while the primary Apple lane is unavailable",
+    "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ref": "refs/heads/staging",
+    "build_id": "manual-example-42"
+  },
+  "archive": ".ci-artifacts/Example-42.xcarchive",
+  "configuration": "Release",
+  "signing": "unsigned",
+  "version": "1.2.0",
+  "build": "42",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ]
+}

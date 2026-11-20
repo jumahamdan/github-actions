@@ -1,0 +1,70 @@
+{
+  "operation": "deploy",
+  "ssh": {
+    "host": "deploy.example",
+    "user": "deploy",
+    "port": 22,
+    "private_key_env": "SSH_PRIVATE_KEY",
+    "known_hosts_env": "SSH_KNOWN_HOSTS"
+  },
+  "directory": "/srv/example",
+  "project": "example",
+  "manifest": "artifacts/container-set.json",
+  "compose_files": [
+    "deploy/compose.yaml"
+  ],
+  "support_files": {
+    "Caddyfile": "deploy/Caddyfile"
+  },
+  "profiles": [],
+  "runtime_env_file": "runtime.env",
+  "data_mode": "stateful",
+  "backup": {
+    "argv": [
+      "@compose",
+      "exec",
+      "-T",
+      "db",
+      "pg_dump",
+      "--clean",
+      "--if-exists",
+      "-U",
+      "app",
+      "app"
+    ],
+    "timeout": 600
+  },
+  "migrations": [
+    {
+      "argv": [
+        "@compose",
+        "run",
+        "--rm",
+        "--no-deps",
+        "app",
+        "migrate"
+      ],
+      "timeout": 600
+    }
+  ],
+  "health": [
+    {
+      "argv": [
+        "@compose",
+        "exec",
+        "-T",
+        "app",
+        "healthcheck"
+      ],
+      "timeout": 60
+    }
+  ],
+  "migration_policy": "backward-compatible",
+  "expected_current_release": "absent",
+  "allowed_refs": [
+    "refs/heads/main"
+  ],
+  "receipt": "artifacts/server-deployment.json",
+  "timeout": 1800,
+  "lock_timeout": 30
+}

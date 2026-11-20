@@ -1,0 +1,10 @@
+{
+  "operation": "apple-bootstrap",
+  "kind": "native",
+  "xcode": {"version": "26.1", "build": "17B55"},
+  "project": "Example.xcodeproj",
+  "scheme": "Example",
+  "locks": {
+    "Example.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

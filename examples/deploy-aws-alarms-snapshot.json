@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "provider": "aws-cdk",
+  "operation": "snapshot",
+  "environment": "staging",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "inputs": [
+    "infra/cdk.json"
+  ],
+  "expected_input_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "tools": {
+    "aws": {
+      "command": [
+        "aws"
+      ],
+      "version": "2.27.49"
+    }
+  },
+  "settings": {
+    "kind": "alarms",
+    "account": "123456789012",
+    "region": "us-east-1"
+  },
+  "receipt": ".ci-results/deployment.json",
+  "timeout": 1800
+}

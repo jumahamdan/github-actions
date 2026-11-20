@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "threshold": "high",
+  "max_age_hours": 24,
+  "exceptions": [],
+  "scans": [{
+    "id": "npm-production-and-development",
+    "format": "npm",
+    "command": ["npm", "audit", "--json", "--package-lock-only"],
+    "version_command": ["npm", "--version"],
+    "version": "10.9.8",
+    "output": "stdout",
+    "rules_identity": "builtin:10.9.8",
+    "database_identity": "online",
+    "allowed_exit_codes": [0, 1]
+  }]
+}

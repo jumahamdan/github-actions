@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "threshold": "high",
+  "max_age_hours": 24,
+  "exceptions": [],
+  "scans": [{
+    "id": "codeql-javascript-none",
+    "format": "sarif",
+    "command": ["cat", ".shared-codeql-results/javascript.sarif"],
+    "version_command": ["codeql", "version", "--format=json"],
+    "version": "2.27.4",
+    "output": "stdout",
+    "rules_identity": "builtin:2.27.4",
+    "database_identity": "none",
+    "allowed_exit_codes": [0]
+  }]
+}

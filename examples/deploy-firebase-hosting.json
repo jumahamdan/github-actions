@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "provider": "firebase",
+  "operation": "deploy",
+  "environment": "staging",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "inputs": [
+    "firebase.json",
+    "dist"
+  ],
+  "tools": {
+    "firebase": {
+      "command": [
+        "firebase"
+      ],
+      "version": "14.10.1"
+    },
+    "gcloud": {
+      "command": [
+        "gcloud"
+      ],
+      "version": "582.0.0"
+    }
+  },
+  "settings": {
+    "project": "example-staging",
+    "config": "firebase.json",
+    "components": [
+      "hosting"
+    ],
+    "hosting_sites": [
+      "example-staging"
+    ]
+  },
+  "receipt": ".ci-results/deployment.json",
+  "timeout": 1800
+}

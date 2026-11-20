@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "mode": "branch",
+  "project_key": "example-product",
+  "organization": "example",
+  "host_url": "https://sonarcloud.io",
+  "source_paths": [
+    "src"
+  ],
+  "quality_receipt": ".ci-results/quality.json",
+  "coverage": [
+    {
+      "path": "coverage/lcov.info",
+      "property": "sonar.javascript.lcov.reportPaths"
+    }
+  ],
+  "branch": "develop",
+  "scanner": {
+    "command": [
+      "sonar-scanner"
+    ],
+    "version": "8.3.1.16491"
+  },
+  "allowed_refs": [
+    "refs/heads/develop"
+  ],
+  "receipt": ".ci-results/sonar.json"
+}

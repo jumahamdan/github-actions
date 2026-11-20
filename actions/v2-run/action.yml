@@ -1,0 +1,140 @@
+name: Shared workflow module
+description: Execute a validated module from the same immutable revision as the reusable workflow.
+inputs:
+  receipt-path:
+    description: Optional retained receipt path relative to caller root
+    default: ''
+  credentials-config:
+    description: Optional named credentials and temporary secret-file contract
+    default: ''
+  module:
+    description: Shared module name
+    required: true
+  config:
+    description: Caller configuration path relative to root
+    required: true
+  root:
+    description: Caller root relative to workspace
+    default: .
+  operation:
+    description: Explicit operation for evidence or release modules
+    default: ''
+  audience:
+    description: Release-note audience
+    default: public
+  job-results:
+    description: Results supplied by the caller required-check gate
+    default: '{}'
+  check-digests:
+    description: check-digests
+    default: '{}'
+  current-receipt-path:
+    description: current-receipt-path
+    default: ''
+  current-receipt-sha:
+    description: current-receipt-sha
+    default: ''
+  selected-manifest:
+    description: Manifest path returned by authenticated candidate transport
+    default: ''
+  selected-identity:
+    description: Candidate identity returned by authenticated transport
+    default: ''
+  selected-source-sha:
+    description: Original candidate source SHA returned by authenticated transport
+    default: ''
+  state-restore:
+    description: Exact previous store attempt state selector JSON
+    default: ''
+  prior-deployment:
+    description: Authenticated prior deployment receipt selector JSON
+    default: ''
+  security-refresh:
+    description: Current candidate-bound security receipt selectors JSON
+    default: ''
+  current-release:
+    description: Expected current container release ID or explicit absent
+    default: ''
+  apple-bridge-selection:
+    description: Approved Apple Cloud build and immutable S3 version selection JSON
+    default: ''
+  check-receipts:
+    description: Retained check destinations mapped to authenticated receipt selectors JSON
+    default: '{}'
+  container-selection:
+    description: Approved container publication/tag or rollback target selection JSON
+    default: ''
+  store-selection:
+    description: Approved moving Apple build/version selections or Play track digest JSON
+    default: ''
+  candidate-build:
+    description: Trusted allocated build number; resolves candidate config build=workflow during creation
+    default: ''
+outputs:
+  plan:
+    description: Product applicability and branch phase JSON
+    value: ${{ steps.execute.outputs.plan }}
+  candidate-identity:
+    description: Created candidate identity
+    value: ${{ steps.execute.outputs.candidate-identity }}
+  source-sha:
+    description: Created candidate source revision
+    value: ${{ steps.execute.outputs.source-sha }}
+  receipt:
+    description: Sanitized receipt file
+    value: ${{ steps.execute.outputs.receipt }}
+  bundle:
+    description: Allowlisted artifact directory
+    value: ${{ steps.execute.outputs.bundle }}
+  status:
+    description: passed, advisory, or pending; only passed satisfies a release gate
+    value: ${{ steps.execute.outputs.status }}
+  receipt-sha256:
+    description: receipt-sha256
+    value: ${{ steps.execute.outputs.receipt-sha256 }}
+  retained-path:
+    description: retained-path
+    value: ${{ steps.execute.outputs.retained-path }}
+  state:
+    description: state
+    value: ${{ steps.execute.outputs.state }}
+  manifest:
+    description: Retained or imported candidate manifest path
+    value: ${{ steps.execute.outputs.manifest }}
+  build-number:
+    description: Successfully allocated mobile build number; caller retains the durable ledger and product-wide
+      lock
+    value: ${{ steps.execute.outputs.build-number }}
+runs:
+  using: composite
+  steps:
+  - name: Execute library module
+    id: execute
+    shell: bash
+    env:
+      SHARED_RECEIPT_PATH: ${{ inputs.receipt-path }}
+      SHARED_CREDENTIALS_CONFIG: ${{ inputs.credentials-config }}
+      SHARED_MODULE: ${{ inputs.module }}
+      SHARED_CONFIG: ${{ inputs.config }}
+      SHARED_ROOT: ${{ inputs.root }}
+      SHARED_OPERATION: ${{ inputs.operation }}
+      SHARED_AUDIENCE: ${{ inputs.audience }}
+      SHARED_JOB_RESULTS: ${{ inputs.job-results }}
+      SHARED_ACTION_PATH: ${{ github.action_path }}
+      SHARED_ACTION_REF: ${{ github.action_ref }}
+      SHARED_CHECK_DIGESTS: ${{ inputs.check-digests }}
+      SHARED_CURRENT_RECEIPT_PATH: ${{ inputs.current-receipt-path }}
+      SHARED_CURRENT_RECEIPT_SHA: ${{ inputs.current-receipt-sha }}
+      SHARED_CANDIDATE_MANIFEST: ${{ inputs.selected-manifest }}
+      SHARED_CANDIDATE_IDENTITY: ${{ inputs.selected-identity }}
+      SHARED_CANDIDATE_SOURCE_SHA: ${{ inputs.selected-source-sha }}
+      SHARED_STATE_RESTORE: ${{ inputs.state-restore }}
+      SHARED_PRIOR_DEPLOYMENT: ${{ inputs.prior-deployment }}
+      SHARED_SECURITY_REFRESH: ${{ inputs.security-refresh }}
+      SHARED_CURRENT_RELEASE: ${{ inputs.current-release }}
+      SHARED_APPLE_BRIDGE_SELECTION: ${{ inputs.apple-bridge-selection }}
+      SHARED_CHECK_RECEIPTS: ${{ inputs.check-receipts }}
+      SHARED_CONTAINER_SELECTION: ${{ inputs.container-selection }}
+      SHARED_STORE_SELECTION: ${{ inputs.store-selection }}
+      SHARED_CANDIDATE_BUILD: ${{ inputs.candidate-build }}
+    run: python3 "$SHARED_ACTION_PATH/../../scripts/run-module.py"

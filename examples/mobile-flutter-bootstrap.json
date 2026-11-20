@@ -1,0 +1,14 @@
+{
+  "operation": "apple-bootstrap",
+  "kind": "flutter",
+  "xcode": {"version": "26.1", "build": "17B55"},
+  "project": "ios/Runner.xcworkspace",
+  "scheme": "Runner",
+  "flutter": {"version": "3.50.0", "revision": "0000000000000000000000000000000000000000", "directory": "."},
+  "pods": {"version": "1.16.2", "directory": "ios"},
+  "locks": {
+    "pubspec.lock": "0000000000000000000000000000000000000000000000000000000000000000",
+    "ios/Podfile.lock": "0000000000000000000000000000000000000000000000000000000000000000",
+    "ios/Gemfile.lock": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

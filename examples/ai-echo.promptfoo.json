@@ -1,0 +1,33 @@
+{
+  "description": "Synthetic deterministic offline evaluation",
+  "providers": [
+    "echo"
+  ],
+  "prompts": [
+    "{{message}}"
+  ],
+  "tests": [
+    {
+      "vars": {
+        "message": "hello"
+      },
+      "assert": [
+        {
+          "type": "equals",
+          "value": "hello"
+        }
+      ]
+    },
+    {
+      "vars": {
+        "message": "world"
+      },
+      "assert": [
+        {
+          "type": "contains",
+          "value": "world"
+        }
+      ]
+    }
+  ]
+}

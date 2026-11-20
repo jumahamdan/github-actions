@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "profile": "deno",
+  "toolchain": [
+    {
+      "command": [
+        "deno",
+        "--version"
+      ],
+      "version": "2.2.6"
+    }
+  ],
+  "lockfiles": [
+    "deno.lock"
+  ],
+  "inputs": [
+    "deno.json",
+    "deno.lock",
+    "src",
+    "tests"
+  ],
+  "checks": [
+    {
+      "name": "format",
+      "kind": "format",
+      "command": [
+        "deno",
+        "fmt",
+        "--check"
+      ]
+    },
+    {
+      "name": "lint",
+      "kind": "lint",
+      "command": [
+        "deno",
+        "lint"
+      ]
+    },
+    {
+      "name": "tests",
+      "kind": "test",
+      "command": [
+        "deno",
+        "test",
+        "--frozen",
+        "--junit-path=.ci-results/junit.xml"
+      ],
+      "test_report": {
+        "path": ".ci-results/junit.xml",
+        "format": "junit"
+      }
+    }
+  ],
+  "required_checks": [
+    "format",
+    "lint",
+    "tests"
+  ],
+  "receipt": ".ci-results/deno-quality.json",
+  "install": [
+    "deno",
+    "install",
+    "--frozen"
+  ]
+}

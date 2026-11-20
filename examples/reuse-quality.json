@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "quality_config": "ci/quality.json",
+  "source": {
+    "repository": "your-org/your-product",
+    "workflow": ".github/workflows/ci.yml",
+    "run_id": {
+      "env": "QUALITY_RUN_ID"
+    },
+    "run_head_sha": {
+      "env": "QUALITY_RUN_HEAD_SHA"
+    },
+    "source_sha": {
+      "env": "QUALITY_TESTED_SHA"
+    },
+    "artifact": {
+      "env": "QUALITY_ARTIFACT"
+    },
+    "run_attempt": {
+      "env": "QUALITY_RUN_ATTEMPT"
+    },
+    "producer_job": {
+      "env": "QUALITY_PRODUCER_JOB"
+    },
+    "allowed_branches": {
+      "env": "QUALITY_ALLOWED_BRANCHES"
+    },
+    "allowed_events": {
+      "env": "QUALITY_ALLOWED_EVENTS"
+    }
+  },
+  "token_env": "GH_TOKEN",
+  "max_age_seconds": 86400
+}

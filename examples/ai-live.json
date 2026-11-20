@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "mode": "live",
+  "engine": "promptfoo",
+  "promptfoo": {
+    "command": [
+      "promptfoo"
+    ],
+    "version": "0.125.1"
+  },
+  "evaluation": {
+    "config": "examples/ai-live.promptfoo.json",
+    "inputs": [
+      "examples/ai-live.promptfoo.json"
+    ],
+    "expected_results": 2,
+    "minimum_pass_rate": 1.0
+  },
+  "providers": [
+    {
+      "kind": "openai",
+      "id": "openai:responses:configure-your-model",
+      "model": "configure-your-model",
+      "env": {
+        "OPENAI_API_KEY": "AI_OPENAI_API_KEY"
+      }
+    }
+  ],
+  "limits": {
+    "timeout_seconds": 120,
+    "call_timeout_seconds": 30,
+    "max_concurrency": 1,
+    "max_retries": 0,
+    "max_results": 2,
+    "max_output_tokens": 256,
+    "upstream_budget": "product-enforced"
+  },
+  "identity": {
+    "candidate": "configure-your-candidate"
+  },
+  "live_enabled": false,
+  "trusted_refs": [
+    "refs/heads/staging"
+  ],
+  "release": false
+}

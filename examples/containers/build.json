@@ -1,0 +1,24 @@
+{
+  "operation": "build",
+  "context": "service",
+  "dockerfile": "service/Dockerfile",
+  "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "build_args": {
+    "APP_VERSION": "1.0.0"
+  },
+  "platform": "linux/amd64",
+  "tests": [
+    {
+      "argv": [
+        "docker",
+        "run",
+        "--rm",
+        "{image}",
+        "--self-test"
+      ],
+      "timeout": 300
+    }
+  ],
+  "archive": "artifacts/container.tar",
+  "receipt": "artifacts/container-candidate.json"
+}

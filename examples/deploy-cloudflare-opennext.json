@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "provider": "cloudflare",
+  "operation": "deploy",
+  "environment": "staging",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "inputs": [
+    "wrangler.jsonc",
+    ".open-next"
+  ],
+  "tools": {
+    "wrangler": {
+      "command": [
+        "wrangler"
+      ],
+      "version": "4.24.3"
+    }
+  },
+  "settings": {
+    "account_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "worker": "example-staging",
+    "config": "wrangler.jsonc",
+    "wrangler_environment": "staging",
+    "artifact_directory": ".open-next",
+    "entrypoint": ".open-next/worker.js"
+  },
+  "receipt": ".ci-results/deployment.json",
+  "timeout": 1800
+}

@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "profile": "python",
+  "toolchain": [
+    {
+      "command": [
+        "python3",
+        "--version"
+      ],
+      "version": "3.12.3"
+    }
+  ],
+  "inputs": [
+    "shared_ci",
+    "tests",
+    "scripts",
+    ".ci/quality.json",
+    "tooling/requirements-ci.in",
+    "tooling/requirements-ci.txt"
+  ],
+  "lockfiles": [
+    "tooling/requirements-ci.txt"
+  ],
+  "install": [
+    "python3",
+    "-m",
+    "pip",
+    "install",
+    "--only-binary=:all:",
+    "--require-hashes",
+    "-r",
+    "tooling/requirements-ci.txt"
+  ],
+  "required_checks": [
+    "unit-tests"
+  ],
+  "checks": [
+    {
+      "name": "unit-tests",
+      "kind": "test",
+      "command": [
+        "python3",
+        "scripts/run-tests.py"
+      ],
+      "test_report": {
+        "path": ".ci-output/tests.xml",
+        "format": "junit"
+      }
+    }
+  ],
+  "receipt": ".ci-output/quality-receipt.json"
+}

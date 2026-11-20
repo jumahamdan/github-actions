@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "mode": "mock",
+  "engine": "promptfoo",
+  "promptfoo": {
+    "command": [
+      "promptfoo"
+    ],
+    "version": "0.125.1"
+  },
+  "evaluation": {
+    "config": "examples/ai-echo.promptfoo.json",
+    "inputs": [
+      "examples/ai-echo.promptfoo.json"
+    ],
+    "expected_results": 2,
+    "minimum_pass_rate": 1.0
+  },
+  "providers": [
+    {
+      "kind": "mock",
+      "id": "echo",
+      "model": "echo",
+      "env": {}
+    }
+  ],
+  "limits": {
+    "timeout_seconds": 120,
+    "call_timeout_seconds": 30,
+    "max_concurrency": 1,
+    "max_retries": 0,
+    "max_results": 2,
+    "max_output_tokens": 256,
+    "upstream_budget": "not-applicable"
+  },
+  "identity": {
+    "candidate": "synthetic-echo-v1"
+  }
+}

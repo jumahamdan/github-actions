@@ -1,0 +1,18 @@
+{
+  "name": "shared-ci-ai-tools",
+  "version": "2.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "dependencies": {
+    "promptfoo": "0.125.1"
+  },
+  "overrides": {
+    "basic-ftp": "6.2.6",
+    "@hono/node-server": "2.1.8",
+    "glob": "14.0.6",
+    "minimatch": "11.0.8",
+    "@modelcontextprotocol/server-filesystem": "2.3.0"
+  }
+}

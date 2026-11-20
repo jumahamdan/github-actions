@@ -1,167 +1,37 @@
-# MarketHub GitHub Actions
+# Shared CI/CD workflows
 
-Centralized GitHub Actions workflows and composite actions for the MarketHub platform.
+Reusable checks, release evidence and delivery adapters for independent products. Each repository chooses its language, platforms and providers; shared code supplies consistent execution, credential boundaries and failure handling.
 
-## 🎯 Purpose
+The v2 library is ready for explicit adoption, one product at a time. Existing v1 action and reusable-workflow files retain their original behavior. Adopt v2 using a reviewed full commit SHA; do not move an existing consumer to `main` or silently change its release process.
 
-This repository provides reusable workflows and composite actions that can be used across all MarketHub repositories (web, mobile, backend) to ensure consistent CI/CD practices.
+The preserved v1 entrypoints are deprecated and unsupported for new adoption. Known defects include old-owner moving references and checks that tolerate failure. They remain unchanged so existing callers are not silently altered; v2 is the supported replacement.
 
-## 📦 What's Included
+| Area | Documentation |
+| --- | --- |
+| Lint, format, types, tests, builds | [Quality profiles](docs/quality.md) |
+| Branches, job selection and adoption | [Workflow integration](docs/integration.md) |
+| Build selection, promotion evidence and retries | [Workflow selections](docs/runtime-workflows.md), [runtime contract](docs/runtime.md) |
+| Keys, secrets, variables and identity | [Credential contracts](docs/credentials.md) |
+| Exact workflow inputs, secret names and outputs | [Caller reference](docs/workflow-contracts.md) |
+| Toolchain integrity | [Verified tool installation](docs/tool-installation.md) |
+| Candidate retention and transfer | [Artifacts](docs/artifacts.md) |
+| Reusing verified checks | [Quality reuse](docs/quality-reuse.md) |
+| Release notes and publication | [Release evidence](docs/releases.md) |
+| Apple, Android and device tests | [Mobile helpers](docs/mobile.md), [stores](docs/stores.md) |
+| Store retries and Apple evidence storage | [Operation state](docs/state.md), [Apple bridge](docs/apple-bridge.md) |
+| AWS, Firebase, hosting and WordPress | [Deployment adapters](docs/deployment.md) |
+| Docker, registries, Compose and SSH | [Containers](docs/containers.md) |
+| Sentry and Crashlytics | [Monitoring](docs/monitoring.md) |
+| Promptfoo, provider evals and advisory AI review | [AI evaluations](docs/ai-evaluations.md) |
+| Security scans and reporting | [Security](docs/security.md) |
+| Coverage analysis | [Sonar](docs/sonar.md) |
+| Documentation and optional Wiki navigation | [Documentation checks](docs/documentation.md) |
+| Complete known service scope | [Capability ledger](docs/capabilities.md) |
 
-### Composite Actions
+Reusable workflows are `.github/workflows/v2-*.yml`; composable actions are `actions/v2-*`; provider-independent modules are `shared_ci/`. Examples use synthetic identifiers. Replace their project paths, tool versions, fingerprints and explicit selections during adoption; they do not provision accounts or certify a real product.
 
-#### `actions/extract-code`
-Extracts source code files for AI review.
-- Supports: TypeScript, JavaScript, Python, Dart
-- Automatically filters by file extension
-- Truncates if too large
+Default library validation uses local fixtures and mock AI providers. Paid model/device jobs, live deployments, store submissions and changes to consumer repositories require their own explicitly selected product workflow. Apple compilation and signing remain in Xcode Cloud or an existing authorized Mac lane; there is no GitHub macOS runner.
 
-#### `actions/ai-review`
-Runs AI-powered code review using Claude Sonnet or GPT-4.
-- Reviews entire codebase
-- Creates PR comments
-- Optionally creates GitHub issues for critical findings
+Run `python3 scripts/run-tests.py` for the test suite. Self-CI additionally checks workflow contracts, shell syntax, documentation, secrets and locked AI dependencies, and exercises reusable quality and mock-evaluation workflows. Local validation uses the checked-in hash-locked Python requirements and checksum-locked binary manifest under `tooling/`.
 
-#### `actions/verify-fixes`
-Verifies if AI-reported issues have been fixed.
-- Uses 3-confirmation system
-- Prevents false positives
-- Auto-closes with high confidence
-
-### Reusable Workflows
-
-#### `.github/workflows/ai-code-review.yml`
-Complete AI code review workflow that orchestrates all composite actions.
-
-**Usage:**
-```yaml
-jobs:
-  ai-review:
-    uses: markethub-platform/github-actions/.github/workflows/ai-code-review.yml@v1
-    with:
-      language: typescript
-      source_dir: frontend/src
-      ai_model: claude
-    secrets:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-#### `.github/workflows/code-quality-typescript.yml`
-TypeScript/JavaScript quality checks (ESLint, TypeScript, Tests).
-
-**Usage:**
-```yaml
-jobs:
-  quality:
-    uses: markethub-platform/github-actions/.github/workflows/code-quality-typescript.yml@v1
-    with:
-      working_directory: frontend
-      node_version: '20'
-```
-
-#### `.github/workflows/security-audit.yml`
-Security vulnerability scanning.
-
-**Usage:**
-```yaml
-jobs:
-  security:
-    uses: markethub-platform/github-actions/.github/workflows/security-audit.yml@v1
-    with:
-      language: npm
-      working_directory: frontend
-      fail_on_vulnerabilities: true
-```
-
-## 🚀 How to Use
-
-### 1. Call from Your Repository
-
-In your repository's `.github/workflows/ci.yml`:
-
-```yaml
-name: CI/CD
-
-on:
-  pull_request:
-  push:
-    branches: [main]
-
-jobs:
-  # All run in parallel
-  ai-review:
-    uses: markethub-platform/github-actions/.github/workflows/ai-code-review.yml@v1
-    with:
-      language: typescript
-      source_dir: src
-    secrets: inherit
-
-  code-quality:
-    uses: markethub-platform/github-actions/.github/workflows/code-quality-typescript.yml@v1
-    with:
-      working_directory: .
-    
-  security:
-    uses: markethub-platform/github-actions/.github/workflows/security-audit.yml@v1
-    with:
-      language: npm
-```
-
-### 2. Version Pinning
-
-- `@v1` - Recommended (auto-updates to latest v1.x.x)
-- `@v1.0.0` - Exact version (for stability)
-- `@main` - Bleeding edge (for testing)
-
-## 📁 Repository Structure
-
-```
-github-actions/
-├── actions/                          # Composite actions
-│   ├── extract-code/
-│   │   └── action.yml
-│   ├── ai-review/
-│   │   ├── action.yml
-│   │   └── scripts/
-│   │       ├── ai_review_claude_sonnet.py
-│   │       ├── ai_review_gpt4o.py
-│   │       ├── ai_review_to_issues.py
-│   │       └── requirements.txt
-│   └── verify-fixes/
-│       ├── action.yml
-│       └── scripts/
-│           └── ai_verify_fixes.py
-│
-└── .github/workflows/                # Reusable workflows
-    ├── ai-code-review.yml
-    ├── code-quality-typescript.yml
-    └── security-audit.yml
-```
-
-## 🔧 Maintenance
-
-### Adding New Workflows
-1. Create workflow in `.github/workflows/`
-2. Use `workflow_call` trigger
-3. Document inputs/secrets
-4. Test thoroughly
-5. Tag new version
-
-### Updating Existing Workflows
-1. Make changes on a branch
-2. Test with `@branch-name` from a test repo
-3. Once stable, merge to `main`
-4. Tag new version if breaking changes
-
-### Versioning
-- `v1.x.x` - Backwards compatible features/fixes
-- `v2.x.x` - Breaking changes requiring migration
-
-## 📝 License
-
-Private - MarketHub Platform
-
-## 👥 Maintainers
-
-MarketHub Platform Team
+Canonical Actions references use `jumahamdan/github-actions`. GitHub repository redirects do not repair an old-owner `uses:` reference. Preserve each consumer's existing pin until its separate adoption review.

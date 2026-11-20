@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "candidate": "candidate.json",
+  "inspection": "receipts/mobile.json",
+  "expected_identity": "0000000000000000000000000000000000000000000000000000000000000000",
+  "expected_source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "allowed_refs": [
+    "refs/heads/staging"
+  ],
+  "operation": "play-upload",
+  "token_env": "PLAY_ACCESS_TOKEN",
+  "state_file": "state/play-upload.json",
+  "play": {
+    "package": "org.example.app",
+    "artifact": "artifacts/app.aab",
+    "upload_signer_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "track": "internal",
+    "expected_track_digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "release_status": "completed",
+    "review_policy": "submit",
+    "allow_review_defer_fallback": false,
+    "release_notes": [
+      {
+        "language": "en-US",
+        "text": "Synthetic example release."
+      }
+    ]
+  }
+}

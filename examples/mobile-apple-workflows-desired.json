@@ -1,0 +1,62 @@
+{
+  "data": [
+    {
+      "id": "workflow-1",
+      "type": "ciWorkflows",
+      "attributes": {
+        "name": "Staging archive",
+        "isEnabled": true,
+        "clean": true,
+        "containerFilePath": "Example.xcodeproj",
+        "actions": [
+          {
+            "name": "Archive",
+            "actionType": "ARCHIVE",
+            "scheme": "Example",
+            "platform": "IOS",
+            "isRequiredToPass": true,
+            "destination": "ANY_IOS_DEVICE"
+          }
+        ],
+        "branchStartCondition": {
+          "source": {
+            "patterns": [
+              {
+                "pattern": "staging",
+                "isPrefix": false
+              }
+            ],
+            "isAllMatch": false
+          },
+          "autoCancel": false
+        }
+      },
+      "relationships": {
+        "product": {
+          "data": {
+            "type": "ciProducts",
+            "id": "product-1"
+          }
+        },
+        "repository": {
+          "data": {
+            "type": "scmRepositories",
+            "id": "repository-1"
+          }
+        },
+        "xcodeVersion": {
+          "data": {
+            "type": "ciXcodeVersions",
+            "id": "xcode-1"
+          }
+        },
+        "macOsVersion": {
+          "data": {
+            "type": "ciMacOsVersions",
+            "id": "macos-1"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "threshold": "high",
+  "max_age_hours": 24,
+  "exceptions": [],
+  "scans": [{
+    "id": "python-locked-dependencies",
+    "format": "pip-audit",
+    "command": ["pip-audit", "--requirement", "requirements.txt", "--require-hashes", "--format=json", "--disable-pip"],
+    "version_command": ["pip-audit", "--version"],
+    "version": "2.10.0",
+    "output": "stdout",
+    "rules_identity": "builtin:2.10.0",
+    "database_identity": "online",
+    "allowed_exit_codes": [0, 1]
+  }]
+}

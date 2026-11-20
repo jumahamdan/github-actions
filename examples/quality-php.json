@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "profile": "php",
+  "toolchain": [
+    {
+      "command": [
+        "php",
+        "--version"
+      ],
+      "version": "8.3.20"
+    }
+  ],
+  "lockfiles": [],
+  "inputs": [
+    "plugin"
+  ],
+  "checks": [
+    {
+      "name": "syntax",
+      "kind": "lint",
+      "command": [
+        "php",
+        "-l",
+        "plugin/plugin.php"
+      ]
+    }
+  ],
+  "required_checks": [
+    "syntax"
+  ],
+  "receipt": ".ci-results/php-quality.json"
+}

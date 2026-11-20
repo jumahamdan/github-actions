@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "receipt": ".ci-output/docs-receipt.json",
+  "documents": [
+    "README.md",
+    "docs/**/*.md",
+    "templates/*.md"
+  ]
+}

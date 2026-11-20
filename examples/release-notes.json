@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "product": "example-app",
+  "version": "1.0.0",
+  "build": "42",
+  "sections": [
+    {"title": "What's new", "body": "Check-in now keeps the selected event when reconnecting.", "audiences": ["public", "testers", "internal"]},
+    {"title": "For testers", "body": "Reconnect during check-in and confirm the event remains selected.", "audiences": ["testers", "internal"]},
+    {"title": "For developers", "body": "The reconnect path restores the saved event selection.", "audiences": ["internal"]}
+  ]
+}

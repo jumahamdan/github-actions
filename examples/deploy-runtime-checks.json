@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "profile": "python",
+  "toolchain": [
+    {
+      "command": [
+        "python3",
+        "--version"
+      ],
+      "version": "3.12.9"
+    },
+    {
+      "command": [
+        "uv",
+        "--version"
+      ],
+      "version": "0.6.17"
+    }
+  ],
+  "lockfiles": [
+    "uv.lock"
+  ],
+  "inputs": [
+    "pyproject.toml",
+    "uv.lock",
+    "src",
+    "tests"
+  ],
+  "checks": [
+    {
+      "name": "runtime-contracts",
+      "kind": "test",
+      "command": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/runtime",
+        "--junitxml=.ci-results/runtime.xml"
+      ],
+      "test_report": {
+        "path": ".ci-results/runtime.xml",
+        "format": "junit"
+      }
+    }
+  ],
+  "required_checks": [
+    "runtime-contracts"
+  ],
+  "receipt": ".ci-results/runtime-contracts.json",
+  "install": [
+    "uv",
+    "sync",
+    "--frozen"
+  ]
+}

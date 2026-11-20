@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "operation": "fetch",
+  "repository": "example-org/example-app",
+  "run_id": "123456",
+  "run_attempt": 1,
+  "artifact_name": "release-candidate",
+  "expected_workflow": ".github/workflows/build.yml",
+  "expected_source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "expected_identity": "0000000000000000000000000000000000000000000000000000000000000000",
+  "token_env": "GH_ARTIFACT_TOKEN",
+  "allowed_events": [
+    "push",
+    "workflow_dispatch"
+  ],
+  "allowed_branches": [
+    "staging"
+  ]
+}
