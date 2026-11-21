@@ -300,7 +300,7 @@ def _cdk(ctx):
     artifact = manifest.get('artifacts', {}).get(stack)
     if not isinstance(artifact, dict) or artifact.get('environment') != f"aws://{s['account']}/{s['region']}":
         raise PipelineError("synthesized stack does not match the configured account/region")
-    props = artifact.get('properties', {}); physical = props.get('stackName')
+    props = artifact.get('properties', {}); physical = props.get('stackName', stack)
     _string(physical, 'CloudFormation stack name', r'[A-Za-z][A-Za-z0-9-]{0,127}')
     template = load_json(confined_path(assembly, props.get('templateFile', '')))
     protected_ids = s.get('protected_logical_ids', [])
