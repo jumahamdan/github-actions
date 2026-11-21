@@ -1,7 +1,5 @@
 # AliveDoctor workflow map
 
-Use this table to find the workflow and the file to fix. Links open the AliveDoctor repository.
-
 | Component | Workflow | Open to fix it |
 |---|---|---|
 | Website | [CI](https://github.com/alivedoctor/alivedoctor/blob/develop/.github/workflows/ci.yml) checks; [CD](https://github.com/alivedoctor/alivedoctor/blob/develop/.github/workflows/cd.yml) publishes | [Checks](https://github.com/alivedoctor/alivedoctor/blob/develop/.ci/quality/site.json) · [Deploy](https://github.com/alivedoctor/alivedoctor/blob/develop/backend/aws/site/scripts/site-deploy.sh) |
@@ -11,9 +9,9 @@ Use this table to find the workflow and the file to fix. Links open the AliveDoc
 | iPhone app and TestFlight | CI style checks; Xcode Cloud **setup pending** | [Apple workflow settings](https://github.com/alivedoctor/alivedoctor/tree/develop/scripts/xcode-cloud/workflows/) |
 | AWS login | [Verify AWS login](https://github.com/alivedoctor/alivedoctor/blob/develop/.github/workflows/aws-login.yml), manual; publishes nothing | [Run instructions](https://github.com/alivedoctor/alivedoctor/blob/develop/docs/aws-login.md) |
 | AWS alarms | CI → Observability stack; deploy manually | [Alarm configuration](https://github.com/alivedoctor/alivedoctor/tree/develop/backend/aws/observability/) |
-| Sentry crash symbols | TestFlight archive hook | [Symbol upload script](https://github.com/alivedoctor/alivedoctor/blob/develop/ci_scripts/ci_post_xcodebuild.sh) |
+| Sentry | Upload crash symbols; label TestFlight/App Store reports (`unknown` until verified). | [Symbols](https://github.com/alivedoctor/alivedoctor/blob/develop/ci_scripts/ci_post_xcodebuild.sh) · [Labels](https://github.com/alivedoctor/alivedoctor/blob/develop/AliveDoctor/App/CrashReporting.swift) |
 | Secret scanning | [CI](https://github.com/alivedoctor/alivedoctor/blob/develop/.github/workflows/ci.yml) → Secret scan | [Scan rules](https://github.com/alivedoctor/alivedoctor/blob/develop/.gitleaks.toml) |
-| AI tests | [CI](https://github.com/alivedoctor/alivedoctor/blob/develop/.github/workflows/ci.yml) → fake-provider tests; live tests pending | [AI test guide](https://github.com/alivedoctor/alivedoctor/blob/develop/backend/evals/README.md) |
+| AI tests | [CI](https://github.com/alivedoctor/alivedoctor/blob/develop/.github/workflows/ci.yml) → offline checks; real-model checks when AI changes, full checks before production. | [Runner](https://github.com/alivedoctor/alivedoctor/blob/develop/backend/evals/ci/run.mjs) · [Guide](https://github.com/alivedoctor/alivedoctor/blob/develop/backend/evals/README.md) |
 | Version tags and release notes | Manual release command | [Release script](https://github.com/alivedoctor/alivedoctor/blob/develop/scripts/release/promote.sh) · [Release notes](https://github.com/alivedoctor/alivedoctor/blob/develop/CHANGELOG.md) |
 | Old branch cleanup | [Delete merged branch](https://github.com/alivedoctor/alivedoctor/blob/develop/.github/workflows/cleanup-branches.yml) | [Cleanup rules](https://github.com/alivedoctor/alivedoctor/blob/develop/.github/workflows/cleanup-branches.yml) |
 
