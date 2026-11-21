@@ -41,6 +41,7 @@ class DeploymentTests(unittest.TestCase):
         self.calls = []; self.change = {'Status': 'CREATE_COMPLETE', 'ChangeSetId': 'arn:aws:cloudformation:us-east-1:'+ACCOUNT+':changeSet/fixture/1', 'Changes': [{'ResourceChange': {'LogicalResourceId': 'Web', 'ResourceType': 'AWS::Lambda::Function', 'Action': 'Modify', 'Replacement': 'False'}}]}
         self.runtime_version = 1; self.stack_status = 'UPDATE_COMPLETE'; self.template_resources = {}
         self.api_values = {}; self.active_worker = VERSION
+        self.stack_properties = {'stackName': 'Fixture', 'templateFile': 'Fixture.template.json'}
     def write(self, path, content):
         file = self.root / path; file.parent.mkdir(parents=True, exist_ok=True); file.write_text(content); return file
     def config(self, provider, settings, operation='deploy'):
@@ -62,7 +63,7 @@ class DeploymentTests(unittest.TestCase):
         elif name == 'cdk':
             if args[0] == 'synth':
                 directory = Path(args[args.index('--output') + 1]); directory.mkdir()
-                (directory / 'manifest.json').write_text(json.dumps({'artifacts': {'Fixture': {'environment': 'aws://'+ACCOUNT+'/us-east-1', 'properties': {'stackName': 'Fixture', 'templateFile': 'Fixture.template.json'}}}}))
+                (directory / 'manifest.json').write_text(json.dumps({'artifacts': {'Fixture': {'environment': 'aws://'+ACCOUNT+'/us-east-1', 'properties': self.stack_properties}}}))
                 (directory / 'Fixture.template.json').write_text(json.dumps({'Resources': self.template_resources}))
             elif args[0] not in ('diff','deploy'): self.fail('unexpected CDK command')
         elif name == 'firebase':
@@ -102,6 +103,31 @@ class DeploymentTests(unittest.TestCase):
         for command, kwargs in self.calls:
             if command[0] == 'aws' and command[1] != '--version': self.assertEqual(kwargs['env_names'], deploy.AWS_ENV)
             self.assertIn('HOME', kwargs['extra_env'])
+    def test_cdk_omitted_physical_stack_name_defaults_to_artifact_id(self):
+        del self.stack_properties['stackName']
+        result = self.run_config(self.cdk())
+        self.assertEqual(result['status'], 'passed')
+        stack_calls = [c for c, _ in self.calls if c[0] == 'aws' and '--stack-name' in c]
+        self.assertTrue(stack_calls)
+        self.assertTrue(all(c[c.index('--stack-name') + 1] == 'Fixture' for c in stack_calls))
+
+    def test_cdk_explicit_physical_stack_name_is_preserved(self):
+        self.stack_properties['stackName'] = 'ProductionBackend'
+        config = self.cdk(); config['operation'] = 'validate'
+        self.assertEqual(self.run_config(config)['details']['stack'], 'ProductionBackend')
+        self.calls.clear()
+        self.run_config(self.cdk())
+        stack_calls = [c for c, _ in self.calls if c[0] == 'aws' and '--stack-name' in c]
+        self.assertTrue(stack_calls)
+        self.assertTrue(all(c[c.index('--stack-name') + 1] == 'ProductionBackend' for c in stack_calls))
+
+    def test_cdk_invalid_explicit_stack_name_does_not_fall_back(self):
+        for name in (None, '', 'invalid/name'):
+            self.stack_properties['stackName'] = name; self.calls.clear()
+            with self.subTest(name=name), self.assertRaisesRegex(PipelineError, 'CloudFormation stack name'):
+                self.run_config(self.cdk())
+            self.assertFalse(any('--method=prepare-change-set' in c for c, _ in self.calls))
+
     def test_protected_replacement_nested_and_unknown_changes_fail_before_execution(self):
         for kind, action, replacement in [('AWS::DynamoDB::Table','Modify','Conditional'), ('AWS::S3::Bucket','Remove','False'), ('AWS::CloudFormation::Stack','Modify','False'), ('AWS::Lambda::Function','Dynamic','False')]:
             self.change['Changes'][0]['ResourceChange'].update(ResourceType=kind, Action=action, Replacement=replacement); self.calls.clear()
