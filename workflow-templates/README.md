@@ -11,6 +11,7 @@ Edit these sources, then run `python3 scripts/generate-workflows.py` from the re
 | [bindings.yml](bindings.yml) | Repeated argument mappings passed to the shared execution action |
 | [permissions.yml](permissions.yml) | Explicit common read-only and federated-authentication permissions |
 | [secrets.yml](secrets.yml) | Shared named secret contracts; never secret values |
+| [aws.yml](aws.yml) | Identical AWS deployment steps for GitHub environment and branch-scoped authentication |
 
 The workflow filenames and job IDs remain stable caller contracts. Display names group the Actions list by purpose. Common fragments centralize repeated definitions while provider-specific behavior stays visible in its workflow source. The three legacy callable workflows and the library's own validation workflow are maintained separately.
 

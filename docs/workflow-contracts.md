@@ -191,7 +191,8 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `tool-bundles` | '' | Reviewed built-in tool bundles |
 | `receipt-retention-days` | 90 | Retain operation receipts and retry state for this many days |
 | `security-refresh` | '' | JSON mapping original security checks to authenticated current scan selectors and policy hashes |
-| `environment` | required | Explicit configured GitHub environment |
+| `environment` | required | Deployment target; also the GitHub environment when use-github-environment is true |
+| `use-github-environment` | True | Attach the job to a GitHub environment; disable for branch-scoped OIDC |
 | `aws-role` | required | Explicit deployment role |
 | `aws-region` | required | Explicit AWS region |
 

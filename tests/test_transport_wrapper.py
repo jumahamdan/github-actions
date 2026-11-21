@@ -89,6 +89,31 @@ class RuntimeWorkflowContractTests(unittest.TestCase):
         for path in sorted((LIBRARY / '.github/workflows').glob('v2-*.yml')):
             yield path.name, yaml.safe_load(path.read_text())
 
+    def test_aws_branch_authentication_omits_environment_without_changing_deployment_steps(self):
+        workflow = dict(self.workflows())['v2-aws.yml']
+        contract = workflow['on']['workflow_call']
+        option = contract['inputs']['use-github-environment']
+        self.assertEqual(option['type'], 'boolean')
+        self.assertIs(option['default'], True)
+        self.assertTrue(contract['inputs']['environment']['required'])
+        self.assertEqual(set(workflow['jobs']), {'run', 'branch'})
+        run, branch = workflow['jobs']['run'], workflow['jobs']['branch']
+        self.assertEqual(run['environment'], '${{ inputs.environment }}')
+        self.assertNotIn('environment', branch)
+        event_guard = "(github.event_name == 'push' || github.event_name == 'workflow_dispatch')"
+        self.assertEqual(run['if'], '${{ inputs.use-github-environment && ' + event_guard + ' }}')
+        self.assertEqual(branch['if'], '${{ !inputs.use-github-environment && ' + event_guard + ' }}')
+        # Both routes retain the same setup, trusted import, authentication, provider and artifact steps.
+        common_run = {key: value for key, value in run.items() if key not in {'environment', 'if'}}
+        common_branch = {key: value for key, value in branch.items() if key != 'if'}
+        self.assertEqual(common_run, common_branch)
+        execute = next(step for step in branch['steps'] if step.get('id') == 'execute')
+        self.assertEqual(execute['env']['DEPLOYMENT_ENVIRONMENT'], '${{ inputs.environment }}')
+        self.assertFalse(branch['concurrency']['cancel-in-progress'])
+        self.assertEqual(set(contract['outputs']), set(run['outputs']))
+        for name, output in contract['outputs'].items():
+            self.assertEqual(output['value'], '${{ jobs.run.outputs.' + name + ' || jobs.branch.outputs.' + name + ' }}')
+
     def test_candidate_composition_authenticates_cross_job_checks_with_step_scoped_read_token(self):
         count = 0
         for name, workflow in self.workflows():

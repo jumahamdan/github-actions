@@ -14,6 +14,8 @@ An operation receipt with the verified candidate and affected provider identitie
 
 Use the product’s existing AWS role through temporary credentials. Protected-resource checks and product recovery rules still apply. AWS deployment does not implicitly invoke Bedrock models; live AI evaluation has its own workflow and permissions.
 
+By default, `environment` also selects a GitHub environment and its protection rules. For an AWS role restricted to a branch, set `use-github-environment: false`. That job has no GitHub environment, so its OIDC subject identifies the branch. `environment` still selects the deployment target. Use this only when the role's trust policy and the caller's branch restrictions enforce the intended release access.
+
 ## Details
 
 - [Configuration and operating guide](../deployment.md)
