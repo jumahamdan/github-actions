@@ -6,6 +6,7 @@
 **Product guides**
 
 - [AliveDoctor CI/CD](Products-AliveDoctor.md)
+- [RiseUp CI/CD](Products-RiseUp.md)
 
 **Control**
 

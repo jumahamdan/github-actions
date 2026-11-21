@@ -21,6 +21,8 @@ The intended branch route is **feature → develop → staging → main**. Match
 
 See how one product combines shared Linux checks, website delivery and a separate iOS release. [AliveDoctor CI/CD](Products-AliveDoctor.md)
 
+[RiseUp CI/CD](Products-RiseUp.md) maps the website, forms, Telegram bot and monitoring. Its blueprint is published before implementation and checked against the finished setup afterward.
+
 ## When these pages change
 
 Pages are written or updated when they are needed, reviewed with the repository changes, and published manually. Ordinary app releases do not automatically rewrite or publish the Wiki. The reviewed originals live in [the repository’s Wiki source folder](https://github.com/jumahamdan/github-actions/tree/main/docs/wiki).
