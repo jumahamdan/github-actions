@@ -2201,6 +2201,7 @@
         {
           "file": "tests/test_transport_wrapper.py",
           "cases": [
+            "test_aws_branch_authentication_omits_environment_without_changing_deployment_steps",
             "test_candidate_composition_authenticates_cross_job_checks_with_step_scoped_read_token",
             "test_credentialed_imports_cannot_opt_into_pr_producers_and_authentication_follows_setup",
             "test_fetch_passes_separate_run_head_and_candidate_source_then_exports_verified_selection",
@@ -2729,6 +2730,7 @@
         {
           "file": "tests/test_transport_wrapper.py",
           "cases": [
+            "test_aws_branch_authentication_omits_environment_without_changing_deployment_steps",
             "test_candidate_composition_authenticates_cross_job_checks_with_step_scoped_read_token",
             "test_credentialed_imports_cannot_opt_into_pr_producers_and_authentication_follows_setup",
             "test_fetch_passes_separate_run_head_and_candidate_source_then_exports_verified_selection",
