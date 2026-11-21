@@ -9,6 +9,7 @@ Use this table to find the workflow and the file to fix. Links open the AliveDoc
 | Backend platform | [CI](https://github.com/alivedoctor/alivedoctor/blob/develop/.github/workflows/ci.yml) checks; deploy manually | [Backend deploy script](https://github.com/alivedoctor/alivedoctor/blob/develop/backend/aws/platform/scripts/deploy-prod.sh) |
 | Admin page and API | [Admin](https://github.com/alivedoctor/alivedoctor/blob/develop/.github/workflows/admin.yml) checks; deploy manually | [Admin deployment guide](https://github.com/alivedoctor/alivedoctor/blob/develop/backend/aws/admin/README.md) |
 | iPhone app and TestFlight | CI style checks; Xcode Cloud **setup pending** | [Apple workflow settings](https://github.com/alivedoctor/alivedoctor/tree/develop/scripts/xcode-cloud/workflows/) |
+| AWS login | [Verify AWS login](https://github.com/alivedoctor/alivedoctor/blob/develop/.github/workflows/aws-login.yml), manual; publishes nothing | [Run instructions](https://github.com/alivedoctor/alivedoctor/blob/develop/docs/aws-login.md) |
 | AWS alarms | CI → Observability stack; deploy manually | [Alarm configuration](https://github.com/alivedoctor/alivedoctor/tree/develop/backend/aws/observability/) |
 | Sentry crash symbols | TestFlight archive hook | [Symbol upload script](https://github.com/alivedoctor/alivedoctor/blob/develop/ci_scripts/ci_post_xcodebuild.sh) |
 | Secret scanning | [CI](https://github.com/alivedoctor/alivedoctor/blob/develop/.github/workflows/ci.yml) → Secret scan | [Scan rules](https://github.com/alivedoctor/alivedoctor/blob/develop/.gitleaks.toml) |
@@ -20,4 +21,4 @@ Use this table to find the workflow and the file to fix. Links open the AliveDoc
 
 **Release route:** feature → develop → staging → main. You decide when to promote. The App Store uses the tested TestFlight build.
 
-**Still to verify:** AWS login from GitHub after the next authorized promotions.
+**AWS login verified:** [Staging](https://github.com/alivedoctor/alivedoctor/actions/runs/44863081366) and [production](https://github.com/alivedoctor/alivedoctor/actions/runs/44863084406) passed without publishing website content.
