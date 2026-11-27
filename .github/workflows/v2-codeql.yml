@@ -166,7 +166,7 @@ jobs:
       receipt-artifact-name: ${{ steps.retain-evidence.outcome == 'success' && format('{0}-run-{1}-attempt-{2}',
         inputs.artifact-name, github.run_id, github.run_attempt) || '' }}
     steps:
-    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         persist-credentials: false
         fetch-depth: 0
@@ -375,7 +375,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       with:
         persist-credentials: false
         ref: ${{ github.sha }}
