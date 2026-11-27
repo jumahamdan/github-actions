@@ -213,7 +213,7 @@ jobs:
     - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
       with:
         python-version: ${{ inputs.python-version }}
-    - uses: shivammathur/setup-php@d52fc211a0436f8839a587b3b5b8efddab4744ea
+    - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
       with:
         php-version: ${{ inputs.php-version }}
         coverage: none
