@@ -10,6 +10,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .evidence import IDENTITY_FIELDS, verify_checks
@@ -96,6 +97,14 @@ class APIError(PipelineError):
         super().__init__(f"Store API rejected request (HTTP {status}, {reason})")
 
 
+class APIUnavailable(PipelineError):
+    pass
+
+
+class DeliveryDeadline(PipelineError):
+    pass
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
         return None
@@ -150,7 +159,7 @@ class API:
             reason = "review_must_be_deferred" if "Changes cannot be sent for review automatically" in raw else "request_rejected"
             raise APIError(exc.code, reason) from None
         except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
-            raise PipelineError("Store API request failed; inspect saved operation state before retry") from None
+            raise APIUnavailable("Store API request failed; inspect saved operation state before retry") from None
         finally:
             if stream:
                 stream.close()
@@ -346,15 +355,23 @@ def play(config, root, candidate, inspected, api):
     return receipt
 
 
-def apple_build(settings, inspected, api, timeout, interval):
+def apple_build(settings, inspected, api, timeout, interval, *, deadline=None):
     app, build = identifier(settings["app_id"]), identifier(settings["build_id"])
     resource = "/v1/builds/" + build
-    deadline = time.monotonic() + timeout
+    deadline = time.monotonic() + timeout if deadline is None else deadline
     while True:
         item = data(api, "GET", resource)
         attributes = item.get("attributes", {})
-        if str(attributes.get("version")) != str(inspected["application"]["build"]) or attributes.get("expired"):
+        if (item["id"] != build or str(attributes.get("version")) != str(inspected["application"]["build"])
+                or attributes.get("expired") is not False):
             raise PipelineError("Selected Apple build number differs or build expired")
+        if attributes.get("expirationDate") is not None:
+            try:
+                expiry = datetime.fromisoformat(attributes["expirationDate"].replace("Z", "+00:00"))
+                if expiry.tzinfo is None or expiry <= datetime.now(timezone.utc):
+                    raise ValueError("expired or timezone absent")
+            except (TypeError, AttributeError, ValueError):
+                raise PipelineError("Apple build expiration is invalid or past") from None
         app_item = data(api, "GET", resource + "/app")
         pre = data(api, "GET", resource + "/preReleaseVersion").get("attributes", {})
         if (app_item["id"] != app or app_item.get("attributes", {}).get("bundleId") != inspected["application"]["id"]
@@ -372,22 +389,152 @@ def apple_build(settings, inspected, api, timeout, interval):
         time.sleep(min(interval, max(0, deadline - time.monotonic())))
 
 
-def apple(config, root, candidate, inspected, api):
+def delivery_notes(settings, root, candidate):
+    """Use existing candidate-bound note selections, or explicitly named readback locales."""
+    locales = settings.get("delivery_locales", [])
+    if (not isinstance(locales, list) or len(locales) > 100
+            or any(not isinstance(locale, str) or not re.fullmatch(r"[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*", locale) for locale in locales)
+            or len(locales) != len(set(locales))):
+        raise PipelineError("Invalid or duplicate TestFlight delivery locales")
+    desired = dict.fromkeys(locales)
+    entries = settings.get("localizations", [])
+    if not isinstance(entries, list) or len(entries) > 100:
+        raise PipelineError("Invalid TestFlight localized note selection")
+    seen = set()
+    for entry in entries:
+        strict_keys(entry, {"locale", "notes", "expected_current_sha256"}, {"locale", "notes"})
+        locale = entry["locale"]
+        if (not isinstance(locale, str) or not re.fullmatch(r"[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*", locale)
+                or locale in seen):
+            raise PipelineError("Invalid or duplicate TestFlight note locale")
+        seen.add(locale)
+        if not isinstance(entry["notes"], str) or (entry["notes"] not in candidate["inputs"] and entry["notes"] not in candidate["artifacts"]):
+            raise PipelineError("TestFlight approved notes must be candidate-bound")
+        try:
+            notes = confined_path(root, entry["notes"]).read_text(encoding="utf-8")
+        except UnicodeError:
+            raise PipelineError("TestFlight approved notes must be UTF-8 text") from None
+        if not notes.strip() or len(notes) > 4000:
+            raise PipelineError("TestFlight approved notes are empty or exceed 4000 characters")
+        desired[locale] = notes
+    return desired
+
+
+def testflight_groups(settings, groups, build, api):
+    result = {}
+    for group in groups:
+        item = data(api, "GET", "/v1/betaGroups/" + group)
+        internal = item.get("attributes", {}).get("isInternalGroup")
+        if item["id"] != group or not isinstance(internal, bool):
+            raise PipelineError("TestFlight group identity or type is missing")
+        app = data(api, "GET", "/v1/betaGroups/" + group + "/app")
+        if app["id"] != settings["app_id"]:
+            raise PipelineError("TestFlight group belongs to another app")
+        members = collection(api, "/v1/betaGroups/" + group + "/relationships/builds")
+        if any(not isinstance(member, dict) or member.get("type") != "builds" or not isinstance(member.get("id"), str) for member in members):
+            raise PipelineError("Malformed TestFlight group membership")
+        result[group] = {"internal": internal, "member": any(member["id"] == build for member in members)}
+    return result
+
+
+def testflight(config, root, candidate, inspected, api, path, state, receipt, build, deadline):
     settings = config["apple"]
-    strict_keys(settings, {"app_id", "build_id", "platform", "group_ids", "submit_beta_review", "app_store_version_id", "expected_selected_build", "submission_id", "localizations"},
+    groups = settings.get("group_ids")
+    if (not isinstance(groups, list) or not groups or len(groups) > 100
+            or any(not isinstance(group, str) for group in groups) or len(groups) != len(set(groups))):
+        raise PipelineError("TestFlight needs unique explicit groups")
+    for group in groups:
+        identifier(group)
+    desired_notes = delivery_notes(settings, root, candidate)
+    historical = state["phase"] == "done"
+    group_state = testflight_groups(settings, groups, build, api)
+    attempted = state.get("attempted_groups", [])
+    if not isinstance(attempted, list) or any(group not in groups for group in attempted):
+        raise PipelineError("Invalid saved TestFlight group attempts")
+    # Record intent before each write. A delayed or lost response is reconciled by
+    # readback on retry; it must never assign or trigger beta review a second time.
+    for group in groups:
+        if not historical and not group_state[group]["member"] and group not in attempted:
+            attempted = attempted + [group]
+            save(path, state, "delivery_pending", attempted_groups=attempted)
+            api("POST", "/v1/betaGroups/" + group + "/relationships/builds", {"data": [{"type": "builds", "id": build}]})
+    beta = data(api, "GET", "/v1/builds/" + build + "/buildBetaDetail").get("attributes", {})
+    if (not historical and settings.get("submit_beta_review") and not state.get("beta_review_attempted")
+            and beta.get("externalBuildState") == "READY_FOR_BETA_SUBMISSION"):
+        existing = collection(api, "/v1/betaAppReviewSubmissions?filter%5Bbuild%5D=" + build)
+        if len(existing) > 1:
+            raise PipelineError("Multiple beta review submissions require reconciliation")
+        if not existing:
+            save(path, state, "delivery_pending", beta_review_attempted=True)
+            api("POST", "/v1/betaAppReviewSubmissions", {"data": {"type": "betaAppReviewSubmissions", "relationships": {"build": {"data": {"type": "builds", "id": build}}}}})
+    while True:
+        reasons = []
+        if apple_build(settings, inspected, api, 0, 0) is None:
+            reasons.append("build_processing")
+        current_groups = testflight_groups(settings, groups, build, api)
+        beta = data(api, "GET", "/v1/builds/" + build + "/buildBetaDetail").get("attributes", {})
+        if beta.get("externalBuildState") == "BETA_REJECTED" or beta.get("internalBuildState") in ("EXPIRED", "PROCESSING_EXCEPTION"):
+            raise PipelineError("Apple beta testing rejected/expired")
+        if any(not group["member"] for group in current_groups.values()):
+            reasons.append("group_membership_not_visible")
+        if any(beta.get("internalBuildState" if group["internal"] else "externalBuildState")
+               not in ("READY_FOR_BETA_TESTING", "IN_BETA_TESTING") for group in current_groups.values()):
+            reasons.append("beta_processing_or_review")
+        existing_notes = collection(api, "/v1/builds/" + build + "/betaBuildLocalizations")
+        by_locale = {}
+        for item in existing_notes:
+            if not isinstance(item, dict) or not isinstance(item.get("attributes"), dict):
+                raise PipelineError("Malformed Apple beta localization")
+            attributes = item.get("attributes", {})
+            locale = attributes.get("locale")
+            if not isinstance(locale, str) or locale in by_locale:
+                raise PipelineError("Apple beta localizations contain absent or duplicate locales")
+            by_locale[locale] = attributes.get("whatsNew")
+        selected = desired_notes or dict.fromkeys(by_locale)
+        notes_ready = bool(selected)
+        summaries = []
+        for locale, expected in selected.items():
+            text = by_locale.get(locale)
+            if (not isinstance(text, str) or not text.strip() or len(text) > 4000
+                    or (expected is not None and text != expected)):
+                notes_ready = False
+            else:
+                summaries.append({"locale": locale, "sha256": hashlib.sha256(text.encode()).hexdigest()})
+        if not notes_ready:
+            reasons.append("tester_notes_missing_or_different")
+        ready = not reasons
+        receipt.update(status="passed" if ready else "pending", state="testing_ready" if ready else "beta_processing_or_review",
+                       groups=groups, beta=beta, localizations=summaries, pending_reasons=reasons,
+                       readiness_verified=ready, historical_success=historical)
+        if ready:
+            receipt["verified_at"] = datetime.now(timezone.utc).isoformat()
+            save(path, state, "done", receipt=receipt)
+            return receipt
+        if time.monotonic() >= deadline:
+            return receipt
+        time.sleep(min(config.get("poll_interval", 15), max(0, deadline - time.monotonic())))
+        if time.monotonic() >= deadline:
+            return receipt
+
+
+def apple(config, root, candidate, inspected, api, *, deadline=None):
+    settings = config["apple"]
+    strict_keys(settings, {"app_id", "build_id", "platform", "group_ids", "submit_beta_review", "app_store_version_id", "expected_selected_build", "submission_id", "localizations", "delivery_locales"},
                 {"app_id", "build_id", "platform"})
     if settings["platform"] not in ("IOS", "MAC_OS", "TV_OS", "VISION_OS"):
         raise PipelineError("Unsupported Apple platform")
     if inspected.get("distribution_ready") is not True:
         raise PipelineError("Apple distribution requires verified signed archive evidence")
     path, state = state_file(config, root)
-    if state["phase"] == "done":
+    if state["phase"] == "done" and config["operation"] != "testflight":
         return state["receipt"]
     if state["phase"] == "creating_submission":
         raise PipelineError("Review submission creation outcome is uncertain; reconcile its ID before retry")
     receipt = {"schema": 1, "status": "pending", "operation": config["operation"],
                "candidate_identity": candidate["identity"], "app_id": settings["app_id"], "build_id": settings["build_id"]}
-    build = apple_build(settings, inspected, api, config.get("timeout", 900), config.get("poll_interval", 15))
+    if config["operation"] == "testflight" and deadline is None:
+        deadline = time.monotonic() + config.get("timeout", 900)
+    build = apple_build(settings, inspected, api, config.get("timeout", 900), config.get("poll_interval", 15), deadline=deadline)
     if build is None:
         return dict(receipt, state="processing_timeout")
     if config["operation"] == "apple-build":
@@ -449,41 +596,7 @@ def apple(config, root, candidate, inspected, api):
                 raise PipelineError("Apple did not retain the selected localized beta notes")
         return dict(receipt, status="passed", state="beta_notes_updated", localizations=summaries, availability_verified=False)
     if config["operation"] == "testflight":
-        groups = settings.get("group_ids")
-        if not isinstance(groups, list) or not groups or len(groups) != len(set(groups)):
-            raise PipelineError("TestFlight needs unique explicit groups")
-        for group in groups:
-            identifier(group)
-            item = data(api, "GET", "/v1/betaGroups/" + group + "/app")
-            if item["id"] != settings["app_id"]:
-                raise PipelineError("TestFlight group belongs to another app")
-            relation = "/v1/betaGroups/" + group + "/relationships/builds"
-            existing = collection(api, relation)
-            if not any(b.get("id") == build for b in existing):
-                api("POST", relation, {"data": [{"type": "builds", "id": build}]})
-        beta = data(api, "GET", "/v1/builds/" + build + "/buildBetaDetail").get("attributes", {})
-        if settings.get("submit_beta_review") and beta.get("externalBuildState") == "READY_FOR_BETA_SUBMISSION":
-            existing = collection(api, "/v1/betaAppReviewSubmissions?filter%5Bbuild%5D=" + build)
-            if len(existing) > 1:
-                raise PipelineError("Multiple beta review submissions require reconciliation")
-            if not existing:
-                api("POST", "/v1/betaAppReviewSubmissions", {"data": {"type": "betaAppReviewSubmissions", "relationships": {"build": {"data": {"type": "builds", "id": build}}}}})
-            beta = data(api, "GET", "/v1/builds/" + build + "/buildBetaDetail").get("attributes", {})
-        if beta.get("externalBuildState") == "BETA_REJECTED" or beta.get("internalBuildState") in ("EXPIRED", "PROCESSING_EXCEPTION"):
-            raise PipelineError("Apple beta testing rejected/expired")
-        # A group can be internal or external; check each actual group's eligibility state.
-        ready = True
-        for group in groups:
-            group_data = data(api, "GET", "/v1/betaGroups/" + group)
-            internal = group_data.get("attributes", {}).get("isInternalGroup")
-            if not isinstance(internal, bool):
-                raise PipelineError("TestFlight group type is missing")
-            beta_state = beta.get("internalBuildState" if internal else "externalBuildState")
-            ready = ready and beta_state in ("READY_FOR_BETA_TESTING", "IN_BETA_TESTING")
-        receipt.update(status="passed" if ready else "pending", state="testing_ready" if ready else "beta_processing_or_review", groups=groups, beta=beta)
-        if ready:
-            save(path, state, "done", receipt=receipt)
-        return receipt
+        return testflight(config, root, candidate, inspected, api, path, state, receipt, build, deadline)
     version = identifier(settings.get("app_store_version_id"), "App Store version ID")
     version_path = "/v1/appStoreVersions/" + version
     version_data = data(api, "GET", version_path + "?include=app")
@@ -569,7 +682,38 @@ def execute(config, root, *, api=None):
     if provider == "firebase":
         from .app_distribution import distribute
         return distribute(config, Path(root), candidate, inspected, transport)
-    return (play if provider == "play" else apple)(config, Path(root), candidate, inspected, transport)
+    deadline = time.monotonic() + config.get("timeout", 900) if operation == "testflight" else None
+    def bounded_transport(*args, **kwargs):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise DeliveryDeadline("TestFlight verification deadline exceeded")
+        previous = transport.timeout if isinstance(transport, API) else None
+        try:
+            if previous is not None:
+                transport.timeout = min(previous, remaining)
+            result = transport(*args, **kwargs)
+        finally:
+            if previous is not None:
+                transport.timeout = previous
+        if time.monotonic() >= deadline:
+            raise DeliveryDeadline("TestFlight verification deadline exceeded")
+        return result
+    try:
+        if operation == "testflight":
+            return apple(config, Path(root), candidate, inspected, bounded_transport, deadline=deadline)
+        return (play if provider == "play" else apple)(config, Path(root), candidate, inspected, transport)
+    except DeliveryDeadline:
+        return {"schema": 1, "status": "pending", "operation": operation, "candidate_identity": candidate["identity"],
+                "app_id": config["apple"]["app_id"], "build_id": config["apple"]["build_id"],
+                "state": "readiness_timeout", "readiness_verified": False,
+                "pending_reasons": ["verification_deadline_exceeded"]}
+    except (APIError, APIUnavailable) as exc:
+        if operation != "testflight" or (isinstance(exc, APIError) and exc.status != 429 and not 500 <= exc.status <= 599):
+            raise
+        return {"schema": 1, "status": "pending", "operation": operation, "candidate_identity": candidate["identity"],
+                "app_id": config["apple"]["app_id"], "build_id": config["apple"]["build_id"],
+                "state": "readback_unavailable", "readiness_verified": False,
+                "pending_reasons": ["store_temporarily_unavailable"]}
 
 
 def main():

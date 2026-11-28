@@ -19,6 +19,7 @@
     "group_ids": [
       "11111111-2222-3333-4444-555555555555"
     ],
+    "delivery_locales": ["en-US"],
     "submit_beta_review": false
   }
 }
