@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from shared_ci.common import PipelineError
-from shared_ci.quality import _locked_install, argv, execute, parse_test_report
+from shared_ci.quality import QualityFailure, _locked_install, argv, execute, junit_diagnostics, parse_test_report
 
 
 class QualityTests(unittest.TestCase):
@@ -42,6 +42,66 @@ class QualityTests(unittest.TestCase):
                 config["checks"][0]["timeout"] = timeout
                 with self.assertRaises(PipelineError):
                     execute(config, self.root)
+
+    def test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads(self):
+        (self.root / "test_runner.py").write_text("from pathlib import Path\nPath('result.xml').write_text('<testsuite><testcase name=\"test_safe\"><failure>AssertionError: 1 != 2\\nraw-model-reply-sensitive-payload\\napi_key=fixture-secret</failure></testcase><testcase name=\"private-input-in-test-name\"><error>private-sensitive-assertion</error></testcase></testsuite>')\nprint('raw stdout fixture-secret')\nraise SystemExit(7)\n")
+        self.config["checks"][0]["diagnostics"] = {"test_names": ["test_safe"]}
+        with self.assertRaises(QualityFailure) as failure:
+            execute(self.config, self.root)
+        details = failure.exception.details
+        self.assertEqual((details["check"], details["phase"], details["exit_code"], details["timed_out"]), ("tests", "test", 7, False))
+        self.assertGreaterEqual(details["elapsed_seconds"], 0)
+        self.assertEqual(details["test_diagnostics"]["failed_cases"], [{"case": 1, "type": "failure", "test_name": "test_safe", "comparison": "1 != 2"}, {"case": 2, "type": "error"}])
+        for value in ["fixture-secret", "raw-model", "private-sensitive", "private-input", "stdout"]:
+            self.assertNotIn(value, json.dumps(details))
+
+    def test_timeout_retains_named_check_and_available_report_summary(self):
+        (self.root / "test_runner.py").write_text("from pathlib import Path\nimport time\nPath('result.xml').write_text('<testsuite><testcase><failure>True != False</failure></testcase></testsuite>')\ntime.sleep(5)\n")
+        self.config["checks"][0].update(timeout=1, diagnostics={})
+        with self.assertRaises(QualityFailure) as failure:
+            execute(self.config, self.root)
+        self.assertTrue(failure.exception.details["timed_out"])
+        self.assertEqual(failure.exception.details["test_diagnostics"]["failed_cases"][0]["comparison"], "True != False")
+
+    def test_failure_summary_opt_in_and_bounds(self):
+        report = self.root / "result.xml"
+        report.write_text('<testsuite>' + '<testcase name="dynamic"><failure>1 != 2</failure></testcase>' * 25 + '</testsuite>')
+        with patch.dict(os.environ, {"FIXTURE_SECRET": "1 != 2"}):
+            summary = junit_diagnostics(report, set())
+        self.assertEqual(len(summary["failed_cases"]), 20)
+        self.assertEqual(summary["omitted_failures"], 5)
+        self.assertNotIn("comparison", summary["failed_cases"][0])
+        report.write_text('<testsuite><testcase><failure>1' + ' ' * 10000 + '!= 2</failure></testcase></testsuite>')
+        self.assertEqual(junit_diagnostics(report, set())["failed_cases"][0]["comparison"], "1 != 2")
+        report.write_text("x" * (1024 * 1024 + 1))
+        self.assertEqual(junit_diagnostics(report, set()), {"report": "unavailable_or_oversized"})
+        self.config["checks"][0]["command"] = [sys.executable, "-c", "raise SystemExit(3)"]
+        with self.assertRaises(QualityFailure) as failure:
+            execute(self.config, self.root)
+        self.assertNotIn("test_diagnostics", failure.exception.details)
+
+    def test_success_exit_with_failed_report_retains_failure_metadata(self):
+        (self.root / "test_runner.py").write_text("from pathlib import Path\nPath('result.xml').write_text('<testsuite><testcase><failure>2 != 3</failure></testcase></testsuite>')\n")
+        self.config["checks"][0]["diagnostics"] = {}
+        with self.assertRaises(QualityFailure) as failure:
+            execute(self.config, self.root)
+        self.assertEqual(failure.exception.details["exit_code"], 0)
+        self.assertIn("failed tests", failure.exception.details["summary"])
+
+    def test_diagnostics_redact_after_xml_decoding_and_survive_read_errors(self):
+        report = self.root / "report.xml"
+        secret = "123456"
+        encoded = "".join("&#" + str(ord(character)) + ";" for character in secret)
+        report.write_text('<testsuite><testcase name="test_' + encoded + '"><failure>' + encoded + ' != 0</failure></testcase></testsuite>')
+        with patch.dict(os.environ, {"FIXTURE_SECRET": secret}):
+            summary = junit_diagnostics(report, {"test_" + secret})
+        self.assertNotIn(secret, json.dumps(summary))
+        self.assertEqual(summary["failed_cases"], [{"case": 1, "type": "failure"}])
+        report.write_text('<testsuite><testcase><failure>1   !=  2</failure></testcase></testsuite>')
+        with patch.dict(os.environ, {"FIXTURE_SECRET": "1 != 2"}):
+            self.assertNotIn("comparison", junit_diagnostics(report, set())["failed_cases"][0])
+        with patch.object(Path, "read_text", side_effect=OSError("unavailable")):
+            self.assertEqual(junit_diagnostics(report, set()), {"report": "unavailable_or_oversized"})
 
     def test_prior_report_cannot_be_reused(self):
         (self.root / "result.xml").write_text('<testsuite><testcase name="old"/></testsuite>')

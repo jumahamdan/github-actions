@@ -24,6 +24,7 @@
       "version": "8.30.1",
       "output": "file",
       "rules_identity": "builtin:8.30.1",
+      "verified_checksum_receipts": [".ci-output/docs-receipt.json"],
       "database_identity": "none",
       "allowed_exit_codes": [
         0,

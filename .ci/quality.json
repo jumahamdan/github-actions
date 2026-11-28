@@ -47,6 +47,7 @@
     {
       "name": "unit-tests",
       "kind": "test",
+      "diagnostics": {},
       "command": [
         "python3",
         "scripts/run-tests.py"

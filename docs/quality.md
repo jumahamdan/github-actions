@@ -28,6 +28,14 @@ Node projects must provide a real test script that writes JUnit to the configure
 
 `coverage` names existing, nonempty files created by the checks. Their hashes are recorded. Receipts include source selection and hashes, tool/lock identity, check results, real-test summaries and GitHub repository/run/source metadata. That metadata is a claim until an independent run verifier checks the artifact origin; it is never authentication by itself.
 
+## Failure evidence
+
+Failed quality commands retain the check name, phase, elapsed seconds, exit code and timeout flag in the failed receipt. Installation and toolchain command failures carry the same metadata. The workflow's existing evidence bundle retains that receipt on failure; it cannot satisfy a quality gate or be reused as successful evidence. Standard output and standard error are not copied into it.
+
+A JUnit check can opt into a bounded failure summary with `"diagnostics": {"test_names": ["test_expected_result"]}`. An empty object enables anonymous case numbers. Only explicitly listed static test identifiers may appear by name. The summary includes at most 20 failing cases and simple numeric/boolean/null comparisons, such as `1 != 2` or `True != False`. String values, arbitrary assertion text, stack traces, model replies and report stdout/stderr are omitted. Known environment/derived secrets are redacted before extraction. Diagnostic reports are limited to 1 MiB; absent, malformed, oversized or unfinished reports are recorded as unavailable/invalid without hiding the command failure. A timeout can retain a report already written before the process was stopped.
+
+This is a sanitized summary of the explicitly declared report, not a raw test-report upload. Test names supplied by parameterized inputs remain anonymous unless they exactly match a reviewed configured identifier. Flutter-machine validation and existing success requirements are unchanged; JUnit is the only diagnostic-summary format in this change.
+
 ## Workflow and environment contract
 
 Root workflows install the pinned runtime and package manager before calling this module, with immutable action pins and verified downloads. The native self-repository composite action loads the same library revision as its workflow. No secrets are required. Explicit `environment_names` can pass non-secret test configuration; names suggesting credentials are rejected, and ambient provider/cloud/GitHub credentials are stripped by the common runner. Use isolated databases and fixture accounts; commands that contact production business APIs are not suitable quality checks.

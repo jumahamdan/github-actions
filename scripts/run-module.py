@@ -17,6 +17,7 @@ sys.path.insert(0, str(LIBRARY))
 from shared_ci.common import PipelineError, atomic_json, confined_path, load_json, run, sha256_file
 from shared_ci.assurance import stamp, library_identity
 from shared_ci.runtime import invocation, json_input
+from shared_ci.quality import QualityFailure
 
 
 def dispatch(name, module, config, root, path, output, operation, active):
@@ -196,9 +197,11 @@ def main():
                 if name == "plan":
                     stream.write("plan="+json.dumps(result,separators=(",",":"))+"\n")
         print(json.dumps({"module": name, "status": result["status"]}))
-    except BaseException:
+    except BaseException as error:
         if not output.exists() or load_json(output).get("status") != "failed":
             failed = {"schema": 1, "status": "failed", "module": name}
+            if name == "quality" and isinstance(error, QualityFailure):
+                failed["failure"] = error.details
             operation_name = config.get("operation")
             if isinstance(operation_name, str) and re.fullmatch(r"[A-Za-z0-9_-]+", operation_name):
                 failed["operation"] = operation_name

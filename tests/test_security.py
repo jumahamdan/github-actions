@@ -1,5 +1,8 @@
 import datetime as dt
 import json
+import hashlib
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -7,10 +10,115 @@ from pathlib import Path
 from unittest.mock import patch
 
 from shared_ci.common import PipelineError, sha256_file
-from shared_ci.security import normalize, policy, require_fresh, scan, scanner_intelligence, semgrep_rules
+from shared_ci.security import normalize, policy, require_fresh, scan, scanner_intelligence, semgrep_rules, verified_checksum_findings
 
 
 class SecurityTests(unittest.TestCase):
+    def checksum_fixture(self, root):
+        document = root / "docs" / "credentials.md"
+        document.parent.mkdir()
+        document.write_text("# Synthetic credential ownership documentation\n")
+        receipt = root / "receipt.json"
+        receipt.write_text(json.dumps({"schema_version": 1, "kind": "documentation", "status": "passed",
+                                      "files": {"docs/credentials.md": sha256_file(document)},
+                                      "credential": "synthetic-secret-shaped-value"}, indent=2) + "\n")
+        lines = receipt.read_text().splitlines()
+        checksum_line = next(index for index, line in enumerate(lines, start=1) if '"docs/credentials.md"' in line)
+        secret_line = next(index for index, line in enumerate(lines, start=1) if '"credential"' in line)
+        def finding(line):
+            match = 'credentials.md": "REDACTED"' if line == checksum_line else 'credential": "REDACTED"'
+            return {"RuleID": "generic-api-key", "File": "receipt.json", "StartLine": line, "EndLine": line, "Match": match, "Secret": "REDACTED", "Fingerprint": "fixture:" + str(line)}
+        return receipt, document, finding(checksum_line), finding(secret_line)
+
+    def test_only_verified_document_checksum_is_suppressed_beside_secret(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, _, checksum, secret = self.checksum_fixture(root)
+            kept, count = verified_checksum_findings([checksum, secret], ["receipt.json"], root, root)
+            self.assertEqual((kept, count), ([secret], 1))
+            self.assertEqual(policy(normalize("gitleaks", kept), "high", [])["blocking"], 1)
+
+    def test_changed_source_wrong_rule_and_unselected_receipt_are_not_exempt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            receipt, document, checksum, _ = self.checksum_fixture(root)
+            for finding, selected in [(checksum, []), (checksum | {"RuleID": "github-pat"}, ["receipt.json"]),
+                                      (checksum | {"EndLine": checksum["EndLine"] + 1}, ["receipt.json"])]:
+                self.assertEqual(verified_checksum_findings([finding], selected, root, root), ([finding], 0))
+            document.write_text("Changed content\n")
+            self.assertEqual(verified_checksum_findings([checksum], ["receipt.json"], root, root), ([checksum], 0))
+            receipt.write_text('{"kind":"unknown"}')
+            self.assertEqual(verified_checksum_findings([checksum], ["receipt.json"], root, root), ([checksum], 0))
+
+    def test_checksum_filter_requires_match_to_value_not_credential_in_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            receipt, document, checksum, _ = self.checksum_fixture(root)
+            for change in [{"Match": "api_key=REDACTED\""}, {"Secret": "missing-redaction"}, {"Match": ""}, {"Commit": "a" * 40}]:
+                finding = checksum | change
+                self.assertEqual(verified_checksum_findings([finding], ["receipt.json"], root, root), ([finding], 0))
+            secret = hashlib.sha256(b"synthetic path fixture").hexdigest()
+            name = "docs/api_key=" + secret + ".md"
+            document.rename(root / name)
+            data = json.loads(receipt.read_text())
+            data["files"] = {name: sha256_file(root / name)}
+            receipt.write_text(json.dumps(data, indent=2) + "\n")
+            finding = checksum | {"Match": 'api_key=REDACTED"'}
+            self.assertEqual(verified_checksum_findings([finding], ["receipt.json"], root, root), ([finding], 0))
+
+    def test_pinned_gitleaks_keeps_secret_in_document_path_key(self):
+        executable = shutil.which("gitleaks")
+        if not executable or subprocess.run([executable, "version"], capture_output=True, text=True).stdout.strip() != "8.30.1":
+            self.skipTest("checksum-locked gitleaks8.30.1 is not installed")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            receipt, document, _, _ = self.checksum_fixture(root)
+            secret = hashlib.sha256(b"synthetic path fixture").hexdigest()
+            name = "docs/api_key=" + secret + ".md"
+            document.rename(root / name)
+            data = json.loads(receipt.read_text())
+            data.pop("credential")
+            data["files"] = {name: sha256_file(root / name)}
+            receipt.write_text(json.dumps(data, indent=2) + "\n")
+            report = root / "scan.json"
+            result = subprocess.run([executable, "dir", str(root), "--redact=100", "--report-format", "json", "--report-path", str(report), "--no-banner"], capture_output=True)
+            self.assertEqual(result.returncode, 1)
+            findings = [finding for finding in json.loads(report.read_text()) if Path(finding["File"]).name == "receipt.json"]
+            self.assertTrue(findings)
+            kept, suppressed = verified_checksum_findings(findings, ["receipt.json"], root, root)
+            self.assertEqual((kept, suppressed), (findings, 0))
+
+    def test_checksum_filter_integrates_without_accepting_failed_scanner(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, _, checksum, secret = self.checksum_fixture(root)
+            script = root / "gitleaks"
+            def run_findings(findings):
+                script.write_text(f"#!{sys.executable}\nimport sys\nprint('1.0.0' if 'version' in sys.argv else " + repr(json.dumps(findings)) + ")\nraise SystemExit(0 if 'version' in sys.argv else 1)\n")
+                script.chmod(0o755)
+                config = {"schema": 1, "threshold": "high", "max_age_hours": 24,
+                          "scans": [{"id": "fixture", "format": "gitleaks", "command": [str(script), "dir", ".", "--redact=100"],
+                                     "version_command": [str(script), "version"], "version": "1.0.0", "output": "stdout",
+                                     "rules_identity": "builtin:1.0.0", "database_identity": "none", "verified_checksum_receipts": ["receipt.json"]}]}
+                return scan(config, root)
+            result = run_findings([checksum])
+            self.assertEqual(result["status"], "passed")
+            self.assertEqual(result["scanners"][0]["verified_checksum_fields"], 1)
+            self.assertEqual(run_findings([checksum, secret])["status"], "failed")
+            with self.assertRaisesRegex(PipelineError, "without valid findings"):
+                run_findings([])
+
+    def test_checksum_filter_refuses_historical_or_other_root_scan(self):
+        base = {"id": "fixture", "format": "gitleaks", "command": ["gitleaks", "dir", ".", "--redact=100"],
+                "version_command": ["gitleaks", "version"], "version": "8.30.1", "output": "stdout",
+                "rules_identity": "builtin:8.30.1", "database_identity": "none", "verified_checksum_receipts": ["receipt.json"]}
+        with tempfile.TemporaryDirectory() as root:
+            for command in [["gitleaks", "git", ".", "--redact=100"], ["gitleaks", "dir", "elsewhere", "--redact=100"], ["python3", "scanner.py"]]:
+                config = {"schema": 1, "threshold": "high", "max_age_hours": 24, "scans": [base | {"command": command}]}
+                with self.subTest(command=command), patch("shared_ci.security.run") as process, self.assertRaisesRegex(PipelineError, "repository root"):
+                    scan(config, root)
+                process.assert_not_called()
+
     def test_duplicate_findings_keep_highest_severity_in_either_order(self):
         for levels in (("CRITICAL", "LOW"), ("LOW", "CRITICAL")):
             report = {"Results": [{"Vulnerabilities": [
