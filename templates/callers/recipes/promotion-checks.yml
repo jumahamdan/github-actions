@@ -16,20 +16,29 @@ jobs:
     with:
       config: '@@PRODUCTS_CONFIG@@'
       artifact-name: route
-  reuse:
+  quality:
     needs:
     - route
-    uses: jumahamdan/github-actions/.github/workflows/v2-reuse.yml@@@LIBRARY_SHA@@
+    uses: jumahamdan/github-actions/.github/workflows/v2-checks.yml@@@LIBRARY_SHA@@
     with:
-      config: '@@REUSE_CONFIG@@'
+      config: '@@QUALITY_CONFIG@@'
+      profile: '@@PROFILE@@'
+      reuse-config: '@@REUSE_CONFIG@@'
       artifact-name: promotion-quality
-      quality-run-id: ${{ fromJSON(vars.PROMOTION_QUALITY).run_id }}
-      quality-run-attempt: ${{ fromJSON(vars.PROMOTION_QUALITY).run_attempt }}
-      quality-run-head-sha: ${{ fromJSON(vars.PROMOTION_QUALITY).run_head_sha }}
-      quality-tested-sha: ${{ fromJSON(vars.PROMOTION_QUALITY).tested_sha }}
-      quality-artifact: ${{ fromJSON(vars.PROMOTION_QUALITY).artifact }}
-      quality-producer-job: quality / run
-      quality-allowed-branches: ${{ format('["{0}"]', fromJSON(vars.PROMOTION_QUALITY).branch) }}
-      quality-allowed-events: '["pull_request"]'
+      binary-manifest: '@@BINARY_MANIFEST@@'
+      npm-tools: '@@NPM_TOOLS@@'
+      python-tools: '@@PYTHON_TOOLS@@'
+      tool-bundles: '@@TOOL_BUNDLES@@'
+  security:
+    needs:
+    - route
+    uses: jumahamdan/github-actions/.github/workflows/v2-security.yml@@@LIBRARY_SHA@@
+    with:
+      config: '@@SECURITY_CONFIG@@'
+      artifact-name: promotion-security
+      binary-manifest: '@@BINARY_MANIFEST@@'
+      npm-tools: '@@NPM_TOOLS@@'
+      python-tools: '@@PYTHON_TOOLS@@'
+      tool-bundles: '@@TOOL_BUNDLES@@'
   required:
     $ref: shared.gate

@@ -60,23 +60,44 @@ class CallerTemplateTests(unittest.TestCase):
             self.assertEqual(policy, {'schema': 1, 'checks': {key: True for key in expected}})
             self.assertNotIn('continue-on-error', json.dumps(workflow))
 
-    def test_promotion_uses_authenticated_original_quality_without_reexecuting_tests(self):
+    def test_promotion_discovers_quality_and_always_requires_fresh_security(self):
         workflow, files = rendered('promotion-checks')
         self.assertEqual(workflow['on'], {'pull_request': {'branches': ['staging', 'main']}})
-        self.assertEqual(set(workflow['jobs']), {'route', 'reuse', 'required'})
-        reuse = workflow['jobs']['reuse']
-        self.assertIn('v2-reuse.yml@', reuse['uses'])
-        self.assertNotIn('if', reuse)
-        self.assertEqual(reuse['with']['quality-producer-job'], 'quality / run')
-        self.assertEqual(reuse['with']['quality-allowed-events'], '["pull_request"]')
-        for key in ('quality-run-id', 'quality-run-attempt', 'quality-run-head-sha', 'quality-tested-sha', 'quality-artifact'):
-            self.assertIn('fromJSON(vars.PROMOTION_QUALITY)', reuse['with'][key])
-        config = json.loads(files[reuse['with']['config']])
+        self.assertEqual(set(workflow['jobs']), {'route', 'quality', 'security', 'required'})
+        quality = workflow['jobs']['quality']
+        self.assertIn('v2-checks.yml@', quality['uses'])
+        self.assertNotIn('if', quality)
+        self.assertNotIn('PROMOTION_QUALITY', json.dumps(workflow))
+        config = json.loads(files[quality['with']['reuse-config']])
         self.assertEqual(config['source']['repository'], 'example/product')
         self.assertEqual(config['source']['workflow'], '.github/workflows/ci.yml')
-        self.assertEqual(config['source']['run_attempt'], {'env': 'QUALITY_RUN_ATTEMPT'})
-        self.assertEqual(config['source']['allowed_branches'], {'env': 'QUALITY_ALLOWED_BRANCHES'})
+        self.assertEqual(config['source']['artifact_prefix'], 'ci-quality')
+        self.assertEqual(config['source']['allowed_branches'], ['develop'])
         self.assertGreater(config['max_age_seconds'], 0)
+        self.assertIn('v2-security.yml@', workflow['jobs']['security']['uses'])
+        self.assertNotIn('if', workflow['jobs']['security'])
+        self.assertNotIn('reuse-config', workflow['jobs']['security']['with'])
+        from shared_ci.gate import evaluate
+        policy = json.loads(files[workflow['jobs']['required']['with']['config']])
+        passed = {name: {'result': 'success', 'outputs': {'status': 'passed'}} for name in ('route', 'quality', 'security')}
+        self.assertEqual(evaluate(policy, passed)['status'], 'passed')
+        for status in ('failure', 'skipped', 'cancelled'):
+            with self.assertRaises(ValueError):
+                evaluate(policy, {**passed, 'security': {'result': status}})
+        with self.assertRaises(ValueError):
+            evaluate(policy, {key: value for key, value in passed.items() if key != 'security'})
+
+    def test_promotion_product_namespace_is_local_and_security_cannot_be_disabled(self):
+        workflow, files = rendered('promotion-checks', profile='python', security_config='.ci/release-security.json',
+                                   quality_artifact_prefix='api-quality', quality_producer_job='api / quality',
+                                   quality_branches=['integration'])
+        quality = workflow['jobs']['quality']
+        policy = json.loads(files[quality['with']['reuse-config']])
+        self.assertEqual(policy['source']['artifact_prefix'], 'api-quality')
+        self.assertEqual(policy['source']['allowed_branches'], ['integration'])
+        self.assertEqual(workflow['jobs']['security']['with']['config'], '.ci/release-security.json')
+        with self.assertRaises(CALLERS.Error):
+            rendered('promotion-checks', security=False)
 
     def test_provider_delivery_is_manual_branch_bound_and_authenticates_retained_candidate(self):
         for provider in CALLERS.PROVIDER:

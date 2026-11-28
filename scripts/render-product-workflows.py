@@ -38,7 +38,8 @@ COMMON = {'recipe', 'filename', 'binary_manifest', 'npm_tools', 'python_tools', 
 OPTIONS = {
     'ci': {'profile', 'quality_config', 'products_config', 'security', 'docs', 'mock_ai',
            'security_config', 'docs_config', 'mock_ai_config'},
-    'promotion-checks': {'quality_config', 'products_config', 'ci_workflow'},
+    'promotion-checks': {'profile', 'quality_config', 'products_config', 'ci_workflow', 'security_config',
+                         'quality_artifact_prefix', 'quality_producer_job', 'quality_branches'},
     'candidate-build': {'profile', 'quality_config', 'candidate_config'},
     'container-build': {'container_build_config', 'candidate_config'},
     'web-delivery': {'provider', 'branch', 'environment', 'delivery_config', 'producer_workflow'},
@@ -53,8 +54,10 @@ DEFAULTS = {
     'ci': {'filename': 'ci.yml', 'profile': 'node', 'quality_config': '.ci/quality.json',
            'products_config': '.ci/products.json', 'security': True, 'docs': True, 'mock_ai': False,
            'security_config': '.ci/security.json', 'docs_config': '.ci/docs.json', 'mock_ai_config': '.ci/ai-mock.json'},
-    'promotion-checks': {'filename': 'promotion.yml', 'quality_config': '.ci/quality.json',
-                         'products_config': '.ci/products.json', 'ci_workflow': '.github/workflows/ci.yml'},
+    'promotion-checks': {'filename': 'promotion.yml', 'profile': 'node', 'quality_config': '.ci/quality.json',
+                         'products_config': '.ci/products.json', 'ci_workflow': '.github/workflows/ci.yml',
+                         'security_config': '.ci/security.json', 'quality_artifact_prefix': 'ci-quality',
+                         'quality_producer_job': 'quality / run', 'quality_branches': ['develop']},
     'candidate-build': {'filename': 'build-candidate.yml', 'profile': 'node', 'quality_config': '.ci/build.json',
                         'candidate_config': '.ci/candidate.json'},
     'container-build': {'filename': 'build-candidate.yml', 'container_build_config': '.ci/container-build.json',
@@ -133,6 +136,18 @@ def options(raw):
         raise Error('Unknown web provider')
     if 'platform' in value and (not isinstance(value['platform'], str) or value['platform'] not in {'apple', 'android'}):
         raise Error('Store platform must be apple or android')
+    if recipe == 'promotion-checks':
+        if not isinstance(value['quality_artifact_prefix'], str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,79}', value['quality_artifact_prefix']):
+            raise Error('Quality artifact prefix must be an explicit product namespace')
+        producer = value['quality_producer_job']
+        if not isinstance(producer, str) or not producer.strip() or len(producer) > 200 or any(ord(c) < 32 for c in producer):
+            raise Error('Quality producer job must be an explicit job name')
+        branches = value['quality_branches']
+        if (not isinstance(branches, list) or not branches or len(branches) > 100
+                or any(not isinstance(branch, str) or not re.fullmatch(r'[A-Za-z0-9_./-]+', branch)
+                       or branch.startswith(('refs/', '/')) or branch.endswith('/') or '..' in branch for branch in branches)
+                or len(set(branches)) != len(branches)):
+            raise Error('Quality branches must be unique explicit integration branches')
     if recipe in {'ci', 'promotion-checks'}:
         return value
     if recipe == 'mobile-release':
@@ -318,10 +333,8 @@ def render(config, revision, *, source=SOURCE, library=ROOT):
         if recipe == 'promotion-checks':
             result[reuse_path] = json.dumps({'schema': 1, 'quality_config': settings['quality_config'], 'max_age_seconds': 86400,
                 'source': {'repository': config['repository'], 'workflow': settings['ci_workflow'],
-                    'run_id': {'env': 'QUALITY_RUN_ID'}, 'run_attempt': {'env': 'QUALITY_RUN_ATTEMPT'},
-                    'run_head_sha': {'env': 'QUALITY_RUN_HEAD_SHA'}, 'source_sha': {'env': 'QUALITY_TESTED_SHA'},
-                    'artifact': {'env': 'QUALITY_ARTIFACT'}, 'producer_job': {'env': 'QUALITY_PRODUCER_JOB'},
-                    'allowed_branches': {'env': 'QUALITY_ALLOWED_BRANCHES'}, 'allowed_events': {'env': 'QUALITY_ALLOWED_EVENTS'}}}, indent=2) + '\n'
+                    'artifact_prefix': settings['quality_artifact_prefix'], 'producer_job': settings['quality_producer_job'],
+                    'allowed_branches': settings['quality_branches'], 'allowed_events': ['pull_request']}}, indent=2) + '\n'
     return result
 
 

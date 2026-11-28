@@ -31,7 +31,7 @@ The validator checks actual reusable inputs, secrets, output names, permissions,
 | Recipe | Default file | Trigger and behavior |
 | --- | --- | --- |
 | `ci` | `ci.yml` | PR into `develop`: enforce the feature route, run quality/security/docs, then the required gate. Mock AI is opt-in. |
-| `promotion-checks` | `promotion.yml` | PR into `staging` or `main`: enforce `develop → staging → main`, authenticate and reuse original quality evidence, then the required gate. No repeated quality execution. |
+| `promotion-checks` | `promotion.yml` | PR into `staging` or `main`: enforce `develop → staging → main`, discover matching original quality or run fresh, always run fresh security, then require both results. |
 | `candidate-build` | `build-candidate.yml` | Manual dispatch on `staging`: run the product's build/quality configuration and retain its candidate and typed checks. |
 | `container-build` | `build-candidate.yml` | Manual dispatch on `staging`: use the container build/test adapter and retain the exact Docker archive and candidate. |
 | `web-delivery` | `staging.yml` | Manual dispatch on the fixed staging or main branch: import a selected staging candidate and call the chosen hosting adapter. |
@@ -63,24 +63,11 @@ Container build configuration uses `"source_sha": "workflow"` to bind the build 
 
 ## Promotion without duplicate checks
 
-Before opening or rerunning a promotion PR, set the **repository variable** `PROMOTION_QUALITY` to the approved original successful feature-CI selection, for example:
+The promotion starter discovers original successful CI evidence automatically and runs fresh quality when none qualifies. It uses `v2-checks.yml` with an optional discovery policy, preserving the ordinary runner and receipt contract. No repository variable selects a mutable "latest" run.
 
-```json
-{
-  "run_id": "123",
-  "run_attempt": "1",
-  "run_head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "tested_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-  "artifact": "ci-quality-run-123-attempt-1",
-  "branch": "feature/example"
-}
-```
+The generated policy fixes the product repository and `ci_workflow`, exact `quality_producer_job` (default `quality / run`), `quality_artifact_prefix` (default `ci-quality`) and `quality_branches` (default `["develop"]`). For PR producers those branches name the destination; the authenticated run's exact source head must also be in the promotion candidate's ancestry. Squashed or unavailable source history falls back to fresh checks. Multiple products should use their own workflow/job/artifact namespace and complete quality input selection. The default freshness limit is 24 hours from original creation; stale, changed, chained or unavailable evidence runs fresh. Current quality failures still block.
 
-These are illustrative selectors, not real evidence. Obtain the run head/branch from the authenticated Actions run and the tested SHA/artifact name from its quality receipt/outputs. A PR's tested merge SHA can differ from its branch head. Never guess either value. The source repository and CI workflow are fixed by the generated reuse configuration; producer job is `quality / run` and event is `pull_request`. The default freshness limit is 24 hours, measured from the original quality evidence. A staging soak beyond that window requires fresh matching CI evidence before `staging → main`; alternatively, review and commit a deliberately longer `max_age_seconds` in the generated reuse policy before the original quality run.
-
-An absent/malformed selection, wrong producer/branch/source, stale receipt, changed inputs, changed toolchain/library, failed check or chained reuse fails promotion. No fallback silently reruns everything or marks a missing proof successful. Run fresh feature CI when evidence cannot be reused, then update the variable and rerun the promotion check. Changing this variable does not change the source tree or automatically rerun a PR. Independent concurrent release lines need separate caller/variable policies rather than racing one global selection.
-
-Only deterministic credential-free quality evidence is reusable. The product's separate release security policy, native/device verification and current environment health still apply. The starter does not claim that a reused unit test proves those other checks.
+Configure `profile` and tool manifests for the same quality runner used by CI. A fresh `security_config` (default `.ci/security.json`) is mandatory on every promotion. Its job never reuses quality receipts and cannot be disabled through recipe settings. Missing, skipped, failed or cancelled security blocks the generated required gate. Native/device verification, live checks and current environment health remain product-owned. See [the discovery and reuse contract](../../docs/quality-reuse.md).
 
 ## Credential and variable ownership
 
