@@ -253,7 +253,7 @@ jobs:
         nsource-root={root.relative_to(workspace)}\\nresults={results}\\n')\nPY\n"
     - name: Set up exact Go compiler
       if: ${{ inputs.language == 'go' && inputs.build-mode == 'manual' }}
-      uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+      uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5
       with:
         go-version: ${{ inputs.go-version }}
         cache: false
