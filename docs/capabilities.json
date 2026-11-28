@@ -400,7 +400,8 @@
       "modules": [
         "quality",
         "sonar",
-        "reuse"
+        "reuse",
+        "quality_discovery"
       ],
       "example": "examples/quality-flutter.json",
       "adoption": "Actual application assertions, data isolation and thresholds belong to the product. The library validates real command execution and nonempty test evidence; it does not certify runtime business behavior.",
@@ -480,6 +481,23 @@
             "test_same_running_push_fetches_completed_quality_job_and_scans_without_retesting",
             "test_workflow_maps_exact_quality_contract_and_keeps_pr_secret_guard",
             "test_wrong_branch_producer_attempt_or_event_refuses_before_scanner"
+          ]
+        },
+        {
+          "file": "tests/test_quality_discovery.py",
+          "cases": [
+            "test_artifact_namespace_and_digest_cannot_cross_product_evidence",
+            "test_changed_candidate_inputs_run_fresh",
+            "test_current_run_and_excess_listing_are_not_discovered",
+            "test_exact_push_source_must_be_in_candidate_ancestry",
+            "test_expired_changed_and_chained_receipts_require_fresh_quality",
+            "test_fresh_quality_failure_still_blocks_promotion",
+            "test_invalid_policy_fails_before_fresh_or_network",
+            "test_legacy_quality_dispatch_stays_fresh_without_discovery",
+            "test_matching_original_is_discovered_without_reexecuting_or_redownloading",
+            "test_missing_or_unavailable_evidence_runs_fresh_quality",
+            "test_raw_transport_and_malformed_authenticated_receipts_run_fresh",
+            "test_repository_workflow_base_fork_and_unrelated_source_are_not_eligible"
           ]
         }
       ],
@@ -3011,7 +3029,8 @@
             "test_missing_repository_duplicate_output_and_duplicate_json_keys_fail",
             "test_only_selected_hosting_provider_secret_is_exposed",
             "test_production_store_recipe_requires_main_and_selected_platform_identity",
-            "test_promotion_uses_authenticated_original_quality_without_reexecuting_tests",
+            "test_promotion_discovers_quality_and_always_requires_fresh_security",
+            "test_promotion_product_namespace_is_local_and_security_cannot_be_disabled",
             "test_provider_delivery_is_manual_branch_bound_and_authenticates_retained_candidate",
             "test_reusable_tool_defaults_are_preserved_and_bundles_accept_explicit_lists",
             "test_store_retries_use_previous_state_and_only_android_staging_allows_submission",

@@ -22,7 +22,13 @@ from shared_ci.quality import QualityFailure
 
 def dispatch(name, module, config, root, path, output, operation, active):
     if name == "quality":
-        result = module.execute(config, root, config_hash=sha256_file(path))
+        result = None
+        reuse_path = os.environ.get("SHARED_QUALITY_REUSE_CONFIG", "")
+        if reuse_path:
+            from shared_ci.quality_discovery import discover
+            result = discover(load_json(confined_path(root, reuse_path)), root, path)
+        if result is None:
+            result = module.execute(config, root, config_hash=sha256_file(path))
     elif name == "credentials":
         result = {"status": "passed", **module.preflight(config)}
     elif name == "security":

@@ -160,6 +160,11 @@ name: Checks · Code quality
         description: Declared profile
         required: true
         type: string
+      reuse-config:
+        description: Optional authenticated quality discovery policy; missing evidence runs fresh checks
+        required: false
+        type: string
+        default: ''
     outputs:
       status:
         description: passed, advisory, or pending; only passed satisfies release gates
@@ -282,6 +287,9 @@ jobs:
         selected-identity: ${{ steps.import-candidate.outputs.candidate-identity }}
         selected-source-sha: ${{ steps.import-candidate.outputs.source-sha }}
         module: quality
+      env:
+        SHARED_QUALITY_REUSE_CONFIG: ${{ inputs.reuse-config }}
+        GH_TOKEN: ${{ inputs.reuse-config != '' && github.token || '' }}
     - name: Preserve sanitized evidence
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:

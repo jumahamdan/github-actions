@@ -238,6 +238,7 @@ Every workflow below also requires the caller permissions declared in its YAML; 
 | `php-version` | '8.3' | Exact PHP runtime series |
 | `artifact-allowed-events` | '["push","workflow_dispatch"]' | Explicit producer event array; pull_request is for uncredentialed verification only |
 | `profile` | required | Declared profile |
+| `reuse-config` | '' | Optional authenticated quality discovery policy; missing evidence runs fresh checks |
 
 **Named secrets:** `ARTIFACT_READ_TOKEN`.
 

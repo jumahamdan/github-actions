@@ -17,6 +17,11 @@ name: Checks · Code quality
           description: Declared profile
           required: true
           type: string
+        reuse-config:
+          description: Optional authenticated quality discovery policy; missing evidence runs fresh checks
+          required: false
+          type: string
+          default: ''
     outputs:
       $ref: outputs.workflow
     secrets:
@@ -45,6 +50,9 @@ jobs:
         - $ref: bindings.execution
         - $ref: bindings.selected-candidate
         - module: quality
+      env:
+        SHARED_QUALITY_REUSE_CONFIG: ${{ inputs.reuse-config }}
+        GH_TOKEN: ${{ inputs.reuse-config != '' && github.token || '' }}
     - $ref: steps.retain-evidence
     - $ref: steps.create-candidate
     - $ref: steps.package-candidate

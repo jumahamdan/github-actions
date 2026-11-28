@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "quality_config": "ci/quality.json",
+  "source": {
+    "repository": "example/product",
+    "workflow": ".github/workflows/ci.yml",
+    "artifact_prefix": "ci-quality",
+    "producer_job": "quality / run",
+    "allowed_branches": ["develop"],
+    "allowed_events": ["pull_request"]
+  },
+  "max_age_seconds": 86400,
+  "max_runs": 20,
+  "token_env": "GH_TOKEN"
+}
