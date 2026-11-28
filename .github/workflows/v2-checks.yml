@@ -247,7 +247,7 @@ jobs:
         channel: stable
         cache: true
     - if: ${{ inputs.profile == 'php' }}
-      uses: shivammathur/setup-php@d52fc211a0436f8839a587b3b5b8efddab4744ea
+      uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
       with:
         php-version: ${{ inputs.php-version }}
         coverage: none
