@@ -10,4 +10,6 @@ Inline/reference Markdown links and HTML `href`/`src` links are checked. Local f
 
 Keep README, architecture, setup, release, environments and recovery documentation beside the code. Review behavior and documentation in the same PR. A Wiki may link to these documents, but this module does not enable a Wiki or publish private documents. No paid tools or account credentials are needed.
 
+The separate [PR coverage action](pr-documentation-coverage.md) requires documentation changes or a specific explanation when configured code changes, and added release notes for explicitly declared behavior changes. It reads PR metadata with a read-only GitHub token; it complements these local fact/link checks rather than replacing their accuracy checks.
+
 The separate [Wiki publisher](wiki-publishing.md) can publish reviewed source pages after an explicit manual request. Its `Docs · Publish Wiki` workflow never publishes on a push, pull request or schedule. The [shared-library Wiki sources](wiki/Home.md) include an overview and a short explanation of each workflow.

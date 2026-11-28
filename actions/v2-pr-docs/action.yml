@@ -1,0 +1,24 @@
+name: PR documentation and release-note coverage
+description: Require docs coverage or a reason for code changes, and added release notes for declared behavior changes.
+inputs:
+  config:
+    description: Repository-local coverage settings relative to the checked-out caller root
+    required: true
+  root:
+    description: Checked-out caller repository root
+    default: .
+  github-token:
+    description: Read-only token with pull-requests and contents read access for this repository
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Check PR coverage
+      shell: bash
+      env:
+        PR_DOCS_ACTION_PATH: ${{ github.action_path }}
+        PR_DOCS_CONFIG: ${{ inputs.config }}
+        PR_DOCS_ROOT: ${{ inputs.root }}
+        PR_DOCS_GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: |
+        PYTHONPATH="$PR_DOCS_ACTION_PATH/../.." python3 -B -P -m shared_ci.pr_docs --root "$PR_DOCS_ROOT" --config "$PR_DOCS_CONFIG"
