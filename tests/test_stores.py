@@ -85,12 +85,22 @@ class AppleAPI:
         self.selected, self.submissions, self.items = None, [], []
         self.app_id, self.sub_state, self.store_state = "100", "READY_FOR_REVIEW", "WAITING_FOR_REVIEW"
         self.localizations = []
+        self.expired = False
+        self.expiration_date = None
+        self.retain_assignment = True
+        self.group_internal = True
+        self.beta_submissions = []
 
     def resource(self, id, attributes=None, relationships=None):
         return {"data": {"id": id, "attributes": attributes or {}, "relationships": relationships or {}}}
 
     def __call__(self, method, path, body=None, upload=None):
         self.calls.append((method, path, body))
+        if path.startswith("/v1/betaAppReviewSubmissions?"):
+            return {"data": self.beta_submissions}
+        if path == "/v1/betaAppReviewSubmissions" and method == "POST":
+            self.beta_submissions = [{"id": "beta-review"}]
+            return self.resource("beta-review")
         if path == "/v1/builds/200/betaBuildLocalizations":
             return {"data": self.localizations}
         if path == "/v1/betaBuildLocalizations" and method == "POST":
@@ -102,7 +112,7 @@ class AppleAPI:
             item["attributes"].update(body["data"]["attributes"])
             return {"data": item}
         if path == "/v1/builds/200":
-            return self.resource("200", {"version": "123", "expired": False, "processingState": self.processing})
+            return self.resource("200", {"version": "123", "expired": self.expired, "expirationDate": self.expiration_date, "processingState": self.processing})
         if path.endswith("/preReleaseVersion"):
             return self.resource("pre", {"version": "1.0.0", "platform": "IOS"})
         if path.endswith("/app"):
@@ -112,10 +122,11 @@ class AppleAPI:
         if "/betaGroups/" in path:
             if path.endswith("/relationships/builds"):
                 if method == "POST":
-                    self.group_builds.extend(body["data"])
+                    if self.retain_assignment:
+                        self.group_builds.extend(body["data"])
                     return {}
                 return {"data": self.group_builds}
-            return self.resource("group1", {"isInternalGroup": True})
+            return self.resource(path.rsplit("/", 1)[-1], {"isInternalGroup": self.group_internal})
         if path == "/v1/appStoreVersions/300?include=app":
             return self.resource("300", {"versionString": "1.0.0", "platform": "IOS", "appVersionState": self.store_state, "downloadable": self.store_state == "READY_FOR_DISTRIBUTION"}, {"app": {"data": {"id": "100"}}})
         if path.endswith("/relationships/build"):
@@ -161,6 +172,17 @@ class StoresTests(unittest.TestCase):
         self.config.pop("play")
         self.config.update(operation=operation, apple={"app_id": "100", "build_id": "200", "platform": "IOS", "group_ids": ["group1"], "app_store_version_id": "300", "expected_selected_build": None})
         self.api = AppleAPI()
+        if operation == "testflight":
+            self.config.update(timeout=1, poll_interval=0.01)
+            self.api.localizations = [{"id": "en", "attributes": {"locale": "en-US", "whatsNew": "Synthetic testing notes"}}]
+
+    def delivery(self):
+        # Deterministic deadline: a nonready first snapshot returns immediately.
+        clock = [0]
+        def sleep(_):
+            clock[0] += self.config.get("timeout", 900)
+        with patch("shared_ci.stores.time.monotonic", side_effect=lambda: clock[0]), patch("shared_ci.stores.time.sleep", side_effect=sleep):
+            return stores.execute(self.config, self.root, api=self.api)
 
     def test_upload_exact_bytes_and_no_cancellation_default(self):
         result = stores.execute(self.config, self.root, api=self.api)
@@ -259,6 +281,175 @@ class StoresTests(unittest.TestCase):
         self.assertEqual(self.api.group_builds, [{"type": "builds", "id": "200"}])
         stores.execute(self.config, self.root, api=self.api)
         self.assertEqual(len(self.api.group_builds), 1)
+
+    def test_testflight_cached_success_rechecks_expiry_and_removed_membership(self):
+        self.apple()
+        first = self.delivery()
+        self.assertTrue(first["readiness_verified"])
+        writes = [call for call in self.api.calls if call[0] != "GET"]
+        self.api.group_builds = []
+        result = self.delivery()
+        self.assertEqual(result["status"], "pending")
+        self.assertIn("group_membership_not_visible", result["pending_reasons"])
+        self.assertTrue(result["historical_success"])
+        self.assertEqual([call for call in self.api.calls if call[0] != "GET"], writes)
+        self.api.expired = True
+        with self.assertRaisesRegex(PipelineError, "expired"):
+            self.delivery()
+
+    def test_testflight_assignment_acknowledgement_requires_readback_without_repeat(self):
+        self.apple()
+        self.api.retain_assignment = False
+        for _ in range(2):
+            result = self.delivery()
+            self.assertEqual(result["status"], "pending")
+            self.assertIn("group_membership_not_visible", result["pending_reasons"])
+        self.assertEqual(sum(call[0] == "POST" for call in self.api.calls), 1)
+        self.api.group_builds = [{"id": "200", "type": "builds"}]
+        self.assertTrue(self.delivery()["readiness_verified"])
+
+    def test_testflight_missing_empty_or_whitespace_notes_never_pass(self):
+        for text in [None, "", " \n\t"]:
+            self.apple()
+            self.api.localizations = [] if text is None else [{"id": "en", "attributes": {"locale": "en-US", "whatsNew": text}}]
+            with self.subTest(text=text):
+                self.assertIn("tester_notes_missing_or_different", self.delivery()["pending_reasons"])
+            (self.root / "state.json").unlink(missing_ok=True)
+
+    def test_testflight_cached_success_rechecks_notes_and_beta_eligibility(self):
+        self.apple()
+        self.delivery()
+        self.api.localizations[0]["attributes"]["whatsNew"] = " "
+        self.assertIn("tester_notes_missing_or_different", self.delivery()["pending_reasons"])
+        self.api.localizations[0]["attributes"]["whatsNew"] = "Synthetic testing notes"
+        self.api.beta["internalBuildState"] = "PROCESSING"
+        self.assertIn("beta_processing_or_review", self.delivery()["pending_reasons"])
+        self.api.beta["internalBuildState"] = "IN_BETA_TESTING"
+        self.assertTrue(self.delivery()["readiness_verified"])
+        self.assertEqual(sum(call[0] == "POST" for call in self.api.calls), 1)
+
+    def test_testflight_approved_notes_and_explicit_locales_are_verified(self):
+        self.beta_notes()
+        self.config["operation"] = "testflight"
+        self.config["apple"]["delivery_locales"] = ["en-US", "fr-FR"]
+        self.api.localizations = [{"id": "en", "attributes": {"locale": "en-US", "whatsNew": "Unapproved replacement"}},
+                                 {"id": "fr", "attributes": {"locale": "fr-FR", "whatsNew": "French testing notes"}}]
+        self.assertIn("tester_notes_missing_or_different", self.delivery()["pending_reasons"])
+        self.api.localizations[0]["attributes"]["whatsNew"] = "Synthetic testing notes"
+        result = self.delivery()
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual({note["locale"] for note in result["localizations"]}, {"en-US", "fr-FR"})
+        self.assertNotIn("Synthetic testing notes", json.dumps(result))
+        self.api.localizations[0]["attributes"]["whatsNew"] = "A different nonempty note"
+        self.assertIn("tester_notes_missing_or_different", self.delivery()["pending_reasons"])
+
+    def test_testflight_expiration_date_and_missing_expired_flag_block(self):
+        self.apple()
+        for expiry in ["2000-01-01T00:00:00Z", "not a date", "2999-01-01T00:00:00"]:
+            self.api.expiration_date = expiry
+            with self.subTest(expiry=expiry), self.assertRaisesRegex(PipelineError, "expiration"):
+                self.delivery()
+        self.api.expiration_date = None
+        self.api.expired = None
+        with self.assertRaisesRegex(PipelineError, "expired"):
+            self.delivery()
+        self.assertFalse(any(call[0] != "GET" for call in self.api.calls))
+
+    def test_testflight_transient_provider_read_failure_is_pending(self):
+        self.apple()
+        self.delivery()
+        for error in [stores.APIError(429), stores.APIError(503), stores.APIUnavailable("synthetic transport failure")]:
+            with self.subTest(error=type(error).__name__):
+                def unavailable(*args):
+                    raise error
+                result = stores.execute(self.config, self.root, api=unavailable)
+                self.assertEqual(result["state"], "readback_unavailable")
+                self.assertFalse(result["readiness_verified"])
+                self.assertNotIn("synthetic transport", json.dumps(result))
+        def forbidden(*args):
+            raise stores.APIError(403)
+        with self.assertRaises(stores.APIError):
+            stores.execute(self.config, self.root, api=forbidden)
+
+    def test_testflight_lost_assignment_response_never_sends_another_assignment(self):
+        self.apple()
+        original = self.api
+        def lost_response(method, path, body=None, upload=None):
+            if method == "POST":
+                original(method, path, body, upload)
+                raise stores.APIUnavailable("lost response")
+            return original(method, path, body, upload)
+        result = stores.execute(self.config, self.root, api=lost_response)
+        self.assertEqual(result["status"], "pending")
+        self.assertTrue(self.delivery()["readiness_verified"])
+        self.assertEqual(sum(call[0] == "POST" for call in self.api.calls), 1)
+
+    def test_testflight_external_group_requires_external_beta_readiness(self):
+        self.apple()
+        self.api.group_internal = False
+        self.assertIn("beta_processing_or_review", self.delivery()["pending_reasons"])
+        self.api.beta["externalBuildState"] = "IN_BETA_TESTING"
+        self.assertTrue(self.delivery()["readiness_verified"])
+
+    def test_testflight_membership_requires_build_resource_type(self):
+        self.apple()
+        for member in [{"id": "200"}, {"id": "200", "type": "apps"}]:
+            self.api.group_builds = [member]
+            with self.subTest(member=member), self.assertRaisesRegex(PipelineError, "membership"):
+                self.delivery()
+        self.assertFalse(any(call[0] != "GET" for call in self.api.calls))
+
+    def test_testflight_deadline_stops_slow_sequence_before_assignment(self):
+        self.apple()
+        clock = [0]
+        def slow(*args, **kwargs):
+            result = self.api(*args, **kwargs)
+            clock[0] += 0.5
+            return result
+        with patch("shared_ci.stores.time.monotonic", side_effect=lambda: clock[0]):
+            result = stores.execute(self.config, self.root, api=slow)
+        self.assertEqual(result["state"], "readiness_timeout")
+        self.assertFalse(result["readiness_verified"])
+        self.assertEqual(len(self.api.calls), 2)
+        self.assertFalse(any(call[0] != "GET" for call in self.api.calls))
+
+    def test_testflight_transport_timeout_uses_remaining_budget(self):
+        self.apple()
+        clock = [0]
+        observed = []
+        def request(transport, *args, **kwargs):
+            observed.append(transport.timeout)
+            result = self.api(*args, **kwargs)
+            clock[0] += 0.2
+            return result
+        transport = stores.API("apple", "synthetic", timeout=60)
+        with patch("shared_ci.stores.time.monotonic", side_effect=lambda: clock[0]), patch.object(stores.API, "__call__", request):
+            result = stores.execute(self.config, self.root, api=transport)
+        self.assertEqual(result["state"], "readiness_timeout")
+        self.assertEqual(observed[0], 1)
+        self.assertLess(observed[-1], observed[0])
+        self.assertEqual(transport.timeout, 60)
+
+    def test_testflight_beta_review_submission_is_not_repeated_while_pending(self):
+        self.apple()
+        self.config["apple"]["submit_beta_review"] = True
+        self.api.group_internal = False
+        self.api.beta["externalBuildState"] = "READY_FOR_BETA_SUBMISSION"
+        self.assertEqual(self.delivery()["status"], "pending")
+        self.assertEqual(self.delivery()["status"], "pending")
+        self.assertEqual(sum(call[0] == "POST" and call[1] == "/v1/betaAppReviewSubmissions" for call in self.api.calls), 1)
+        self.api.beta["externalBuildState"] = "IN_BETA_TESTING"
+        self.assertTrue(self.delivery()["readiness_verified"])
+
+    def test_testflight_poll_can_observe_delayed_membership_without_new_write(self):
+        self.apple()
+        self.api.retain_assignment = False
+        def become_visible(_):
+            self.api.group_builds = [{"id": "200", "type": "builds"}]
+        with patch("shared_ci.stores.time.sleep", side_effect=become_visible):
+            result = stores.execute(self.config, self.root, api=self.api)
+        self.assertTrue(result["readiness_verified"])
+        self.assertEqual(sum(call[0] == "POST" for call in self.api.calls), 1)
 
     def test_rendered_apple_staging_requires_actual_testflight_readiness(self):
         from shared_ci.gate import evaluate
