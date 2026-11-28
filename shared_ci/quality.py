@@ -7,15 +7,98 @@ import json
 import os
 import re
 import sys
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .common import PipelineError, atomic_json, confined_path, load_json, run, sha256_file, strict_keys, trusted_context
+from .common import CommandFailure, PipelineError, atomic_json, confined_path, load_json, redact_known_secrets, run, sha256_file, strict_keys, trusted_context
 
 PROFILES = {"node", "python", "deno", "flutter", "swift", "php", "shell", "powershell"}
 KEYS = {"version", "profile", "working_directory", "toolchain", "lockfiles", "install", "checks",
         "required_checks", "inputs", "immutable_paths", "coverage", "environment_names", "receipt", "timeout", "build_credentials", "allowed_refs"}
+
+
+class QualityFailure(PipelineError):
+    """Bounded structured evidence for a named quality failure."""
+
+    def __init__(self, details):
+        self.details = details
+        super().__init__(f"Quality {details['phase']} '{details['check']}' failed: {details['summary']}")
+
+
+def diagnostics_policy(value):
+    if value is None:
+        return None
+    strict_keys(value, {"test_names"})
+    names = value.get("test_names", [])
+    if (not isinstance(names, list) or len(names) > 100
+            or any(not isinstance(name, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.:-]{0,159}", name) for name in names)):
+        raise PipelineError("Diagnostic test names must be explicit bounded static identifiers")
+    return set(names)
+
+
+def junit_diagnostics(path, approved_names):
+    """Retain fixed failure types and simple scalar comparisons, never raw messages."""
+    try:
+        if not path or not path.is_file() or path.is_symlink() or not 0 < path.stat().st_size <= 1024 * 1024:
+            return {"report": "unavailable_or_oversized"}
+        text = redact_known_secrets(path.read_text(encoding="utf-8"))
+        if "<!DOCTYPE" in text or "<!ENTITY" in text:
+            return {"report": "invalid"}
+        doc = ET.fromstring(text)
+        if doc.tag not in {"testsuite", "testsuites"}:
+            return {"report": "invalid"}
+    except (UnicodeError, ET.ParseError):
+        return {"report": "invalid"}
+    except OSError:
+        return {"report": "unavailable_or_oversized"}
+    failures = []
+    total = 0
+    scalar = r"(?:-?\d{1,9}(?:\.\d{1,6})?|True|False|true|false|null|None)"
+    comparison = re.compile(r"^(?:AssertionError:\s*)?(" + scalar + r"\s*(?:!=|==|<=|>=|<|>|is not|is)\s*" + scalar + r")$")
+    for index, case in enumerate(doc.iter("testcase"), start=1):
+        failure = case.find("failure")
+        if failure is None:
+            failure = case.find("error")
+        if failure is None:
+            continue
+        total += 1
+        if len(failures) >= 20:
+            continue
+        entry = {"case": index, "type": "failure" if failure.tag == "failure" else "error"}
+        name = case.get("name")
+        if name in approved_names and redact_known_secrets(name) == name:
+            entry["test_name"] = name
+        message = redact_known_secrets(failure.get("message", "") + "\n" + (failure.text or ""))
+        for line in message.splitlines():
+            match = comparison.fullmatch(line.strip())
+            if match:
+                value = " ".join(match[1].split())
+                if redact_known_secrets(value) == value:
+                    entry["comparison"] = value
+                break
+        failures.append(entry)
+    return {"report": "junit", "failed_cases": failures, "omitted_failures": max(0, total - len(failures))}
+
+
+def command_failure(check, phase, error, *, started=None, report=None, diagnostics=None):
+    details = {"check": check, "phase": phase,
+               "elapsed_seconds": error.elapsed_seconds if isinstance(error, CommandFailure) else round(time.monotonic() - started, 3),
+               "exit_code": error.returncode if isinstance(error, CommandFailure) else 0,
+               "timed_out": isinstance(error, CommandFailure) and error.timed_out,
+               "summary": "command deadline exceeded" if isinstance(error, CommandFailure) and error.timed_out else
+                          (("command could not start" if error.returncode is None else "command exited unsuccessfully") if isinstance(error, CommandFailure) else str(error))}
+    if diagnostics is not None:
+        details["test_diagnostics"] = junit_diagnostics(report, diagnostics)
+    return QualityFailure(details)
+
+
+def quality_command(command, *, check, phase, **kwargs):
+    try:
+        return run(command, **kwargs)
+    except CommandFailure as error:
+        raise command_failure(check, phase, error) from None
 
 
 def _list(value, name, *, nonempty=False):
@@ -234,13 +317,13 @@ def execute(config, root, *, config_hash=None):
         if not isinstance(version, str) or not re.fullmatch(r"[0-9]+(?:\.[0-9]+)+(?:[-+][A-Za-z0-9.-]+)?", version):
             raise PipelineError("tool versions must be exact numeric versions")
         command = argv(tool["command"])
-        output = run(command, cwd=cwd, env_names=environment, timeout=timeout)
+        output = quality_command(command, check="toolchain", phase="toolchain", cwd=cwd, env_names=environment, timeout=timeout)
         combined = output.stdout + output.stderr
         if not re.search(r"(?<![\w.])v?" + re.escape(version) + r"(?![\w.])", combined):
             raise PipelineError(f"installed tool does not match required version {version}")
         tools.append({"command": command, "version": version})
     if config.get("install") is not None:
-        run(argv(config["install"]), cwd=cwd, env_names=environment, timeout=timeout)
+        quality_command(argv(config["install"]), check="install", phase="install", cwd=cwd, env_names=environment, timeout=timeout)
     required = _list(config["required_checks"], "required_checks", nonempty=True)
     checks = _list(config["checks"], "checks", nonempty=True)
     names = [check.get("name") for check in checks if isinstance(check, dict)]
@@ -250,7 +333,7 @@ def execute(config, root, *, config_hash=None):
         raise PipelineError("a required check is missing")
     results = []
     for check in checks:
-        strict_keys(check, {"name", "command", "kind", "test_report", "timeout"}, required=("name", "command", "kind"))
+        strict_keys(check, {"name", "command", "kind", "test_report", "timeout", "diagnostics"}, required=("name", "command", "kind"))
         kind = check["kind"]
         if kind not in {"format", "lint", "typecheck", "test", "build", "validate"}:
             raise PipelineError("unsupported check kind")
@@ -259,6 +342,9 @@ def execute(config, root, *, config_hash=None):
         command = argv(check["command"])
         _check_npm_script(command, cwd)
         report = _report_path(root, check["test_report"]) if kind == "test" else None
+        diagnostics = diagnostics_policy(check.get("diagnostics"))
+        if diagnostics is not None and (kind != "test" or check["test_report"]["format"] != "junit"):
+            raise PipelineError("Failure diagnostics currently require an explicitly selected JUnit test report")
         if report is not None and (report.relative_to(root).as_posix() in inputs or report.relative_to(root).as_posix() in lock_hashes):
             raise PipelineError("test report cannot overwrite an input or lockfile")
         if report is not None:
@@ -268,14 +354,21 @@ def execute(config, root, *, config_hash=None):
                     raise PipelineError("test report path must be a regular file")
                 report.unlink()  # A prior run's results can never prove this execution.
         selected_environment = environment + (build_credentials if kind == "build" else [])
-        output = run(command, cwd=cwd, env_names=selected_environment, timeout=_positive(check.get("timeout", timeout), "check timeout"))
+        started = time.monotonic()
+        try:
+            output = run(command, cwd=cwd, env_names=selected_environment, timeout=_positive(check.get("timeout", timeout), "check timeout"))
+        except CommandFailure as error:
+            raise command_failure(check["name"], kind, error, report=report, diagnostics=diagnostics) from None
         if report is not None and check["test_report"]["format"] == "flutter-machine":
             if report.is_symlink():
                 raise PipelineError("test report cannot be a symlink")
             report.write_text(output.stdout, encoding="utf-8")
         result = {"name": check["name"], "kind": kind, "status": "passed"}
         if report is not None:
-            result["test_summary"] = parse_test_report(report, check["test_report"]["format"])
+            try:
+                result["test_summary"] = parse_test_report(report, check["test_report"]["format"])
+            except PipelineError as error:
+                raise command_failure(check["name"], kind, error, started=started, report=report, diagnostics=diagnostics) from None
         if snapshot(root, immutable_paths) != immutable:
             raise PipelineError("quality check changed declared immutable source or configuration")
         results.append(result)

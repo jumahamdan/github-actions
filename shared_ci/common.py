@@ -9,12 +9,23 @@ import re
 import signal
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Iterable
 
 
 class PipelineError(ValueError):
     """An expected, safe-to-display pipeline failure."""
+
+
+class CommandFailure(PipelineError):
+    """Command metadata only; arbitrary output is never attached to this error."""
+
+    def __init__(self, message, *, returncode=None, timed_out=False, elapsed_seconds=0):
+        super().__init__(message)
+        self.returncode = returncode
+        self.timed_out = timed_out
+        self.elapsed_seconds = round(elapsed_seconds, 3)
 
 
 def _pairs(pairs):
@@ -104,6 +115,10 @@ def redact(text, values):
     return result
 
 
+def redact_known_secrets(text):
+    return redact(text, list(_DERIVED_SECRETS) + [value for name, value in os.environ.items() if _SENSITIVE.search(name)])
+
+
 def scoped_environment(names=(), extra=None):
     # No ambient cloud, model, registry, GitHub or package credentials.
     base = {key: os.environ[key] for key in ("PATH", "HOME", "TMPDIR", "TEMP", "SystemRoot") if key in os.environ}
@@ -128,18 +143,20 @@ def run(argv, *, cwd, env_names=(), extra_env=None, timeout=900,
         raise PipelineError("Command timeout must be between 0 and 21600 seconds")
     env = scoped_environment(env_names, extra_env)
     sensitive = [v for k, v in env.items() if _SENSITIVE.search(k)] + list(_DERIVED_SECRETS)
+    started = time.monotonic()
     try:
         proc = subprocess.Popen(list(argv), cwd=cwd, env=env, stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 text=True, start_new_session=True)
     except OSError as exc:
-        raise PipelineError(f"Cannot start command: {Path(argv[0]).name}") from exc
+        raise CommandFailure(f"Cannot start command: {Path(argv[0]).name}", elapsed_seconds=time.monotonic() - started) from exc
     try:
         stdout, stderr = proc.communicate(input=input_data, timeout=timeout)
     except subprocess.TimeoutExpired as exc:
         os.killpg(proc.pid, signal.SIGKILL)
         proc.communicate()
-        raise PipelineError(f"Command deadline exceeded: {Path(argv[0]).name}") from exc
+        raise CommandFailure(f"Command deadline exceeded: {Path(argv[0]).name}", returncode=proc.returncode,
+                             timed_out=True, elapsed_seconds=time.monotonic() - started) from exc
     stdout, stderr = redact(stdout, sensitive), redact(stderr, sensitive)
     if capture_file:
         path = Path(capture_file)
@@ -152,7 +169,8 @@ def run(argv, *, cwd, env_names=(), extra_env=None, timeout=900,
     result = subprocess.CompletedProcess(list(argv), proc.returncode, stdout, stderr)
     if check and result.returncode:
         # Tool output may include values derived from credentials. Never echo it automatically.
-        raise PipelineError(f"Command failed: {Path(argv[0]).name} (exit {result.returncode})")
+        raise CommandFailure(f"Command failed: {Path(argv[0]).name} (exit {result.returncode})",
+                             returncode=result.returncode, elapsed_seconds=time.monotonic() - started)
     return result
 
 

@@ -339,6 +339,65 @@ def policy(findings, threshold, exceptions, at=None):
         (f["id"], f["component"]) in accepted for f in findings)}
 
 
+def verified_checksum_findings(raw, selections, root, cwd):
+    """Exclude only an exact documentation-receipt checksum verified against its file."""
+    if (not isinstance(selections, list) or len(selections) > 20
+            or any(not isinstance(relative, str) for relative in selections)):
+        raise PipelineError("Verified checksum receipts must be explicit local file paths")
+    selected = {}
+    for relative in selections:
+        path = confined_path(root, relative, must_exist=False)
+        if not path.exists():
+            continue
+        if (Path(root) / relative).is_symlink() or not path.is_file() or path.stat().st_size > 1024 * 1024:
+            continue
+        try:
+            receipt = load_json(path)
+            if (type(receipt.get("schema_version")) is not int or receipt["schema_version"] != 1 or receipt.get("kind") != "documentation"
+                    or receipt.get("status") != "passed" or not isinstance(receipt.get("files"), dict)):
+                continue
+            selected[path] = (receipt["files"], path.read_text().splitlines())
+        except (PipelineError, UnicodeError, OSError, AttributeError):
+            continue
+    kept = []
+    suppressed = 0
+    for finding in raw:
+        allowed = False
+        try:
+            file = Path(cwd) / finding["File"]
+            file = file.resolve()
+            start, end = finding.get("StartLine"), finding.get("EndLine")
+            if (finding.get("RuleID") == "generic-api-key" and finding.get("Commit", "") == "" and file in selected
+                    and type(start) is int and type(end) is int and start == end and 1 <= start <= len(selected[file][1])):
+                fields, lines = selected[file]
+                field = json.loads("{" + lines[start - 1].strip().removesuffix(",") + "}")
+                if len(field) == 1:
+                    relative, digest = next(iter(field.items()))
+                    if (isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest)
+                            and relative.endswith((".md", ".markdown")) and fields.get(relative) == digest):
+                        source = confined_path(root, relative)
+                        value = re.search(r':\s*"([0-9a-f]{64})"\s*,?\s*$', lines[start - 1])
+                        match = finding.get("Match")
+                        if value and isinstance(match, str) and match and finding.get("Secret") == "REDACTED":
+                            # Gitleaks column offsets are not a literal Python string
+                            # slice. Bind its fully redacted match to only the parsed
+                            # value span; a credential inside the path key stays visible.
+                            line = lines[start - 1]
+                            redacted = line[:value.start(1)] + "REDACTED" + line[value.end(1):]
+                            positions = [part.start() for part in re.finditer(re.escape(match), redacted)]
+                            matches_value = (len(positions) == 1 and positions[0] <= value.start(1)
+                                             and positions[0] + len(match) >= value.start(1) + len("REDACTED"))
+                            allowed = (matches_value and source.is_file() and not (Path(root) / relative).is_symlink()
+                                       and sha256_file(source) == digest)
+        except (PipelineError, ValueError, TypeError, KeyError, OSError):
+            allowed = False
+        if allowed:
+            suppressed += 1
+        else:
+            kept.append(finding)
+    return kept, suppressed
+
+
 def scan(config, root, *, candidate=None):
     strict_keys(config, {"schema", "scans", "threshold", "exceptions", "max_age_hours"},
                 {"schema", "scans", "threshold", "max_age_hours"})
@@ -356,12 +415,19 @@ def scan(config, root, *, candidate=None):
     with tempfile.TemporaryDirectory(prefix="shared-ci-security-") as temporary:
         for index, item in enumerate(config["scans"]):
             strict_keys(item, {"id", "format", "command", "version_command", "version", "cwd", "output",
-                               "timeout", "allowed_exit_codes", "rules_identity", "database_identity"},
+                               "timeout", "allowed_exit_codes", "rules_identity", "database_identity", "verified_checksum_receipts"},
                         {"id", "format", "command", "version_command", "version", "output", "rules_identity", "database_identity"})
             if item["id"] in seen:
                 raise PipelineError("Duplicate security scanner identity")
             seen.add(item["id"])
             cwd = confined_path(root, item.get("cwd", "."))
+            if "verified_checksum_receipts" in item:
+                command = item.get("command")
+                if (item["format"] != "gitleaks" or not isinstance(command, list) or len(command) < 3
+                        or not isinstance(command[0], str) or Path(command[0]).name != "gitleaks"
+                        or command[1:3] != ["dir", "."] or Path(cwd).resolve() != Path(root).resolve()
+                        or item.get("version_command") != [command[0], "version"]):
+                    raise PipelineError("Verified checksum filtering requires gitleaks dir . at the repository root")
             if item["format"] == "semgrep":
                 semgrep_rules(item, root, cwd)  # Refuse remote rule selection before any scanner process.
             version = run(item["version_command"], cwd=cwd, timeout=30).stdout.strip()
@@ -387,9 +453,15 @@ def scan(config, root, *, candidate=None):
             observed_rules, observed_database = scanner_intelligence(item, root, cwd)
             if completed.returncode and not findings:
                 raise PipelineError("Scanner exited unsuccessfully without valid findings")
+            suppressed = 0
+            if "verified_checksum_receipts" in item:
+                raw, suppressed = verified_checksum_findings(raw, item["verified_checksum_receipts"], root, cwd)
+                findings = normalize(item["format"], raw)
             all_findings.extend(findings)
             records.append({"id": item["id"], "format": item["format"], "version": item["version"],
                             "rules": observed_rules, "database": observed_database, "finding_count": len(findings)})
+            if "verified_checksum_receipts" in item:
+                records[-1]["verified_checksum_fields"] = suppressed
     all_findings = _deduplicate(all_findings)
     counts = policy(all_findings, config["threshold"], config.get("exceptions", []))
     result = {"schema": 1, "status": "failed" if counts["blocking"] else "passed", "counts": counts,

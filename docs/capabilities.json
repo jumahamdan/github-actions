@@ -409,6 +409,9 @@
           "file": "tests/test_quality.py",
           "cases": [
             "test_ambient_credentials_not_passed",
+            "test_diagnostics_redact_after_xml_decoding_and_survive_read_errors",
+            "test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads",
+            "test_failure_summary_opt_in_and_bounds",
             "test_flutter_report_success_and_incomplete_failure",
             "test_junit_requires_executed_successful_cases",
             "test_locked_install_contracts",
@@ -421,6 +424,8 @@
             "test_real_process_success_proves_executed_tests_and_coverage",
             "test_reports_cannot_overwrite_inputs",
             "test_signing_credentials_only_reach_trusted_build",
+            "test_success_exit_with_failed_report_retains_failure_metadata",
+            "test_timeout_retains_named_check_and_available_report_summary",
             "test_unknown_field_missing_required_check_tool_mismatch_fail"
           ]
         },
@@ -592,6 +597,9 @@
           "file": "tests/test_quality.py",
           "cases": [
             "test_ambient_credentials_not_passed",
+            "test_diagnostics_redact_after_xml_decoding_and_survive_read_errors",
+            "test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads",
+            "test_failure_summary_opt_in_and_bounds",
             "test_flutter_report_success_and_incomplete_failure",
             "test_junit_requires_executed_successful_cases",
             "test_locked_install_contracts",
@@ -604,6 +612,8 @@
             "test_real_process_success_proves_executed_tests_and_coverage",
             "test_reports_cannot_overwrite_inputs",
             "test_signing_credentials_only_reach_trusted_build",
+            "test_success_exit_with_failed_report_retains_failure_metadata",
+            "test_timeout_retains_named_check_and_available_report_summary",
             "test_unknown_field_missing_required_check_tool_mismatch_fail"
           ]
         }
@@ -736,6 +746,9 @@
           "file": "tests/test_quality.py",
           "cases": [
             "test_ambient_credentials_not_passed",
+            "test_diagnostics_redact_after_xml_decoding_and_survive_read_errors",
+            "test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads",
+            "test_failure_summary_opt_in_and_bounds",
             "test_flutter_report_success_and_incomplete_failure",
             "test_junit_requires_executed_successful_cases",
             "test_locked_install_contracts",
@@ -748,6 +761,8 @@
             "test_real_process_success_proves_executed_tests_and_coverage",
             "test_reports_cannot_overwrite_inputs",
             "test_signing_credentials_only_reach_trusted_build",
+            "test_success_exit_with_failed_report_retains_failure_metadata",
+            "test_timeout_retains_named_check_and_available_report_summary",
             "test_unknown_field_missing_required_check_tool_mismatch_fail"
           ]
         }
@@ -768,6 +783,9 @@
           "file": "tests/test_quality.py",
           "cases": [
             "test_ambient_credentials_not_passed",
+            "test_diagnostics_redact_after_xml_decoding_and_survive_read_errors",
+            "test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads",
+            "test_failure_summary_opt_in_and_bounds",
             "test_flutter_report_success_and_incomplete_failure",
             "test_junit_requires_executed_successful_cases",
             "test_locked_install_contracts",
@@ -780,6 +798,8 @@
             "test_real_process_success_proves_executed_tests_and_coverage",
             "test_reports_cannot_overwrite_inputs",
             "test_signing_credentials_only_reach_trusted_build",
+            "test_success_exit_with_failed_report_retains_failure_metadata",
+            "test_timeout_retains_named_check_and_available_report_summary",
             "test_unknown_field_missing_required_check_tool_mismatch_fail"
           ]
         },
@@ -842,6 +862,9 @@
           "file": "tests/test_quality.py",
           "cases": [
             "test_ambient_credentials_not_passed",
+            "test_diagnostics_redact_after_xml_decoding_and_survive_read_errors",
+            "test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads",
+            "test_failure_summary_opt_in_and_bounds",
             "test_flutter_report_success_and_incomplete_failure",
             "test_junit_requires_executed_successful_cases",
             "test_locked_install_contracts",
@@ -854,6 +877,8 @@
             "test_real_process_success_proves_executed_tests_and_coverage",
             "test_reports_cannot_overwrite_inputs",
             "test_signing_credentials_only_reach_trusted_build",
+            "test_success_exit_with_failed_report_retains_failure_metadata",
+            "test_timeout_retains_named_check_and_available_report_summary",
             "test_unknown_field_missing_required_check_tool_mismatch_fail"
           ]
         }
@@ -1027,6 +1052,9 @@
           "file": "tests/test_quality.py",
           "cases": [
             "test_ambient_credentials_not_passed",
+            "test_diagnostics_redact_after_xml_decoding_and_survive_read_errors",
+            "test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads",
+            "test_failure_summary_opt_in_and_bounds",
             "test_flutter_report_success_and_incomplete_failure",
             "test_junit_requires_executed_successful_cases",
             "test_locked_install_contracts",
@@ -1039,6 +1067,8 @@
             "test_real_process_success_proves_executed_tests_and_coverage",
             "test_reports_cannot_overwrite_inputs",
             "test_signing_credentials_only_reach_trusted_build",
+            "test_success_exit_with_failed_report_retains_failure_metadata",
+            "test_timeout_retains_named_check_and_available_report_summary",
             "test_unknown_field_missing_required_check_tool_mismatch_fail"
           ]
         }
@@ -1125,6 +1155,9 @@
           "file": "tests/test_quality.py",
           "cases": [
             "test_ambient_credentials_not_passed",
+            "test_diagnostics_redact_after_xml_decoding_and_survive_read_errors",
+            "test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads",
+            "test_failure_summary_opt_in_and_bounds",
             "test_flutter_report_success_and_incomplete_failure",
             "test_junit_requires_executed_successful_cases",
             "test_locked_install_contracts",
@@ -1137,6 +1170,8 @@
             "test_real_process_success_proves_executed_tests_and_coverage",
             "test_reports_cannot_overwrite_inputs",
             "test_signing_credentials_only_reach_trusted_build",
+            "test_success_exit_with_failed_report_retains_failure_metadata",
+            "test_timeout_retains_named_check_and_available_report_summary",
             "test_unknown_field_missing_required_check_tool_mismatch_fail"
           ]
         },
@@ -1214,6 +1249,9 @@
           "file": "tests/test_quality.py",
           "cases": [
             "test_ambient_credentials_not_passed",
+            "test_diagnostics_redact_after_xml_decoding_and_survive_read_errors",
+            "test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads",
+            "test_failure_summary_opt_in_and_bounds",
             "test_flutter_report_success_and_incomplete_failure",
             "test_junit_requires_executed_successful_cases",
             "test_locked_install_contracts",
@@ -1226,6 +1264,8 @@
             "test_real_process_success_proves_executed_tests_and_coverage",
             "test_reports_cannot_overwrite_inputs",
             "test_signing_credentials_only_reach_trusted_build",
+            "test_success_exit_with_failed_report_retains_failure_metadata",
+            "test_timeout_retains_named_check_and_available_report_summary",
             "test_unknown_field_missing_required_check_tool_mismatch_fail"
           ]
         },
@@ -1302,6 +1342,9 @@
           "file": "tests/test_quality.py",
           "cases": [
             "test_ambient_credentials_not_passed",
+            "test_diagnostics_redact_after_xml_decoding_and_survive_read_errors",
+            "test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads",
+            "test_failure_summary_opt_in_and_bounds",
             "test_flutter_report_success_and_incomplete_failure",
             "test_junit_requires_executed_successful_cases",
             "test_locked_install_contracts",
@@ -1314,6 +1357,8 @@
             "test_real_process_success_proves_executed_tests_and_coverage",
             "test_reports_cannot_overwrite_inputs",
             "test_signing_credentials_only_reach_trusted_build",
+            "test_success_exit_with_failed_report_retains_failure_metadata",
+            "test_timeout_retains_named_check_and_available_report_summary",
             "test_unknown_field_missing_required_check_tool_mismatch_fail"
           ]
         }
@@ -1472,6 +1517,9 @@
           "file": "tests/test_quality.py",
           "cases": [
             "test_ambient_credentials_not_passed",
+            "test_diagnostics_redact_after_xml_decoding_and_survive_read_errors",
+            "test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads",
+            "test_failure_summary_opt_in_and_bounds",
             "test_flutter_report_success_and_incomplete_failure",
             "test_junit_requires_executed_successful_cases",
             "test_locked_install_contracts",
@@ -1484,6 +1532,8 @@
             "test_real_process_success_proves_executed_tests_and_coverage",
             "test_reports_cannot_overwrite_inputs",
             "test_signing_credentials_only_reach_trusted_build",
+            "test_success_exit_with_failed_report_retains_failure_metadata",
+            "test_timeout_retains_named_check_and_available_report_summary",
             "test_unknown_field_missing_required_check_tool_mismatch_fail"
           ]
         },
@@ -1604,6 +1654,9 @@
           "file": "tests/test_quality.py",
           "cases": [
             "test_ambient_credentials_not_passed",
+            "test_diagnostics_redact_after_xml_decoding_and_survive_read_errors",
+            "test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads",
+            "test_failure_summary_opt_in_and_bounds",
             "test_flutter_report_success_and_incomplete_failure",
             "test_junit_requires_executed_successful_cases",
             "test_locked_install_contracts",
@@ -1616,6 +1669,8 @@
             "test_real_process_success_proves_executed_tests_and_coverage",
             "test_reports_cannot_overwrite_inputs",
             "test_signing_credentials_only_reach_trusted_build",
+            "test_success_exit_with_failed_report_retains_failure_metadata",
+            "test_timeout_retains_named_check_and_available_report_summary",
             "test_unknown_field_missing_required_check_tool_mismatch_fail"
           ]
         }
@@ -1723,6 +1778,9 @@
           "file": "tests/test_quality.py",
           "cases": [
             "test_ambient_credentials_not_passed",
+            "test_diagnostics_redact_after_xml_decoding_and_survive_read_errors",
+            "test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads",
+            "test_failure_summary_opt_in_and_bounds",
             "test_flutter_report_success_and_incomplete_failure",
             "test_junit_requires_executed_successful_cases",
             "test_locked_install_contracts",
@@ -1735,6 +1793,8 @@
             "test_real_process_success_proves_executed_tests_and_coverage",
             "test_reports_cannot_overwrite_inputs",
             "test_signing_credentials_only_reach_trusted_build",
+            "test_success_exit_with_failed_report_retains_failure_metadata",
+            "test_timeout_retains_named_check_and_available_report_summary",
             "test_unknown_field_missing_required_check_tool_mismatch_fail"
           ]
         }
@@ -2010,6 +2070,9 @@
           "file": "tests/test_quality.py",
           "cases": [
             "test_ambient_credentials_not_passed",
+            "test_diagnostics_redact_after_xml_decoding_and_survive_read_errors",
+            "test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads",
+            "test_failure_summary_opt_in_and_bounds",
             "test_flutter_report_success_and_incomplete_failure",
             "test_junit_requires_executed_successful_cases",
             "test_locked_install_contracts",
@@ -2022,6 +2085,8 @@
             "test_real_process_success_proves_executed_tests_and_coverage",
             "test_reports_cannot_overwrite_inputs",
             "test_signing_credentials_only_reach_trusted_build",
+            "test_success_exit_with_failed_report_retains_failure_metadata",
+            "test_timeout_retains_named_check_and_available_report_summary",
             "test_unknown_field_missing_required_check_tool_mismatch_fail"
           ]
         }
@@ -2041,6 +2106,9 @@
           "file": "tests/test_quality.py",
           "cases": [
             "test_ambient_credentials_not_passed",
+            "test_diagnostics_redact_after_xml_decoding_and_survive_read_errors",
+            "test_failed_check_retains_bounded_opt_in_diagnostics_without_payloads",
+            "test_failure_summary_opt_in_and_bounds",
             "test_flutter_report_success_and_incomplete_failure",
             "test_junit_requires_executed_successful_cases",
             "test_locked_install_contracts",
@@ -2053,6 +2121,8 @@
             "test_real_process_success_proves_executed_tests_and_coverage",
             "test_reports_cannot_overwrite_inputs",
             "test_signing_credentials_only_reach_trusted_build",
+            "test_success_exit_with_failed_report_retains_failure_metadata",
+            "test_timeout_retains_named_check_and_available_report_summary",
             "test_unknown_field_missing_required_check_tool_mismatch_fail"
           ]
         }
@@ -2285,6 +2355,7 @@
             "test_failure_after_receipt_creation_replaces_passing_evidence",
             "test_materialized_credentials_and_environment_are_cleaned_after_failure",
             "test_pending_operation_has_stamped_receipt_and_outputs_but_cannot_pass_release_gate",
+            "test_quality_failure_details_survive_in_existing_evidence_bundle",
             "test_receipt_cannot_overwrite_tracked_source"
           ]
         },
@@ -2317,12 +2388,18 @@
           "file": "tests/test_security.py",
           "cases": [
             "test_actual_command_failure_cannot_return_clean",
+            "test_changed_source_wrong_rule_and_unselected_receipt_are_not_exempt",
+            "test_checksum_filter_integrates_without_accepting_failed_scanner",
+            "test_checksum_filter_refuses_historical_or_other_root_scan",
+            "test_checksum_filter_requires_match_to_value_not_credential_in_path",
             "test_codeql_cvss_severity_overrides_sarif_display_level",
             "test_duplicate_findings_across_real_scanner_processes_keep_blocker",
             "test_duplicate_findings_keep_highest_severity_in_either_order",
             "test_error_schema_is_not_clean_scan",
             "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
             "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
+            "test_only_verified_document_checksum_is_suppressed_beside_secret",
+            "test_pinned_gitleaks_keeps_secret_in_document_path_key",
             "test_secret_value_never_leaves_normalizer",
             "test_semgrep_configs_match_all_checksummed_local_rule_files",
             "test_semgrep_registry_auto_mismatched_missing_and_mutated_rules_fail_before_process",
@@ -2347,12 +2424,18 @@
           "file": "tests/test_security.py",
           "cases": [
             "test_actual_command_failure_cannot_return_clean",
+            "test_changed_source_wrong_rule_and_unselected_receipt_are_not_exempt",
+            "test_checksum_filter_integrates_without_accepting_failed_scanner",
+            "test_checksum_filter_refuses_historical_or_other_root_scan",
+            "test_checksum_filter_requires_match_to_value_not_credential_in_path",
             "test_codeql_cvss_severity_overrides_sarif_display_level",
             "test_duplicate_findings_across_real_scanner_processes_keep_blocker",
             "test_duplicate_findings_keep_highest_severity_in_either_order",
             "test_error_schema_is_not_clean_scan",
             "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
             "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
+            "test_only_verified_document_checksum_is_suppressed_beside_secret",
+            "test_pinned_gitleaks_keeps_secret_in_document_path_key",
             "test_secret_value_never_leaves_normalizer",
             "test_semgrep_configs_match_all_checksummed_local_rule_files",
             "test_semgrep_registry_auto_mismatched_missing_and_mutated_rules_fail_before_process",
@@ -2378,12 +2461,18 @@
           "file": "tests/test_security.py",
           "cases": [
             "test_actual_command_failure_cannot_return_clean",
+            "test_changed_source_wrong_rule_and_unselected_receipt_are_not_exempt",
+            "test_checksum_filter_integrates_without_accepting_failed_scanner",
+            "test_checksum_filter_refuses_historical_or_other_root_scan",
+            "test_checksum_filter_requires_match_to_value_not_credential_in_path",
             "test_codeql_cvss_severity_overrides_sarif_display_level",
             "test_duplicate_findings_across_real_scanner_processes_keep_blocker",
             "test_duplicate_findings_keep_highest_severity_in_either_order",
             "test_error_schema_is_not_clean_scan",
             "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
             "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
+            "test_only_verified_document_checksum_is_suppressed_beside_secret",
+            "test_pinned_gitleaks_keeps_secret_in_document_path_key",
             "test_secret_value_never_leaves_normalizer",
             "test_semgrep_configs_match_all_checksummed_local_rule_files",
             "test_semgrep_registry_auto_mismatched_missing_and_mutated_rules_fail_before_process",
@@ -2420,12 +2509,18 @@
           "file": "tests/test_security.py",
           "cases": [
             "test_actual_command_failure_cannot_return_clean",
+            "test_changed_source_wrong_rule_and_unselected_receipt_are_not_exempt",
+            "test_checksum_filter_integrates_without_accepting_failed_scanner",
+            "test_checksum_filter_refuses_historical_or_other_root_scan",
+            "test_checksum_filter_requires_match_to_value_not_credential_in_path",
             "test_codeql_cvss_severity_overrides_sarif_display_level",
             "test_duplicate_findings_across_real_scanner_processes_keep_blocker",
             "test_duplicate_findings_keep_highest_severity_in_either_order",
             "test_error_schema_is_not_clean_scan",
             "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
             "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
+            "test_only_verified_document_checksum_is_suppressed_beside_secret",
+            "test_pinned_gitleaks_keeps_secret_in_document_path_key",
             "test_secret_value_never_leaves_normalizer",
             "test_semgrep_configs_match_all_checksummed_local_rule_files",
             "test_semgrep_registry_auto_mismatched_missing_and_mutated_rules_fail_before_process",
@@ -2527,12 +2622,18 @@
           "file": "tests/test_security.py",
           "cases": [
             "test_actual_command_failure_cannot_return_clean",
+            "test_changed_source_wrong_rule_and_unselected_receipt_are_not_exempt",
+            "test_checksum_filter_integrates_without_accepting_failed_scanner",
+            "test_checksum_filter_refuses_historical_or_other_root_scan",
+            "test_checksum_filter_requires_match_to_value_not_credential_in_path",
             "test_codeql_cvss_severity_overrides_sarif_display_level",
             "test_duplicate_findings_across_real_scanner_processes_keep_blocker",
             "test_duplicate_findings_keep_highest_severity_in_either_order",
             "test_error_schema_is_not_clean_scan",
             "test_gitleaks_disabled_partial_or_fake_redaction_refused_before_scan",
             "test_missing_or_malformed_sarif_results_never_mean_clean_scan",
+            "test_only_verified_document_checksum_is_suppressed_beside_secret",
+            "test_pinned_gitleaks_keeps_secret_in_document_path_key",
             "test_secret_value_never_leaves_normalizer",
             "test_semgrep_configs_match_all_checksummed_local_rule_files",
             "test_semgrep_registry_auto_mismatched_missing_and_mutated_rules_fail_before_process",
@@ -2860,6 +2961,7 @@
             "test_failure_after_receipt_creation_replaces_passing_evidence",
             "test_materialized_credentials_and_environment_are_cleaned_after_failure",
             "test_pending_operation_has_stamped_receipt_and_outputs_but_cannot_pass_release_gate",
+            "test_quality_failure_details_survive_in_existing_evidence_bundle",
             "test_receipt_cannot_overwrite_tracked_source"
           ]
         },

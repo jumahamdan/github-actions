@@ -12,6 +12,7 @@ from shared_ci.common import PipelineError
 from shared_ci.gate import evaluate
 from shared_ci.common import atomic_json, fingerprint, load_json, sha256_file
 from shared_ci.evidence import IDENTITY_FIELDS
+from shared_ci.quality import QualityFailure
 from test_stores import fixture
 
 LIBRARY=Path(__file__).resolve().parent.parent
@@ -92,6 +93,18 @@ class WrapperTests(unittest.TestCase):
         self.assertEqual(outputs['status'],'failed')
         self.assertEqual(json.loads(Path(outputs['receipt']).read_text()),{'schema':1,'status':'failed','module':'docs'})
         self.assertNotIn('synthetic-secret',Path(outputs['receipt']).read_text())
+
+    def test_quality_failure_details_survive_in_existing_evidence_bundle(self):
+        details = {"check": "unit", "phase": "test", "elapsed_seconds": 1.2, "exit_code": 7, "timed_out": False,
+                   "summary": "command exited unsuccessfully", "test_diagnostics": {"report": "junit", "failed_cases": [{"case": 1, "type": "failure", "comparison": "1 != 2"}], "omitted_failures": 0}}
+        with patch.dict(os.environ, self.env | {"SHARED_MODULE": "quality"}), patch('shared_ci.quality.execute', side_effect=QualityFailure(details)):
+            with self.assertRaises(QualityFailure):
+                wrapper.main()
+        outputs = dict(line.split('=', 1) for line in self.outputs.read_text().splitlines())
+        receipt = json.loads(Path(outputs['receipt']).read_text())
+        self.assertEqual(receipt['failure'], details)
+        self.assertEqual(outputs['status'], 'failed')
+        self.assertEqual(list(Path(outputs['bundle']).iterdir()), [Path(outputs['receipt'])])
 
     def test_failure_after_receipt_creation_replaces_passing_evidence(self):
         self.env['SHARED_MODULE']='quality'
