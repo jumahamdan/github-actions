@@ -46,7 +46,7 @@ For library changes, edit the source definitions and regenerate; see [Maintainin
 | Sentry and Crashlytics | [Monitoring](docs/monitoring.md) |
 | Mock/live AI evaluations and advisory AI review | [AI evaluations](docs/ai-evaluations.md) |
 | Security and coverage analysis | [Security](docs/security.md), [Sonar](docs/sonar.md) |
-| Documentation and manual Wiki publication | [Documentation checks](docs/documentation.md), [Wiki publishing](docs/wiki-publishing.md) |
+| Documentation and manual Wiki publication | [Documentation checks](docs/documentation.md), [PR coverage](docs/pr-documentation-coverage.md), [Wiki publishing](docs/wiki-publishing.md) |
 
 Default library validation uses local fixtures and mock AI providers. Live model/device jobs, provider delivery and store submissions require explicit product configuration and verification. Apple compilation and signing stay in Xcode Cloud or an existing authorized Mac lane; there is no GitHub macOS runner.
 

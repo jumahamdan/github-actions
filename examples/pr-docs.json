@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "code_paths": ["src/**", "api/**", "ui/**"],
+  "doc_paths": ["README.md", "docs/**"],
+  "release_note_paths": ["CHANGELOG.md"],
+  "exemptions": {
+    "tests": ["spec/**"],
+    "additional": ["examples/evidence/**"]
+  }
+}

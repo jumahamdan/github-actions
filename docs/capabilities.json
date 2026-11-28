@@ -2533,10 +2533,11 @@
       "id": "DOC-01",
       "service": "Documentation checks",
       "modules": [
-        "docs"
+        "docs",
+        "pr_docs"
       ],
       "example": "examples/docs.json",
-      "adoption": "Versioned product facts/generators and documentation changes accompany behavior changes.",
+      "adoption": "Configure product facts/links and PR code/docs/release-note paths. The coverage action validates explicit declarations and file evidence; it cannot infer behavior changes or prove prose accuracy.",
       "tests": [
         {
           "file": "tests/test_docs.py",
@@ -2550,6 +2551,45 @@
             "test_no_match_unknown_fields_missing_required_and_output_collision",
             "test_reference_html_and_escaped_filename_links",
             "test_unicode_anchor_and_heading_link"
+          ]
+        },
+        {
+          "file": "tests/test_pr_docs.py",
+          "cases": [
+            "test_added_line_inside_preexisting_comment_or_fence_is_not_release_note",
+            "test_automatic_exemptions_and_docs_only_need_no_declaration",
+            "test_behavior_change_requires_actual_added_release_note",
+            "test_behavior_must_be_explicit_and_no_needs_reason",
+            "test_blank_heading_comment_placeholder_and_code_are_not_release_notes",
+            "test_body_base_and_file_count_changes_during_read_fail",
+            "test_code_with_actual_docs_and_no_behavior_change",
+            "test_complete_authenticated_file_pages",
+            "test_current_body_is_read_again_for_edited_events",
+            "test_declared_behavior_change_overrides_file_only_exemption",
+            "test_duplicate_declarations_are_ambiguous",
+            "test_dynamic_route_and_unicode_paths_remain_valid",
+            "test_extra_exemptions_are_repository_local_and_mixed_safe",
+            "test_failure_output_does_not_include_raw_body_or_file_paths",
+            "test_fence_closer_needs_matching_marker_length_and_no_info_string",
+            "test_full_release_document_is_read_at_exact_head",
+            "test_invalid_configuration_is_not_an_exemption",
+            "test_invalid_event_repository_and_head_fail",
+            "test_invalid_or_duplicate_file_metadata_fails",
+            "test_invalid_release_content_is_not_accepted",
+            "test_large_pr_and_different_head_are_refused",
+            "test_markdown_checklist_and_bold_labels_are_supported",
+            "test_mismatched_or_malformed_release_diff_fails_closed",
+            "test_missing_and_placeholder_docs_reasons_fail",
+            "test_missing_diff_or_removed_release_notes_cannot_satisfy_yes",
+            "test_mixed_exempt_and_code_changes_are_not_wholly_exempt",
+            "test_multiline_comment_preserves_release_diff_line_numbers",
+            "test_nested_fenced_examples_cannot_supply_release_notes",
+            "test_no_pull_request_target_or_local_code_execution_entrypoint",
+            "test_rename_checks_both_old_and_new_paths",
+            "test_setext_headings_and_indented_code_do_not_supply_release_prose",
+            "test_short_page_and_duplicate_metadata_fail",
+            "test_specific_no_docs_reason_satisfies_coverage",
+            "test_template_examples_and_comments_do_not_supply_declarations"
           ]
         }
       ],
